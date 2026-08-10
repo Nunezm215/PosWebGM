@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { SucursalDto } from '../types'
 import { useAuth } from '../context/AuthContext'
 import ProductLookupModal from './ProductLookupModal'
-import { Menu, MapPin, LogOut } from 'lucide-react'
+import { CalendarDays, Menu, MapPin, LogOut } from 'lucide-react'
 import { getCurrentVersion } from '../versionCheck'
 
 declare const __APP_VERSION__: string
 
 const menuByRole = {
   common: [
+    { to: '/eventos', label: 'Eventos', icon: <CalendarDays size={16} strokeWidth={2} /> as ReactNode },
     { to: '/clientes', label: 'Clientes', icon: '👤' },
   ],
   admin: [
+    { to: '/eventos', label: 'Eventos', icon: <CalendarDays size={16} strokeWidth={2} /> as ReactNode },
     { to: '/clientes', label: 'Clientes', icon: '👤' },
     { to: '/caja', label: 'Caja', icon: '💰' },
     { to: '/gastos', label: 'Gastos', icon: '💸' },
@@ -121,7 +123,7 @@ export default function Layout() {
               }`
             }
           >
-            <span className="text-sm w-5 text-center shrink-0">{link.icon}</span>
+            <span className="text-sm w-5 text-center shrink-0 flex items-center justify-center">{link.icon}</span>
             {link.label}
           </NavLink>
         ))}

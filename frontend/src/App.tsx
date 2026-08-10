@@ -14,6 +14,7 @@ import CajaPage from './pages/CajaPage'
 import AltaUsuarioPage from './pages/AltaUsuarioPage'
 import CompraPage from './pages/CompraPage'
 import GastosPage from './pages/GastosPage'
+import EventosPage from './pages/EventosPage'
 import ProveedoresPage from './pages/ProveedoresPage'
 import DeudaPage from './pages/DeudaPage'
 import PedidosPage from './pages/PedidosPage'
@@ -115,8 +116,9 @@ export default function App() {
           <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AuthGuard />}>
-            <Route element={<Layout />}>
+            <Route element={<Layout />}> 
               <Route path="/" element={<HomePage />} />
+              <Route path="/eventos" element={<EventosPage />} />
             <Route path="/productos" element={<ProductosPage />} />
             <Route path="/ventas" element={<VentasPage />} />
             <Route path="/historial" element={<HistorialVentasPage />} />

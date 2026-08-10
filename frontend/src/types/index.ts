@@ -268,6 +268,23 @@ export interface CambiarSuscripcionResponse {
   nivel: string
 }
 
+// --- Evento types ---
+export interface EventoDto {
+  id: number
+  clienteId: number
+  usuarioCreadorId: number
+  sucursalId: number
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  tipoEvento: string
+  cantidadInvitados: number
+  montoTotal: number
+  observaciones?: string | null
+  estado: string
+  fechaCreacion: string
+}
+
 // --- Cliente types ---
 export interface ClienteDto {
   id?: number

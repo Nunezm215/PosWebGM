@@ -64,6 +64,7 @@ describe('Layout navigation', () => {
   it('shows only the salon-visible modules for admin roles', () => {
     renderLayout()
 
+    expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Clientes')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
     expect(screen.getByText('Gastos')).toBeInTheDocument()
@@ -84,10 +85,19 @@ describe('Layout navigation', () => {
     userState.user = { id: 2, nombre: 'Usuario', rol: 'UsuarioComun' }
     renderLayout()
 
+    expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Clientes')).toBeInTheDocument()
     expect(screen.queryByText('Caja')).not.toBeInTheDocument()
     expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
     expect(screen.queryByText('Usuarios')).not.toBeInTheDocument()
     expect(screen.queryByText('Configuración')).not.toBeInTheDocument()
+  })
+
+  it('also shows Eventos for SuperAdmin', () => {
+    userState.user = { id: 3, nombre: 'Super', rol: 'SuperAdmin' }
+    renderLayout()
+
+    expect(screen.getByText('Eventos')).toBeInTheDocument()
+    expect(screen.getByText('Caja')).toBeInTheDocument()
   })
 })

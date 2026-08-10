@@ -361,6 +361,130 @@ Aplicar migracion SQLite local + registrar DI + API HTTP de Eventos.
 **Fase 1B:**
 frontend de Eventos + calendario + alta/detalle/edicion/cancelacion.
 
+## Fase 1B.1 - Calendario frontend de Eventos
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1b1-calendario-eventos-ok`
+
+### Implementado
+
+- Ruta `/eventos`.
+- Opcion `Eventos` agregada al menu.
+- Visible para:
+  - SuperAdmin
+  - Admin
+  - UsuarioComun
+- `EventosPage` creada.
+- Calendario mensual propio, sin dependencia externa.
+- Calendario de solo lectura.
+- Carga de eventos mediante:
+  `GET /api/eventos/rango`
+- Consulta unicamente el rango visible del calendario.
+- Al cambiar de mes se consulta nuevamente el rango.
+- Tipo frontend `EventoDto`.
+- Helpers:
+  - `api.eventos.listarPorRango`
+  - `api.eventos.obtenerPorId`
+
+### Visualizacion
+
+- Los eventos muestran hora y tipo de evento.
+- Estados:
+  - Reservado
+  - Señado
+  - Pagado
+  - Cancelado
+- Los estados tienen identificacion textual.
+- Cancelados se muestran diferenciados.
+- Click sobre evento abre detalle de solo lectura.
+
+### Detalle
+
+El modal muestra:
+
+- fecha
+- hora inicio
+- hora fin
+- tipo de evento
+- invitados
+- monto
+- estado
+- cliente
+- sucursal
+- usuario creador
+- observaciones
+
+### Responsive
+
+Verificado en:
+
+- PC
+- celular en red local
+
+El calendario y el detalle funcionan correctamente en ambos.
+
+### Tests
+
+Tests de:
+
+- EventosPage
+- Layout
+
+Se corrigio un test que encontraba dos textos `Reservado`,
+limitando la busqueda al dialog mediante `within(dialog)`.
+
+### Build
+
+- `npm run build`: OK
+
+### Verificacion manual
+
+Se verifico correctamente el Evento real existente:
+
+- fecha: 15/08/2026
+- inicio: 18:00
+- fin: 22:00
+- tipo: Cumpleanos
+- estado: Reservado
+
+El evento se obtiene desde la API y aparece correctamente en el calendario.
+
+Al hacer click se abre correctamente su detalle.
+
+### Dependencias
+
+- No se agrego ninguna libreria de calendario.
+- No se agregaron dependencias nuevas.
+
+### No incluido todavia
+
+- crear Evento desde frontend
+- editar Evento
+- cancelar Evento
+- cambiar estado
+- pagos de Evento
+- gastos de Evento
+- integracion con Caja
+- QR
+
+### Proximo paso
+
+**Fase 1B.2: Alta de Evento desde frontend.**
+
+Incluir:
+
+- boton Nuevo Evento
+- busqueda/seleccion de cliente
+- formulario
+- fecha y horarios
+- tipo de evento
+- invitados
+- monto
+- observaciones
+- validacion de disponibilidad
+- POST /api/eventos
+- actualizacion automatica del calendario
+
 ## Proximo paso
 
 **Fase 1A.2:** persistencia EF Core + migraciones + API de Eventos.
