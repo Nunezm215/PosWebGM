@@ -431,6 +431,81 @@ namespace PosWeb.Migrations
                     b.ToTable("EMPRESA", (string)null);
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.Evento", b =>
+                {
+                    b.Property<int>("ID_EVENTO")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID_EVENTO");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ID_EVENTO"));
+
+                    b.Property<int>("CANTIDAD_INVITADOS")
+                        .HasColumnType("int")
+                        .HasColumnName("CANTIDAD_INVITADOS");
+
+                    b.Property<string>("ESTADO")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Reservado")
+                        .HasColumnName("ESTADO");
+
+                    b.Property<DateOnly>("FECHA")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA");
+
+                    b.Property<DateTime>("FECHA_CREACION")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("FECHA_CREACION");
+
+                    b.Property<TimeOnly>("HORA_FIN")
+                        .HasColumnType("time(6)")
+                        .HasColumnName("HORA_FIN");
+
+                    b.Property<TimeOnly>("HORA_INICIO")
+                        .HasColumnType("time(6)")
+                        .HasColumnName("HORA_INICIO");
+
+                    b.Property<int>("ID_CLIENTE")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_CLIENTE");
+
+                    b.Property<int>("ID_SUCURSAL")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_SUCURSAL");
+
+                    b.Property<int>("ID_USUARIO_CREADOR")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_USUARIO_CREADOR");
+
+                    b.Property<decimal>("MONTO_TOTAL")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("MONTO_TOTAL");
+
+                    b.Property<string>("OBSERVACIONES")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("OBSERVACIONES");
+
+                    b.Property<string>("TIPO_EVENTO")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("TIPO_EVENTO");
+
+                    b.HasKey("ID_EVENTO");
+
+                    b.HasIndex("ID_CLIENTE");
+
+                    b.HasIndex("ID_USUARIO_CREADOR");
+
+                    b.HasIndex("ID_SUCURSAL", "FECHA");
+
+                    b.ToTable("EVENTO", (string)null);
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Gasto", b =>
                 {
                     b.Property<int>("ID_GASTO")
@@ -1492,6 +1567,33 @@ namespace PosWeb.Migrations
                         .HasForeignKey("ID_SUSCRIPCION")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("PosWeb.Domain.Evento", b =>
+                {
+                    b.HasOne("PosWeb.Domain.Cliente", "Cliente")
+                        .WithMany()
+                        .HasForeignKey("ID_CLIENTE")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosWeb.Domain.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("ID_SUCURSAL")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosWeb.Domain.Usuario", "UsuarioCreador")
+                        .WithMany()
+                        .HasForeignKey("ID_USUARIO_CREADOR")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
+
+                    b.Navigation("Sucursal");
+
+                    b.Navigation("UsuarioCreador");
                 });
 
             modelBuilder.Entity("PosWeb.Domain.Gasto", b =>

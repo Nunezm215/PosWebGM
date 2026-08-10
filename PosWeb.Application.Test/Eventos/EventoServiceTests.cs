@@ -213,6 +213,20 @@ public class EventoServiceTests
         public Task<IReadOnlyList<Evento>> ListarAsync(CancellationToken cancellationToken = default)
             => Task.FromResult((IReadOnlyList<Evento>)_eventos.ToList());
 
+        public Task<IReadOnlyList<Evento>> ListarPorRangoAsync(DateOnly fechaDesde, DateOnly fechaHasta, int? sucursalId = null, CancellationToken cancellationToken = default)
+        {
+            var filtrados = _eventos.Where(e => e.FECHA >= fechaDesde && e.FECHA <= fechaHasta);
+            if (sucursalId.HasValue)
+                filtrados = filtrados.Where(e => e.ID_SUCURSAL == sucursalId.Value);
+            return Task.FromResult((IReadOnlyList<Evento>)filtrados.OrderBy(e => e.FECHA).ThenBy(e => e.HORA_INICIO).ToList());
+        }
+
+        public Task<IReadOnlyList<Evento>> ListarPorFechaYSucursalAsync(DateOnly fecha, int sucursalId, CancellationToken cancellationToken = default)
+            => Task.FromResult((IReadOnlyList<Evento>)_eventos
+                .Where(e => e.FECHA == fecha && e.ID_SUCURSAL == sucursalId)
+                .OrderBy(e => e.HORA_INICIO)
+                .ToList());
+
         public Task<Evento?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default)
             => Task.FromResult(_eventos.FirstOrDefault(e => e.ID_EVENTO == eventoId));
 

@@ -7,6 +7,8 @@ public partial class PosDbContext
 {
     internal static void ConfigureEntities(ModelBuilder modelBuilder)
     {
+        ConfigureEvento(modelBuilder);
+
         // ---- PRODUCTO ----
         modelBuilder.Entity<Producto>(entity =>
         {

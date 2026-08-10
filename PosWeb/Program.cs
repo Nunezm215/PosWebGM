@@ -172,7 +172,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<PosDbContext>(options =>
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
+        ServerVersion.Parse("8.0.36-mysql")
     )
 );
 
@@ -314,4 +314,3 @@ static bool UsuarioTieneAccesoPorSuscripcion(Usuario usuario, PosDbContextLocal 
 
     return titular.SUSCRIPCION_ACTIVA;
 }
-

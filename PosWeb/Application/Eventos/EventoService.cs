@@ -28,7 +28,7 @@ public class EventoService : IEventoService
             request.MontoTotal,
             request.Observaciones);
 
-        var eventosExistentes = await _repository.ListarAsync(cancellationToken);
+        var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(request.Fecha, sucursalId, cancellationToken);
         if (!EventoDisponibilidad.EstaDisponible(evento, eventosExistentes))
             throw new InvalidOperationException("El evento no está disponible en ese horario");
 
@@ -53,7 +53,7 @@ public class EventoService : IEventoService
             request.MontoTotal,
             request.Observaciones);
 
-        var eventosExistentes = await _repository.ListarAsync(cancellationToken);
+        var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(evento.FECHA, evento.ID_SUCURSAL, cancellationToken);
         if (!EventoDisponibilidad.EstaDisponible(evento, eventosExistentes, eventoId))
             throw new InvalidOperationException("El evento no está disponible en ese horario");
 
@@ -64,7 +64,7 @@ public class EventoService : IEventoService
     public async Task<bool> EstaDisponibleAsync(DateOnly fecha, TimeOnly horaInicio, TimeOnly horaFin, int sucursalId, int? eventoIdIgnorado = null, CancellationToken cancellationToken = default)
     {
         var candidato = new Evento(1, 1, sucursalId, fecha, horaInicio, horaFin, "Temporal", 0, 0m, fechaCreacion: DateTime.UtcNow);
-        var eventosExistentes = await _repository.ListarAsync(cancellationToken);
+        var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(fecha, sucursalId, cancellationToken);
         return EventoDisponibilidad.EstaDisponible(candidato, eventosExistentes, eventoIdIgnorado);
     }
 
@@ -85,13 +85,8 @@ public class EventoService : IEventoService
         if (fechaHasta < fechaDesde)
             throw new ArgumentException("fechaHasta no puede ser menor a fechaDesde", nameof(fechaHasta));
 
-        var eventos = await _repository.ListarAsync(cancellationToken);
-        var filtrados = eventos.Where(e => e.FECHA >= fechaDesde && e.FECHA <= fechaHasta);
-
-        if (sucursalId.HasValue)
-            filtrados = filtrados.Where(e => e.ID_SUCURSAL == sucursalId.Value);
-
-        return filtrados.OrderBy(e => e.FECHA).ThenBy(e => e.HORA_INICIO).Select(Map).ToList();
+        var eventos = await _repository.ListarPorRangoAsync(fechaDesde, fechaHasta, sucursalId, cancellationToken);
+        return eventos.Select(Map).ToList();
     }
 
     public async Task<EventoDto> CancelarAsync(int eventoId, CancellationToken cancellationToken = default)

@@ -158,6 +158,131 @@ No modifica:
 - migraciones
 - logica de negocio
 
+## Fase 1A.2A - Persistencia de Evento
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1a2a-evento-persistencia-ok`
+
+### Implementado
+
+- `DbSet<Evento>` en `PosDbContext`.
+- `DbSet<Evento>` en `PosDbContextLocal`.
+- Mapeo de `EVENTO`.
+- Relaciones con `Cliente`, `Usuario` y `Sucursal`.
+- `DeleteBehavior.Restrict` en las tres relaciones.
+- Indices:
+  - `ID_CLIENTE`
+  - `ID_USUARIO_CREADOR`
+  - `ID_SUCURSAL + FECHA`
+- `EventoRepository` real con `PosDbContextLocal`.
+- Filtrado por sucursal en consultas.
+- Persistencia SQLite validada con base in-memory.
+
+### Migraciones
+
+**MySQL:**
+
+- `PosWeb/Migrations/20260810181808_AddEvento.cs`
+
+**SQLite:**
+
+- `PosWeb/Migrations/Local/20260810181845_AddEvento.cs`
+
+**Ambas:**
+
+- crean solo `EVENTO`
+- crean PK
+- crean FKs
+- crean indices
+- no modifican otras tablas
+- no insertan datos
+
+**Designer:**
+
+- presentes en ambas migraciones
+
+**Snapshots:**
+
+- actualizados para MySQL y SQLite
+
+### Tipos
+
+**MySQL:**
+
+- `int`
+- `date`
+- `time(6)`
+- `datetime(6)`
+- `decimal(18,2)`
+- `varchar`
+
+**SQLite:**
+
+- `INTEGER/TEXT` con conversiones de `DateOnly`/`TimeOnly`/`DateTime` segun provider
+
+La estructura logica es equivalente.
+
+### Repository
+
+`EventoRepository` soporta:
+
+- `ObtenerPorIdAsync`
+- `ListarAsync`
+- `ListarPorRangoAsync`
+- `ListarPorFechaYSucursalAsync`
+- `AgregarAsync`
+- `ActualizarAsync`
+
+La disponibilidad sigue siendo logica de `EventoService`, no del repository.
+
+### Reglas preservadas
+
+- 30 minutos exactos entre eventos: permitido.
+- 29 minutos: rechazado.
+- `Cancelado` no bloquea.
+- eventos filtrados por sucursal.
+
+### Tests
+
+- `EventoServiceTests`
+- `EventoRepositoryEfTests`
+- total: 20/20 OK
+
+### Build
+
+- `dotnet build PosWeb/PosWeb.csproj`
+- 0 errores
+- 0 advertencias
+
+### Base fisica
+
+- La migracion SQLite todavia NO fue aplicada a la DB fisica.
+- Tests usan `DataSource=:memory:`
+- MySQL real no fue tocado.
+
+### Nota tecnica MySQL
+
+- `Program.cs` dejo de usar `ServerVersion.AutoDetect(...)`
+- ahora usa `ServerVersion.Parse("8.0.36-mysql")`
+- esto evita conexion real a MySQL durante tooling/design-time
+- `DesignTimeDbContextFactory` usa la misma version
+- queda como observacion futura centralizar esta version para evitar duplicacion
+
+### Aun no existe
+
+- `EventosController`
+- endpoints HTTP de Evento
+- frontend/calendario
+- `PagoEvento`
+- `GastoEvento`
+- integracion con Caja
+- QR de eventos
+
+### Proximo paso
+
+**Fase 1A.2B:**
+Aplicar migracion SQLite local + registrar DI + API HTTP de Eventos.
+
 ## Proximo paso
 
 **Fase 1A.2:** persistencia EF Core + migraciones + API de Eventos.

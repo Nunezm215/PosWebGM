@@ -19,9 +19,15 @@ public class Evento
 
     public int ID_CLIENTE { get; private set; }
 
+    public Cliente Cliente { get; private set; } = null!;
+
     public int ID_USUARIO_CREADOR { get; private set; }
 
+    public Usuario UsuarioCreador { get; private set; } = null!;
+
     public int ID_SUCURSAL { get; private set; }
+
+    public Sucursal Sucursal { get; private set; } = null!;
 
     public DateOnly FECHA { get; private set; }
 
