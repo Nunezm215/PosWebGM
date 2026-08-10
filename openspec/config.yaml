@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=./schema.json
+mode: openspec
+project: posweb
+detected_at: 2026-06-04
+stack:
+  frontend:
+    framework: React 19.2.6
+    bundler: Vite 8.0.12
+    language: TypeScript 6.0.2
+    styling: Tailwind CSS 4.3.0
+    routing: react-router-dom 7.15.1
+    desktop: Tauri v2 (Rust 2021 edition)
+    test_framework: vitest
+    test_deps: "@testing-library/react, @testing-library/user-event, @testing-library/jest-dom, jsdom"
+    test_files: 4 (smoke, useCart, cart-logic, CartHost)
+    linter: ESLint 10.3.0 (flat config via eslint.config.js)
+    type_checker: tsc (via tsc -b, part of build script)
+    formatter: none — no Prettier, dprint, or biome config detected
+  backend:
+    runtime: .NET 8.0 (ASP.NET Core)
+    orm: Entity Framework Core 8.0.13
+    db_primary: SQLite (local, offline-first) via Microsoft.EntityFrameworkCore.Sqlite
+    db_secondary: MySQL (remote, cloud) via Pomelo.EntityFrameworkCore.MySql 8.0.3
+    db_architecture: |
+      Dual-context: PosDbContextLocal (SQLite) + PosDbContext (MySQL).
+      Both share entity config via PosDbContextModel.cs partial class.
+      MySQL has 7 HasFilter("ACTIVO = 1") unique indexes; SQLite skips them.
+      Currently all services/controllers use PosDbContextLocal (offline mode).
+      MySQL stack preserved but inactive — ready for hybrid sync.
+    migrations:
+      mysql: Migrations/ (22 files, InitialMySql through AddEsPesable)
+      sqlite: Migrations/Local/ (1 file, InitialSqlite)
+    connection_strings:
+      mysql: "DefaultConnection" (Server=localhost;Database=posweb;User=root;Password=...)
+      sqlite: "LocalConnection" (Data Source=posweb.db)
+    api_docs: Swashbuckle / Swagger 6.4.0
+    architecture: Layered (Domain → Contracts → Application → API)
+    test_framework: xUnit 2.5.3 (modern, 3 projects) + legacy MSTest 2.2.10 (.NET Framework 4.7.2, 1 project)
+    coverage: coverlet.collector 6.0.0
+    test_utils: PosWeb.Testing (shared test helpers project)
+    linter: none — no StyleCop, .editorconfig, or roslyn analyzer config detected
+    formatter: none — no .editorconfig or dotnet-format config detected
+  ci:
+    provider: GitHub Actions (Azure Web App deploy)
+    backend_test_step: MISSING — workflow builds + publishes only, no `dotnet test`
+    frontend_build_step: MISSING — no frontend build/lint in CI
+    workflow_file: .github/workflows/master_posweb.yml
+
+# Strict TDD: disabled project-wide because frontend has zero test infrastructure (no test runner,
+# no test files, no test scripts). Backend has xUnit + coverlet but enforcing TDD project-wide
+# would block frontend-only changes. Consider per-layer strict_tdd if backend-only changes dominate.
+strict_tdd: false
+
+testing:
+  frontend:
+    runner: vitest
+    reason: Installed 2026-07-08: vitest, @testing-library/react, @testing-library/user-event, @testing-library/jest-dom, jsdom
+    test_files: 4 (smoke.test.tsx, useCart.test.ts, cart-logic.test.ts, CartHost.test.tsx)
+    test_scripts: none (no "test" script in package.json — need to add)
+    type_checker:
+      command: npx tsc -b
+    linter:
+      command: npm run lint
+      framework: ESLint 10.3.0 (typescript-eslint + react-hooks + react-refresh)
+    formatter: none
+  backend:
+    runner:
+      command: dotnet test PosWeb.sln
+      framework: xUnit 2.5.3 (PosWeb.Domain.Test, PosWeb.Application.Test, PosWeb.Testing) + MSTest 2.2.10 legacy (PosWeb.Domain.Tests targeting .NET Framework 4.7.2)
+      test_files: 11 (4 domain + 4 application service + 1 legacy MSTest + 1 test helpers + 1 extra from Gastos)
+    integration:
+      available: true
+      tool: EF Core InMemory 8.0.2 (in PosWeb.Application.Test)
+    coverage:
+      available: true
+      command: dotnet test --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura
+      tool: coverlet.collector 6.0.0
+    layers:
+      unit: true
+      integration: true
+      e2e: false
+  quality:
+    backend_linter: none
+    backend_formatter: none
+    frontend_linter:
+      available: true
+      command: npm run lint
+      framework: ESLint 10.3.0
+    frontend_formatter: none
+    frontend_type_checker:
+      available: true
+      command: npx tsc -b
+
+conventions:
+  naming:
+    domain_entities: Spanish (Pago, Venta, Producto, Sucursal, Gasto, Compra, Caja)
+    properties: SCREAMING_SNAKE_CASE (ID_VENTA, MONTO) — legacy DB-style
+    dtos: PascalCase with camelCase JSON serialization
+    code: English for structure/functions, Spanish for domain concepts
+  architecture:
+    pattern: Layered (Domain → Application → Controllers)
+    api_prefix: /api
+    proxy: Vite dev server proxies /api → localhost:5196
+    db_sqlite: SQLite via EF Core (PosDbContextLocal, offline-first)
+    db_mysql: MySQL via Pomelo EF Core (PosDbContext, cloud, preserved for future hybrid sync)
+    db_config_shared: PosDbContextModel.cs (partial class with ConfigureEntities + SeedLocalData)
+  frontend:
+    routing: React Router v7 with Layout outlet pattern
+    state: useState / useReducer (no external state lib)
+    api_client: fetch wrapper in src/api/client.ts
+    types: src/types/index.ts (all DTOs — PagoDeudaDto, CuentaCorrienteDto added 2026-07-08)
+  desktop:
+    window: 1024x768, min 800x600, centered, resizable
+    build: npm run build → Tauri bundles
+
+phases:
+  propose:
+    require_approval: true
+  spec:
+    require_approval: true
+  design:
+    require_approval: true
+  tasks:
+    require_approval: true
+  apply:
+    require_tests: false
+    strict_tdd: false
+  verify:
+    require_tests: false
+    backend_command: dotnet test PosWeb.sln
+    backend_coverage_command: dotnet test --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura
+    frontend_command: npm run lint && npx tsc -b  # type-check + lint only (no tests)
+    frontend_lint_command: npm run lint
+    frontend_typecheck_command: npx tsc -b
+  archive:
+    auto_archive: true

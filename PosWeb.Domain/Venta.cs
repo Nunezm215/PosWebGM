@@ -1,0 +1,143 @@
+﻿using PosWeb.Domain.Exceptions;
+using System.ComponentModel.DataAnnotations;
+
+namespace PosWeb.Domain;
+
+public class Venta
+{
+    [Key]
+    public int ID_VENTA { get; private set; }
+
+    public int ID_SUCURSAL { get; private set; }
+
+    public DateTime FECHA_VENTA { get; private set; }
+
+    public decimal TOTAL { get; private set; }
+
+    public int? ID_USUARIO { get; private set; }
+
+    public int? ID_CLIENTE { get; private set; }
+
+    public bool ANULADA { get; private set; }
+
+    public string ESTADO { get; private set; } = EstadosVenta.Completada;
+
+    public string? REFERENCIA_MP { get; private set; }
+
+    private readonly List<RenglonVenta> _RENGLONES = new();
+
+    public IReadOnlyCollection<RenglonVenta> RENGLONES => _RENGLONES;
+
+    public Venta(int sucursalId, int? usuarioId = null)
+    {
+        ID_SUCURSAL = SetSucursalId(sucursalId);
+        FECHA_VENTA = DateTime.Now;
+        TOTAL = 0;
+        ID_USUARIO = usuarioId;
+    }
+
+    protected Venta()
+    {
+    }
+
+    private static int SetSucursalId(int sucursalId)
+    {
+        if (sucursalId <= 0)
+        {
+            throw new SucursalInvalidaException(sucursalId);
+        }
+
+        return sucursalId;
+    }
+
+    public void AgregarRenglon(Producto producto, decimal cantidad, int? ofertaId = null)
+    {
+        if (producto == null)
+        {
+            throw new ProductoInvalidoException(0);
+        }
+
+        if (cantidad <= 0)
+        {
+            throw new CantidadInvalidaException(cantidad);
+        }
+
+        RenglonVenta renglon = new RenglonVenta(
+            producto.ID_PRODUCTO,
+            cantidad,
+            producto.PRECIO,
+            ofertaId
+        );
+
+        _RENGLONES.Add(renglon);
+
+        RecalcularTotal();
+    }
+
+    public void AgregarRenglonCombo(Combo combo, int productoId, decimal cantidad, decimal precioUnitario)
+    {
+        if (combo == null)
+            throw new ArgumentNullException(nameof(combo));
+
+        RenglonVenta renglon = new RenglonVenta(
+            productoId > 0 ? productoId : null,
+            combo.ID_COMBO,
+            cantidad,
+            precioUnitario
+        );
+
+        _RENGLONES.Add(renglon);
+
+        RecalcularTotal();
+    }
+
+    public void AsignarCliente(int? clienteId)
+    {
+        ID_CLIENTE = clienteId;
+    }
+
+    private void RecalcularTotal()
+    {
+        TOTAL = _RENGLONES.Sum(r => r.SUBTOTAL);
+    }
+
+    public void Anular()
+    {
+        ANULADA = true;
+    }
+
+    public void MarcarPendiente()
+    {
+        ESTADO = EstadosVenta.PendientePago;
+    }
+
+    public void AsignarReferencia(string referencia)
+    {
+        REFERENCIA_MP = referencia;
+    }
+
+    public void Confirmar()
+    {
+        ESTADO = EstadosVenta.Completada;
+    }
+
+    public void Cancelar()
+    {
+        ESTADO = EstadosVenta.Anulada;
+        ANULADA = true;
+    }
+
+    public void Vencer()
+    {
+        ESTADO = EstadosVenta.Vencida;
+        ANULADA = true;
+    }
+}
+
+public static class EstadosVenta
+{
+    public const string Completada = "Completada";
+    public const string PendientePago = "PendientePago";
+    public const string Anulada = "Anulada";
+    public const string Vencida = "Vencida";
+}

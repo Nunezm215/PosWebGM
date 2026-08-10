@@ -1,0 +1,111 @@
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using PosWeb.Application.Ventas;
+using PosWeb.Contracts;
+
+namespace PosWeb.Controllers;
+
+[ApiController]
+[Route("api/ventas")]
+public class VentasController : ControllerBase
+{
+    private readonly VentaService _ventaService;
+
+    public VentasController(VentaService ventaService)
+    {
+        _ventaService = ventaService;
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> Post(VentaDto dto)
+    {
+        var userId = GetUserId();
+        return Ok(await _ventaService.CrearVenta(dto, userId));
+    }
+
+    private int? GetUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null) return null;
+        return int.TryParse(claim.Value, out var id) ? id : null;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<VentaHistorialDto>>> ObtenerHistorial(
+        [FromQuery] DateTime? fechaDesde,
+        [FromQuery] DateTime? fechaHasta,
+        [FromQuery] int? sucursalId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        if (fechaDesde.HasValue && fechaHasta.HasValue && fechaDesde > fechaHasta)
+            return BadRequest(new { error = "fechaDesde no puede ser posterior a fechaHasta" });
+
+        if (sucursalId.HasValue)
+        {
+            bool existe = await _ventaService.ExisteSucursalAsync(sucursalId.Value);
+            if (!existe)
+                return BadRequest(new { error = "Sucursal no encontrada" });
+        }
+
+        fechaDesde ??= DateTime.Today.AddDays(-30);
+        fechaHasta = fechaHasta?.Date.AddDays(1) ?? DateTime.Today.AddDays(1);
+
+        var filtro = new VentaHistorialFiltro
+        {
+            FechaDesde = fechaDesde,
+            FechaHasta = fechaHasta,
+            SucursalId = sucursalId,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        var result = await _ventaService.ObtenerHistorialAsync(filtro);
+        return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<VentaDetalleDto>> ObtenerDetalle(int id)
+    {
+        var result = await _ventaService.ObtenerDetalleAsync(id);
+        if (result == null)
+            return NotFound(new { error = "Venta no encontrada" });
+
+        return Ok(result);
+    }
+
+    [HttpPost("{id}/deshacer")]
+    [Authorize]
+    public IActionResult Deshacer(int id, [FromBody] DeshacerVentaRequest request)
+    {
+        _ventaService.DeshacerVenta(id, request.ConDevolucion);
+        return Ok(new { message = "Venta anulada y stock restaurado" });
+    }
+
+    [HttpPost("{id}/confirmar-transferencia")]
+    [Authorize]
+    public IActionResult ConfirmarTransferencia(int id)
+    {
+        var resultado = _ventaService.ConfirmarTransferencia(id);
+        return Ok(resultado);
+    }
+
+    [HttpGet("{id}/estado")]
+    public IActionResult ObtenerEstado(int id)
+    {
+        var estado = _ventaService.ObtenerEstadoVenta(id);
+        if (estado == null)
+            return NotFound(new { error = "Venta no encontrada" });
+        return Ok(new { estado });
+    }
+
+    [HttpPost("{id}/cancelar-pendiente")]
+    [Authorize]
+    public IActionResult CancelarPendiente(int id, [FromBody] CancelarPendienteRequest request)
+    {
+        _ventaService.CancelarVentaPendiente(id, request?.EsTimeout ?? false);
+        return Ok(new { message = "Venta pendiente cancelada y stock restaurado" });
+    }
+}

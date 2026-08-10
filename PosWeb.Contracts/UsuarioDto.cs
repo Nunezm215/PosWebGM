@@ -1,0 +1,22 @@
+namespace PosWeb.Contracts;
+
+public class UsuarioDto
+{
+    public int Id { get; set; }
+    public string NombreUsuario { get; set; } = string.Empty;
+    public string? Mail { get; set; }
+    public string Rol { get; set; } = string.Empty;
+    public int? UsuarioResponsableId { get; set; }
+    public string? UsuarioResponsableNombre { get; set; }
+    public int? EmpresaId { get; set; }
+    public bool Activo { get; set; }
+    public bool SuscripcionActiva { get; set; }
+    public bool AccesoHabilitado { get; set; }
+    public string? SuscripcionNivel { get; set; }
+    public string? SuscripcionEstado { get; set; }
+    public decimal? CostoMensual { get; set; }
+    public int? MaxSucursales { get; set; }
+    public int? MaxAdmins { get; set; }
+    public int? MaxUsuarios { get; set; }
+    public bool PinConfigurado { get; set; }
+}

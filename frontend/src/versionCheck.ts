@@ -1,0 +1,75 @@
+const VERSION_KEY = 'app_version'
+const UPDATE_LOG_KEY = 'update_history'
+
+declare const __APP_VERSION__: string
+
+let currentVersion = ''
+
+function isTauri(): boolean {
+  return !!(window as any).__TAURI__
+}
+
+async function getAppVersion(): Promise<string> {
+  if (!isTauri()) return ''
+  try {
+    const appMod = await import('@tauri-apps/api/app')
+    const v = await appMod.getVersion()
+    return v
+  } catch (e: any) {
+    logUpdate(`ERROR getAppVersion: ${e?.message || String(e)}`)
+    return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''
+  }
+}
+
+function logUpdate(entry: string) {
+  try {
+    const now = new Date().toISOString()
+    const line = `[${now}] ${entry}\n`
+    const existing = localStorage.getItem(UPDATE_LOG_KEY) ?? ''
+    localStorage.setItem(UPDATE_LOG_KEY, existing + line)
+  } catch { /* ignore */ }
+}
+
+async function clearWebCaches() {
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(regs.map(r => r.unregister()))
+    console.log('[VersionCheck] Service workers unregistered')
+  } catch { /* ignore */ }
+
+  try {
+    const keys = await caches.keys()
+    await Promise.all(keys.map(k => caches.delete(k)))
+    console.log('[VersionCheck] Cache storage cleared')
+  } catch { /* ignore */ }
+}
+
+export async function initVersionCheck(): Promise<void> {
+  currentVersion = await getAppVersion()
+  
+  // Always clear caches on startup — prevents stale JS from old versions
+  await clearWebCaches()
+  
+  if (!currentVersion) {
+    logUpdate(`WARN: getAppVersion returned empty — using build version`)
+    return
+  }
+
+  const stored = localStorage.getItem(VERSION_KEY)
+
+  if (!stored) {
+    logUpdate(`Primer inicio detectado — v${currentVersion}`)
+    localStorage.setItem(VERSION_KEY, currentVersion)
+    return
+  }
+
+  if (stored !== currentVersion) {
+    logUpdate(`Actualización: v${stored} → v${currentVersion} — recargando`)
+    localStorage.setItem(VERSION_KEY, currentVersion)
+    window.location.reload()
+  }
+}
+
+export function getCurrentVersion(): string {
+  return currentVersion
+}
