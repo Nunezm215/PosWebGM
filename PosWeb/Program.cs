@@ -40,8 +40,6 @@ if (embeddedJson != null)
     builder.Configuration.AddJsonStream(new MemoryStream(buf));
 }
 
-builder.WebHost.UseUrls("http://localhost:5196");
-
 builder.Host.UseSerilog((context, services, configuration) =>
 {
     var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "posweb-.txt");
@@ -316,5 +314,4 @@ static bool UsuarioTieneAccesoPorSuscripcion(Usuario usuario, PosDbContextLocal 
 
     return titular.SUSCRIPCION_ACTIVA;
 }
-
 

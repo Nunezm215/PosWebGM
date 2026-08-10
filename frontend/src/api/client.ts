@@ -1,16 +1,23 @@
 import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto } from '../types'
 
-// Determine API base URL at runtime based on deployment context
-let BASE: string;
-if (typeof window !== 'undefined' && window.location) {
-  if (window.location.protocol === 'http:' && window.location.hostname === 'localhost') {
-    BASE = '/api';
-  } else {
-    BASE = 'http://localhost:5196/api';
-  }
-} else {
-  BASE = 'http://localhost:5196/api';
+function isTauriRuntime(): boolean {
+  if (typeof window === 'undefined') return false
+  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window
 }
+
+export function resolveApiBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:5196/api'
+  }
+
+  if (isTauriRuntime()) {
+    return 'http://localhost:5196/api'
+  }
+
+  return '/api'
+}
+
+const BASE = resolveApiBaseUrl();
 
 /**
  * Wait for the backend to become available.
