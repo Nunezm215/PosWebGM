@@ -120,6 +120,11 @@ public class Evento
         ESTADO = EventoEstados.Pagado;
     }
 
+    public void MarcarReservado()
+    {
+        ESTADO = EventoEstados.Reservado;
+    }
+
     public void Cancelar()
     {
         ESTADO = EventoEstados.Cancelado;

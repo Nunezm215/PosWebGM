@@ -68,15 +68,24 @@ public class EventoService : IEventoService
         return EventoDisponibilidad.EstaDisponible(candidato, eventosExistentes, eventoIdIgnorado);
     }
 
-    public async Task<EventoDto?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default)
+    public async Task<EventoDto?> ObtenerPorIdAsync(int eventoId, int? sucursalId = null, CancellationToken cancellationToken = default)
     {
         var evento = await _repository.ObtenerPorIdAsync(eventoId, cancellationToken);
+        if (evento == null)
+            return null;
+
+        if (sucursalId.HasValue && evento.ID_SUCURSAL != sucursalId.Value)
+            return null;
+
         return evento == null ? null : Map(evento);
     }
 
-    public async Task<IReadOnlyList<EventoDto>> ListarAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<EventoDto>> ListarAsync(int? sucursalId = null, CancellationToken cancellationToken = default)
     {
         var eventos = await _repository.ListarAsync(cancellationToken);
+        if (sucursalId.HasValue)
+            eventos = eventos.Where(e => e.ID_SUCURSAL == sucursalId.Value).ToList();
+
         return eventos.Select(Map).ToList();
     }
 
@@ -95,6 +104,34 @@ public class EventoService : IEventoService
             ?? throw new InvalidOperationException("Evento no encontrado");
 
         evento.Cancelar();
+        await _repository.ActualizarAsync(evento, cancellationToken);
+        return Map(evento);
+    }
+
+    public async Task<EventoDto> CambiarEstadoAsync(int eventoId, string estado, CancellationToken cancellationToken = default)
+    {
+        if (!EventoEstados.Todos.Contains(estado))
+            throw new ArgumentException("Estado de evento inválido", nameof(estado));
+
+        var evento = await _repository.ObtenerPorIdAsync(eventoId, cancellationToken)
+            ?? throw new InvalidOperationException("Evento no encontrado");
+
+        switch (estado)
+        {
+            case EventoEstados.Reservado:
+                evento.MarcarReservado();
+                break;
+            case EventoEstados.Señado:
+                evento.MarcarSenado();
+                break;
+            case EventoEstados.Pagado:
+                evento.MarcarPagado();
+                break;
+            case EventoEstados.Cancelado:
+                evento.Cancelar();
+                break;
+        }
+
         await _repository.ActualizarAsync(evento, cancellationToken);
         return Map(evento);
     }

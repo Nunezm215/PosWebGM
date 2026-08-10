@@ -283,6 +283,84 @@ La disponibilidad sigue siendo logica de `EventoService`, no del repository.
 **Fase 1A.2B:**
 Aplicar migracion SQLite local + registrar DI + API HTTP de Eventos.
 
+## Fase 1A.2B - API HTTP de Eventos
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1a2b-evento-api-ok`
+
+### Implementado
+
+- Migracion SQLite `AddEvento` aplicada a la DB fisica local.
+- DI de `IEventoRepository` / `EventoRepository`.
+- DI de `IEventoService` / `EventoService`.
+- `EventosController`.
+- Endpoints:
+  - `POST /api/eventos`
+  - `GET /api/eventos`
+  - `GET /api/eventos/{id}`
+  - `GET /api/eventos/rango`
+  - `GET /api/eventos/disponibilidad`
+  - `PUT /api/eventos/{id}`
+  - `PATCH /api/eventos/{id}/estado`
+  - `POST /api/eventos/{id}/cancelar`
+
+### Seguridad
+
+- `[Authorize]`
+- `usuarioId` desde `ClaimTypes.NameIdentifier`
+- `sucursalId` desde claim `"sucursalId"`
+- `Admin` / `SuperAdmin` pueden modificar
+- `UsuarioComun` no puede editar / cancelar / cambiar estado
+
+### Swagger
+
+- Se agrego soporte JWT Bearer en Swagger con boton `Authorize`.
+- La autenticacion JWT real no fue modificada.
+
+### Tests
+
+- `dotnet test --filter "FullyQualifiedName~Evento"`
+- `35/35 OK`
+
+### Build
+
+- `dotnet build PosWeb/PosWeb.csproj`
+- `0 errores`
+- `0 advertencias`
+
+### Verificacion manual real
+
+- `GET /api/eventos` autenticado => `200`
+- sin eventos inicialmente => `[]`
+- `ClientePrueba` creado con `clienteId 1`
+- `POST /api/eventos` valido => `201 Created`
+- Evento creado:
+  - id `1`
+  - clienteId `1`
+  - usuarioCreadorId `1`
+  - sucursalId `1`
+  - fecha `2026-08-15`
+  - horario `18:00-22:00`
+  - estado `Reservado`
+- `POST` superpuesto `21:00-23:00` => `400`
+- mensaje:
+  "El evento no está disponible en ese horario"
+
+### Confirmaciones
+
+- La regla de disponibilidad funciona contra la SQLite fisica.
+- El evento se persiste realmente.
+- El usuario y sucursal salen del JWT.
+- No se toco frontend.
+- No se toco Caja.
+- No se toco Mercado Pago.
+- No existen todavia `PagoEvento` ni `GastoEvento`.
+
+### Proximo paso
+
+**Fase 1B:**
+frontend de Eventos + calendario + alta/detalle/edicion/cancelacion.
+
 ## Proximo paso
 
 **Fase 1A.2:** persistencia EF Core + migraciones + API de Eventos.
