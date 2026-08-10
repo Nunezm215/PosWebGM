@@ -94,6 +94,70 @@ Bitacora permanente de la migracion funcional de PosWeb hacia un sistema de gest
 
 No representa una funcionalidad nueva de Evento.
 
+## Infraestructura - Acceso por red local
+
+**Estado:** COMPLETADO  
+**Tag Git previsto:** `lan-web-ok`
+
+### Problema detectado
+
+- El backend escuchaba solo en:
+  `http://localhost:5196`
+- Desde el celular se podia abrir el frontend, pero no conectar al backend.
+- El frontend tambien tenia una base API absoluta:
+  `http://localhost:5196/api`
+- En el celular, `localhost` apuntaba al propio telefono.
+
+### Cambios realizados
+
+**Backend:**
+
+- Se elimino `builder.WebHost.UseUrls("http://localhost:5196");` de `PosWeb/Program.cs`.
+- `launchSettings.json` paso a usar `http://0.0.0.0:5196`.
+- Se removio el valor global `"Urls": "http://localhost:5196"` de `PosWeb/appsettings.json` para permitir que prevalezcan `launchSettings` y `--urls`.
+
+**Frontend:**
+
+- `frontend/src/api/client.ts` ahora usa `/api` relativo en entorno web.
+- En Tauri conserva `http://localhost:5196/api`.
+- Vite sigue haciendo proxy `/api -> http://localhost:5196`.
+
+### Tests
+
+- `frontend/src/api/client.test.ts`: 2/2 OK
+- `npm run build`: OK
+- `dotnet build`: OK
+
+### Verificacion manual
+
+- Backend responde desde la PC.
+- Backend responde desde celular: `http://192.168.0.10:5196/api/sucursales`
+- Frontend responde desde celular: `http://192.168.0.10:5173`
+- Login funciona desde celular.
+- Frontend conecta correctamente al backend a traves del proxy Vite.
+- Aplicacion funcionando correctamente desde PC y celular en la misma red Wi-Fi.
+
+### Archivos de este checkpoint
+
+- `PosWeb/Program.cs`
+- `PosWeb/Properties/launchSettings.json`
+- `PosWeb/appsettings.json`
+- `frontend/src/api/client.ts`
+- `frontend/src/api/client.test.ts`
+
+### Nota
+
+Esta modificacion es de infraestructura/desarrollo.
+
+No modifica:
+
+- Evento
+- Caja
+- Mercado Pago
+- base de datos
+- migraciones
+- logica de negocio
+
 ## Proximo paso
 
 **Fase 1A.2:** persistencia EF Core + migraciones + API de Eventos.
