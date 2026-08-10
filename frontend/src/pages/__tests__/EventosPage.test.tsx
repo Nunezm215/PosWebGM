@@ -7,6 +7,8 @@ const apiState = vi.hoisted(() => ({
   obtenerPorId: vi.fn(),
   consultarDisponibilidad: vi.fn(),
   crear: vi.fn(),
+  crearCliente: vi.fn(),
+  obtenerCliente: vi.fn(),
   listarClientes: vi.fn(),
 }))
 
@@ -24,6 +26,8 @@ vi.mock('../../api/client', () => ({
     },
     clientes: {
       listar: apiState.listarClientes,
+      crear: apiState.crearCliente,
+      obtener: apiState.obtenerCliente,
     },
   },
 }))
@@ -56,11 +60,15 @@ describe('EventosPage', () => {
     apiState.obtenerPorId.mockReset()
     apiState.consultarDisponibilidad.mockReset()
     apiState.crear.mockReset()
+    apiState.crearCliente.mockReset()
+    apiState.obtenerCliente.mockReset()
     apiState.listarClientes.mockReset()
     apiState.listarRango.mockResolvedValue([])
     apiState.obtenerPorId.mockResolvedValue(null)
     apiState.consultarDisponibilidad.mockResolvedValue(true)
     apiState.crear.mockResolvedValue({})
+    apiState.crearCliente.mockResolvedValue({})
+    apiState.obtenerCliente.mockResolvedValue(null)
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
   })
 
@@ -126,6 +134,134 @@ describe('EventosPage', () => {
 
     expect(within(dialog).getByText(/Cliente Prueba/)).toBeInTheDocument()
     expect(within(dialog).getByDisplayValue('Cliente Prueba · DNI 12345678')).toBeInTheDocument()
+  })
+
+  it('opens the client form from Nuevo Evento', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+    expect(within(clientDialog).getByLabelText(/Nombre/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Tipo documento/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/N° documento/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Condición IVA/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Teléfono/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Mail/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Domicilio/)).toBeInTheDocument()
+  })
+
+  it('keeps Evento data while creating a Cliente and auto-selects the new Cliente', async () => {
+    const createdClient = {
+      id: 10,
+      nombre: 'Cliente Nuevo',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '99999999',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    }
+
+    apiState.crearCliente.mockResolvedValueOnce(createdClient)
+
+    const { user, dialog } = await abrirAlta()
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+    await user.type(within(clientDialog).getByLabelText(/Nombre/), 'Cliente Nuevo')
+    await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
+
+    await waitFor(() => expect(apiState.crearCliente).toHaveBeenCalledWith({
+      nombre: 'Cliente Nuevo',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '',
+      domicilio: '',
+      mail: '',
+    }))
+
+    expect(screen.queryByRole('dialog', { name: 'Nuevo Cliente' })).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Cliente Nuevo · DNI 99999999')).toBeInTheDocument()
+  })
+
+  it('cancels cliente creation and preserves Evento data', async () => {
+    const { user, dialog } = await abrirAlta()
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+    await user.click(within(clientDialog).getByRole('button', { name: 'Volver al Evento' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Nuevo Cliente' })).not.toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('2026-08-15')).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('18:00')).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('22:00')).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('Cumpleaños')).toBeInTheDocument()
+  })
+
+  it('keeps the client form open on error', async () => {
+    apiState.crearCliente.mockRejectedValueOnce(new Error('Documento duplicado'))
+    const { user, dialog } = await abrirAlta()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+    await user.type(within(clientDialog).getByLabelText(/Nombre/), 'Cliente Nuevo')
+    await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
+
+    expect(await screen.findByText('Documento duplicado')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Nuevo Cliente' })).toBeInTheDocument()
+  })
+
+  it('does not show inline client creation in edit mode', async () => {
+    apiState.obtenerCliente.mockResolvedValueOnce({
+      id: 1,
+      nombre: 'Cliente Prueba',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Editar' }))
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Editar Evento' })
+    expect(within(editDialog).queryByRole('button', { name: 'Crear cliente nuevo' })).not.toBeInTheDocument()
   })
 
   it('validates that end time is after start time', async () => {

@@ -56,6 +56,31 @@ function formatDateInput(date: Date) {
 const EVENTO_ESTADOS = ['Reservado', 'Señado', 'Pagado', 'Cancelado'] as const
 type EventoEstado = typeof EVENTO_ESTADOS[number]
 
+const CLIENTE_TIPOS_DOCUMENTO = ['DNI', 'CUIT', 'CUIL', 'ConsumidorFinal']
+const CLIENTE_IVA_CONDICIONES = ['ResponsableInscripto', 'Monotributo', 'Exento', 'ConsumidorFinal']
+
+interface ClienteAltaFormState {
+  nombre: string
+  tipoDocumento: string
+  numeroDocumento: string
+  ivaCondicion: string
+  telefono: string
+  domicilio: string
+  mail: string
+}
+
+function createEmptyClienteForm(nombre = ''): ClienteAltaFormState {
+  return {
+    nombre,
+    tipoDocumento: 'DNI',
+    numeroDocumento: '',
+    ivaCondicion: 'ConsumidorFinal',
+    telefono: '',
+    domicilio: '',
+    mail: '',
+  }
+}
+
 function normalizeTimeForApi(value: string) {
   if (!value) return ''
   return value.length === 5 ? `${value}:00` : value
@@ -195,6 +220,10 @@ export default function EventosPage() {
   const [clienteBuscando, setClienteBuscando] = useState(false)
   const [clienteError, setClienteError] = useState('')
   const [clienteLoading, setClienteLoading] = useState(false)
+  const [clienteCreateOpen, setClienteCreateOpen] = useState(false)
+  const [clienteCreateForm, setClienteCreateForm] = useState<ClienteAltaFormState>(() => createEmptyClienteForm())
+  const [clienteCreateError, setClienteCreateError] = useState('')
+  const [clienteCreateSaving, setClienteCreateSaving] = useState(false)
 
   const [disponibilidad, setDisponibilidad] = useState<{ estado: DisponibilidadEstado; mensaje: string }>({
     estado: 'idle',
@@ -274,6 +303,8 @@ export default function EventosPage() {
     !saving &&
     !clienteLoading
   )
+
+  const canGuardarCliente = Boolean(clienteCreateForm.nombre.trim() && !clienteCreateSaving)
 
   useEffect(() => {
     if (!createOpen) return
@@ -381,6 +412,10 @@ export default function EventosPage() {
     setClienteLoading(false)
     setDisponibilidad({ estado: 'idle', mensaje: '' })
     setSaving(false)
+    setClienteCreateOpen(false)
+    setClienteCreateForm(createEmptyClienteForm())
+    setClienteCreateError('')
+    setClienteCreateSaving(false)
   }
 
   function cerrarAltaEvento() {
@@ -438,6 +473,55 @@ export default function EventosPage() {
     setClienteBusqueda(value)
     if (clienteSeleccionado && value.trim() !== formatClienteLabel(clienteSeleccionado)) {
       setClienteSeleccionado(null)
+    }
+  }
+
+  function abrirCreacionCliente() {
+    setClienteCreateForm(createEmptyClienteForm(clienteBusqueda.trim()))
+    setClienteCreateError('')
+    setClienteCreateSaving(false)
+    setClienteCreateOpen(true)
+  }
+
+  function volverAAltaEvento() {
+    if (clienteCreateSaving) return
+    setClienteCreateOpen(false)
+    setClienteCreateError('')
+    setClienteCreateSaving(false)
+  }
+
+  async function guardarNuevoCliente() {
+    if (!clienteCreateForm.nombre.trim()) {
+      setClienteCreateError('Completá el nombre del cliente')
+      return
+    }
+
+    const payload: ClienteDto = {
+      nombre: clienteCreateForm.nombre.trim(),
+      tipoDocumento: clienteCreateForm.tipoDocumento,
+      numeroDocumento: clienteCreateForm.numeroDocumento.trim(),
+      ivaCondicion: clienteCreateForm.ivaCondicion,
+      telefono: clienteCreateForm.telefono.trim() || '',
+      domicilio: clienteCreateForm.domicilio.trim() || '',
+      mail: clienteCreateForm.mail.trim() || '',
+    }
+
+    setClienteCreateSaving(true)
+    setClienteCreateError('')
+
+    try {
+      const nuevoCliente = await api.clientes.crear(payload)
+      setClienteSeleccionado(nuevoCliente)
+      setClienteBusqueda(formatClienteLabel(nuevoCliente))
+      setClienteResultados([])
+      setClienteError('')
+      setClienteCreateOpen(false)
+      setClienteCreateForm(createEmptyClienteForm())
+      notifySuccess('Cliente creado correctamente')
+    } catch (err) {
+      setClienteCreateError(err instanceof Error ? err.message : 'Error al crear cliente')
+    } finally {
+      setClienteCreateSaving(false)
     }
   }
 
@@ -761,9 +845,20 @@ export default function EventosPage() {
                     aria-label="Limpiar cliente"
                   >
                     <X size={14} />
-                  </button>
+                    </button>
                 )}
               </div>
+
+              {formMode === 'create' && (
+                <button
+                  type="button"
+                  onClick={abrirCreacionCliente}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                >
+                  <Plus size={12} />
+                  Crear cliente nuevo
+                </button>
+              )}
 
               {clienteSeleccionado ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
@@ -914,6 +1009,125 @@ export default function EventosPage() {
             {disponibilidad.estado === 'available' && disponibilidad.mensaje}
             {disponibilidad.estado === 'unavailable' && disponibilidad.mensaje}
             {disponibilidad.estado === 'error' && disponibilidad.mensaje}
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={clienteCreateOpen}
+        onClose={volverAAltaEvento}
+        title="Nuevo Cliente"
+        description="Crear un cliente nuevo sin perder el Evento en curso"
+        width="md"
+        closeOnBackdrop={!clienteCreateSaving}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={volverAAltaEvento} disabled={clienteCreateSaving}>
+              Volver al Evento
+            </Button>
+            <Button
+              variant="confirm"
+              size="sm"
+              type="button"
+              onClick={guardarNuevoCliente}
+              loading={clienteCreateSaving}
+              disabled={!canGuardarCliente}
+            >
+              {clienteCreateSaving ? 'Guardando...' : 'Guardar Cliente'}
+            </Button>
+          </>
+        }
+      >
+        <form id="cliente-inline-form" className="space-y-4">
+          {clienteCreateError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {clienteCreateError}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="evento-cliente-nombre" className="text-xs font-semibold text-gray-700">Nombre *</label>
+            <input
+              id="evento-cliente-nombre"
+              type="text"
+              value={clienteCreateForm.nombre}
+              onChange={e => setClienteCreateForm(prev => ({ ...prev, nombre: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-cliente-tipo-documento" className="text-xs font-semibold text-gray-700">Tipo documento</label>
+              <select
+                id="evento-cliente-tipo-documento"
+                value={clienteCreateForm.tipoDocumento}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, tipoDocumento: e.target.value, numeroDocumento: e.target.value === 'ConsumidorFinal' ? '' : prev.numeroDocumento }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 bg-white"
+              >
+                {CLIENTE_TIPOS_DOCUMENTO.map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="evento-cliente-numero-documento" className="text-xs font-semibold text-gray-700">N° documento</label>
+              <input
+                id="evento-cliente-numero-documento"
+                type="text"
+                value={clienteCreateForm.numeroDocumento}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, numeroDocumento: e.target.value }))}
+                disabled={clienteCreateForm.tipoDocumento === 'ConsumidorFinal'}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="evento-cliente-iva" className="text-xs font-semibold text-gray-700">Condición IVA</label>
+            <select
+              id="evento-cliente-iva"
+              value={clienteCreateForm.ivaCondicion}
+              onChange={e => setClienteCreateForm(prev => ({ ...prev, ivaCondicion: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 bg-white"
+            >
+              {CLIENTE_IVA_CONDICIONES.map(iva => <option key={iva} value={iva}>{iva}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-cliente-telefono" className="text-xs font-semibold text-gray-700">Teléfono</label>
+              <input
+                id="evento-cliente-telefono"
+                type="text"
+                value={clienteCreateForm.telefono}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, telefono: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="evento-cliente-mail" className="text-xs font-semibold text-gray-700">Mail</label>
+              <input
+                id="evento-cliente-mail"
+                type="email"
+                value={clienteCreateForm.mail}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, mail: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="evento-cliente-domicilio" className="text-xs font-semibold text-gray-700">Domicilio</label>
+              <input
+                id="evento-cliente-domicilio"
+                type="text"
+                value={clienteCreateForm.domicilio}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, domicilio: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+            El cliente se guardará en Clientes y quedará seleccionado para este Evento.
           </div>
         </form>
       </Dialog>
