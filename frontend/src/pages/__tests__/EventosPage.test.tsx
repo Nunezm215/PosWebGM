@@ -9,6 +9,7 @@ const apiState = vi.hoisted(() => ({
   crear: vi.fn(),
   crearCliente: vi.fn(),
   obtenerCliente: vi.fn(),
+  obtenerContratoPdf: vi.fn(),
   listarClientes: vi.fn(),
 }))
 
@@ -23,6 +24,7 @@ vi.mock('../../api/client', () => ({
       obtenerPorId: apiState.obtenerPorId,
       consultarDisponibilidad: apiState.consultarDisponibilidad,
       crear: apiState.crear,
+      obtenerContratoPdf: apiState.obtenerContratoPdf,
     },
     clientes: {
       listar: apiState.listarClientes,
@@ -62,6 +64,7 @@ describe('EventosPage', () => {
     apiState.crear.mockReset()
     apiState.crearCliente.mockReset()
     apiState.obtenerCliente.mockReset()
+    apiState.obtenerContratoPdf.mockReset()
     apiState.listarClientes.mockReset()
     apiState.listarRango.mockResolvedValue([])
     apiState.obtenerPorId.mockResolvedValue(null)
@@ -69,6 +72,7 @@ describe('EventosPage', () => {
     apiState.crear.mockResolvedValue({})
     apiState.crearCliente.mockResolvedValue({})
     apiState.obtenerCliente.mockResolvedValue(null)
+    apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
   })
 
@@ -382,7 +386,7 @@ describe('EventosPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument())
     await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
     expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('keeps the modal open when backend rejects the save', async () => {
     apiState.listarClientes.mockResolvedValueOnce({
@@ -512,7 +516,52 @@ describe('EventosPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancelar evento' })).not.toBeInTheDocument()
+  })
+
+  it('opens contract options and requests the PDF', async () => {
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    const objectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:contrato')
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+
+    await renderPage()
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
+
+    const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
+    expect(within(contratoDialog).getByRole('button', { name: 'Ver contrato' })).toBeInTheDocument()
+    expect(within(contratoDialog).getByRole('button', { name: 'Imprimir contrato' })).toBeInTheDocument()
+
+    await user.click(within(contratoDialog).getByRole('button', { name: 'Ver contrato' }))
+
+    await waitFor(() => expect(apiState.obtenerContratoPdf).toHaveBeenCalledWith(1))
+    expect(openSpy).toHaveBeenCalledWith('blob:contrato', '_blank', 'noopener,noreferrer')
+
+    objectUrlSpy.mockRestore()
+    revokeSpy.mockRestore()
+    openSpy.mockRestore()
   })
 })

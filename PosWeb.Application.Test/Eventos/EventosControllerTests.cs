@@ -71,7 +71,8 @@ public class EventosControllerTests
     {
         var repo = new EventoRepository(context);
         var service = new EventoService(repo);
-        var controller = new EventosController(service, context)
+        var contratoService = new ContratoEventoPdfService(repo, context);
+        var controller = new EventosController(service, contratoService, context)
         {
             ControllerContext = new ControllerContext
             {
@@ -390,7 +391,8 @@ public class EventosControllerTests
             await SeedAsync(context);
             var repo = new EventoRepository(context);
             var service = new EventoService(repo);
-            var controller = new EventosController(service, context)
+            var contratoService = new ContratoEventoPdfService(repo, context);
+            var controller = new EventosController(service, contratoService, context)
             {
                 ControllerContext = new ControllerContext
                 {
@@ -404,6 +406,61 @@ public class EventosControllerTests
             var result = await controller.Listar(CancellationToken.None);
 
             Assert.IsType<UnauthorizedObjectResult>(result.Result);
+        }
+    }
+
+    [Fact]
+    public async Task Contrato_devuelve_pdf_y_no_modifica_datos()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var totalAntes = await context.Evento.CountAsync();
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.Contrato(evento.ID_EVENTO, CancellationToken.None);
+
+            var file = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("application/pdf", file.ContentType);
+            Assert.NotNull(file.FileContents);
+            Assert.NotEmpty(file.FileContents);
+            Assert.Equal(totalAntes, await context.Evento.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Contrato_evento_otra_sucursal_devuelve_404()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context, sucursalId: OtraSucursalId, clienteId: OtroClienteId);
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.Contrato(evento.ID_EVENTO, CancellationToken.None);
+
+            Assert.IsType<NotFoundObjectResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Contrato_evento_inexistente_devuelve_404()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.Contrato(999999, CancellationToken.None);
+
+            Assert.IsType<NotFoundObjectResult>(result);
         }
     }
 }

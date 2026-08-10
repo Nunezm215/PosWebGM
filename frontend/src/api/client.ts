@@ -58,6 +58,18 @@ function getAuthHeaders(): Record<string, string> {
   return {}
 }
 
+function getFilenameFromContentDisposition(header: string | null): string | undefined {
+  if (!header) return undefined
+  const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(header)
+  const raw = match?.[1] ?? match?.[2]
+  if (!raw) return undefined
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const startTime = Date.now()
   console.log(`[API Request] ${options?.method ?? 'GET'} ${url}`)
@@ -108,6 +120,58 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   
   if (res.status === 204) return undefined as T
   return res.json()
+}
+
+async function requestBlob(url: string, options?: RequestInit): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
+  const startTime = Date.now()
+  console.log(`[API Request] ${options?.method ?? 'GET'} ${url}`)
+
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+  }
+
+  if (options?.headers) {
+    Object.assign(headers, options.headers)
+  }
+
+  const res = await fetch(`${BASE}${url}`, {
+    ...options,
+    headers,
+  })
+
+  const duration = Date.now() - startTime
+
+  if (!res.ok) {
+    const text = await res.text()
+    if (res.status === 401) {
+      localStorage.removeItem('jwt_token')
+      localStorage.removeItem('jwt_expires')
+      localStorage.removeItem('user_info')
+      window.dispatchEvent(new CustomEvent('auth:expired'))
+    }
+    let message = text
+    try {
+      const parsed = JSON.parse(text)
+      message = parsed.error || parsed.title || parsed.message || text
+    } catch {}
+    const err = new Error(message)
+    console.error(`[API] ${res.status} ${res.statusText} — ${options?.method ?? 'GET'} ${url} (${duration}ms)`, {
+      status: res.status,
+      statusText: res.statusText,
+      url: `${BASE}${url}`,
+      responseBody: text,
+      duration,
+    }, err)
+    throw err
+  }
+
+  console.log(`[API Success] ${options?.method ?? 'GET'} ${url} - ${res.status} (${duration}ms)`)
+
+  return {
+    blob: await res.blob(),
+    filename: getFilenameFromContentDisposition(res.headers.get('content-disposition')),
+    contentType: res.headers.get('content-type') ?? undefined,
+  }
 }
 
 export const api = {
@@ -161,6 +225,7 @@ export const api = {
     cancelar: (id: number) => request<EventoDto>(`/eventos/${id}/cancelar`, {
       method: 'POST',
     }),
+    obtenerContratoPdf: (id: number) => requestBlob(`/eventos/${id}/contrato`),
   },
 
   // Productos

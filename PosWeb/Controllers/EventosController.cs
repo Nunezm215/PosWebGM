@@ -14,11 +14,13 @@ namespace PosWeb.Controllers;
 public class EventosController : ControllerBase
 {
     private readonly IEventoService _eventoService;
+    private readonly ContratoEventoPdfService _contratoEventoPdfService;
     private readonly PosDbContextLocal _context;
 
-    public EventosController(IEventoService eventoService, PosDbContextLocal context)
+    public EventosController(IEventoService eventoService, ContratoEventoPdfService contratoEventoPdfService, PosDbContextLocal context)
     {
         _eventoService = eventoService;
+        _contratoEventoPdfService = contratoEventoPdfService;
         _context = context;
     }
 
@@ -186,6 +188,20 @@ public class EventosController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    [HttpGet("{id:int}/contrato")]
+    public async Task<IActionResult> Contrato(int id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error))
+            return error;
+
+        var contrato = await _contratoEventoPdfService.GenerarAsync(id, sucursalId, cancellationToken);
+        if (contrato is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{contrato.FileName}\"";
+        return File(contrato.Content, "application/pdf");
     }
 
     private bool TryGetCurrentContext(out int usuarioId, out int sucursalId, out ActionResult error)

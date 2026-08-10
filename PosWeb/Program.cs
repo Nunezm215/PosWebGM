@@ -31,8 +31,11 @@ using PosWeb.Middlewares;
 using PosWeb.Domain;
 using System.Security.Claims;
 using Serilog;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var embeddedJson = typeof(Program).Assembly.GetManifestResourceStream("PosWeb.appsettings.json");
 if (embeddedJson != null)
@@ -128,6 +131,7 @@ builder.Services.AddScoped<OfertaService>();
 builder.Services.AddScoped<CategoriaGastoService>();
 builder.Services.AddScoped<IEventoRepository, EventoRepository>();
 builder.Services.AddScoped<IEventoService, EventoService>();
+builder.Services.AddScoped<ContratoEventoPdfService>();
 
 // MercadoPago
 var mpEncryptionKey = builder.Configuration["MercadoPago:EncryptionKey"]

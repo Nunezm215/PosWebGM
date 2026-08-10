@@ -239,6 +239,10 @@ export default function EventosPage() {
   const [cancelarError, setCancelarError] = useState('')
   const [cancelarSaving, setCancelarSaving] = useState(false)
 
+  const [contratoOpen, setContratoOpen] = useState(false)
+  const [contratoLoading, setContratoLoading] = useState(false)
+  const [contratoError, setContratoError] = useState('')
+
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
 
   useEffect(() => {
@@ -549,6 +553,76 @@ export default function EventosPage() {
     if (cancelarSaving) return
     setCancelarOpen(false)
     setCancelarError('')
+  }
+
+  function abrirContrato() {
+    setContratoError('')
+    setContratoOpen(true)
+  }
+
+  function cerrarContrato() {
+    if (contratoLoading) return
+    setContratoOpen(false)
+    setContratoError('')
+  }
+
+  async function obtenerContratoPdf() {
+    if (!selectedEvento) return null
+
+    setContratoLoading(true)
+    setContratoError('')
+
+    try {
+      return await api.eventos.obtenerContratoPdf(selectedEvento.id)
+    } catch (err) {
+      setContratoError(err instanceof Error ? err.message : 'Error al generar el contrato')
+      return null
+    } finally {
+      setContratoLoading(false)
+    }
+  }
+
+  async function verContrato() {
+    const result = await obtenerContratoPdf()
+    if (!result) return
+
+    const url = URL.createObjectURL(result.blob)
+    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      URL.revokeObjectURL(url)
+      setContratoError('El navegador bloqueo la apertura del PDF')
+      return
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  async function imprimirContrato() {
+    const result = await obtenerContratoPdf()
+    if (!result) return
+
+    const url = URL.createObjectURL(result.blob)
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.src = url
+
+    iframe.onload = () => {
+      window.setTimeout(() => {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      }, 200)
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url)
+        iframe.remove()
+      }, 10_000)
+    }
+
+    document.body.appendChild(iframe)
   }
 
   async function handleGuardarEvento(e: React.FormEvent<HTMLFormElement>) {
@@ -1134,22 +1208,32 @@ export default function EventosPage() {
 
       <Dialog
         open={selectedEvento !== null}
-        onClose={() => setSelectedEvento(null)}
+        onClose={() => {
+          setSelectedEvento(null)
+          setContratoOpen(false)
+        }}
         title="Detalle del evento"
         icon={<CalendarDays size={18} />}
         width="md"
-        footer={selectedEvento && canManageEvents ? (
+        footer={selectedEvento ? (
           <>
-            <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
-              Editar
+            <Button variant="secondary" size="sm" onClick={abrirContrato}>
+              Contrato
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => abrirCambioEstado(selectedEvento)}>
-              Cambiar estado
-            </Button>
-            {selectedEvento.estado !== 'Cancelado' && (
-              <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
-                Cancelar evento
-              </Button>
+            {canManageEvents && (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
+                  Editar
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => abrirCambioEstado(selectedEvento)}>
+                  Cambiar estado
+                </Button>
+                {selectedEvento.estado !== 'Cancelado' && (
+                  <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
+                    Cancelar evento
+                  </Button>
+                )}
+              </>
             )}
           </>
         ) : undefined}
@@ -1173,6 +1257,39 @@ export default function EventosPage() {
             </div>
           </div>
         )}
+      </Dialog>
+
+      <Dialog
+        open={contratoOpen}
+        onClose={cerrarContrato}
+        title="Contrato"
+        description={selectedEvento ? `Contrato de reserva para el Evento #${selectedEvento.id}` : 'Contrato de reserva'}
+        width="sm"
+        closeOnBackdrop={!contratoLoading}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={cerrarContrato} disabled={contratoLoading}>
+              Cerrar
+            </Button>
+            <Button variant="secondary" size="sm" onClick={verContrato} loading={contratoLoading}>
+              Ver contrato
+            </Button>
+            <Button variant="confirm" size="sm" onClick={imprimirContrato} loading={contratoLoading}>
+              Imprimir contrato
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {contratoError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {contratoError}
+            </div>
+          )}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            El PDF se genera con los datos reales del Evento y del Cliente. Se abre en una nueva pestaña o se imprime desde el navegador.
+          </div>
+        </div>
       </Dialog>
 
       <Dialog

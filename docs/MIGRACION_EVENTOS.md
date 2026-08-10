@@ -918,3 +918,297 @@ Continuar con mejoras funcionales y de usabilidad del modulo Eventos
 antes de comenzar la parte financiera.
 
 No implementar pagos todavia.
+
+## Fase 1B.4B - Contrato de Reserva de Evento v1
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1b4b-contrato-evento-ok`
+
+### Objetivo
+
+Permitir generar un contrato de reserva del salon utilizando
+automaticamente los datos reales del Evento y del Cliente.
+
+El contrato puede visualizarse e imprimirse desde el modulo Eventos.
+
+Esta primera version NO incluye firma digital.
+
+### Flujo
+
+Desde el detalle de un Evento:
+
+- accion `Contrato`
+- `Ver contrato`
+- `Imprimir contrato`
+
+El contrato se genera bajo demanda.
+
+No se persiste el PDF en:
+
+- base de datos
+- filesystem
+- tabla adicional
+
+### Endpoint
+
+Se agrego:
+
+`GET /api/eventos/{id}/contrato`
+
+Caracteristicas:
+
+- requiere JWT
+- obtiene sucursal desde claims
+- no acepta `sucursalId` desde query
+- valida que el Evento pertenezca a la sucursal
+- devuelve `application/pdf`
+- Evento inexistente/no accesible devuelve respuesta controlada
+
+### Generacion PDF
+
+Se incorporo:
+
+`QuestPDF`
+
+Servicio:
+
+`ContratoEventoPdfService`
+
+Template:
+
+`ContratoEventoTemplate`
+
+El contenido contractual queda centralizado para poder reemplazar
+facilmente las clausulas en el futuro.
+
+### Datos del Cliente
+
+El contrato utiliza datos reales:
+
+- nombre
+- tipo de documento
+- numero de documento
+- telefono
+- domicilio
+- mail, si existe
+
+### Datos del Evento
+
+Incluye:
+
+- numero/ID de Evento
+- fecha
+- hora inicio
+- hora fin
+- tipo de evento
+- cantidad de invitados
+- monto total
+- observaciones
+- estado
+
+Si existe informacion real utilizable de empresa/sucursal,
+puede mostrarse el nombre comercial.
+
+No se inventan datos legales.
+
+### Contenido base
+
+Titulo:
+
+`CONTRATO DE RESERVA DE SALON DE EVENTOS`
+
+El modelo inicial incluye:
+
+- identificacion del contratante
+- datos del Evento
+- objeto de la reserva
+- reserva de fecha
+- horario
+- cantidad de invitados
+- cuidado de instalaciones
+- responsabilidad
+- cancelaciones/modificaciones
+- conformidad
+- observaciones
+- espacios para firmas
+
+Este texto es un MODELO BASE.
+
+Esta diseñado para ser reemplazado posteriormente por el contrato
+
+No debe considerarse todavia el texto contractual/legal definitivo.
+
+### Firmas
+
+El PDF incluye espacios para:
+
+- firma del contratante
+- aclaracion
+- DNI
+- firma del responsable del salon
+- aclaracion
+
+En esta fase las firmas son para impresion y firma manual.
+
+NO existe todavia captura de firma digital.
+
+### Evento Cancelado
+
+El contrato puede seguir consultandose para un Evento cancelado.
+
+En ese caso debe quedar identificado explicitamente:
+
+`EVENTO CANCELADO`
+
+### Frontend
+
+Desde el detalle del Evento:
+
+`Ver contrato`
+
+- solicita el PDF autenticado
+- crea un Blob
+- abre el documento en una nueva pestaña
+
+`Imprimir contrato`
+
+- reutiliza el PDF
+- utiliza un iframe temporal/oculto
+- ejecuta la impresion del navegador
+
+No existe una segunda version HTML independiente del contrato.
+
+El PDF es la representacion visual del contrato.
+
+### Celular
+
+Verificado manualmente desde celular por red local.
+
+El contrato puede:
+
+- abrirse
+- visualizarse
+- utilizar las opciones normales del navegador/dispositivo
+
+No se implemento integracion Android nativa especifica.
+
+### Dependencias
+
+Backend:
+
+- QuestPDF
+
+Tests:
+
+- UglyToad.PdfPig
+
+PdfPig se utiliza para inspeccion/validacion del PDF en tests,
+no como generador del contrato.
+
+### Tests backend
+
+Tests relacionados con Eventos/Contrato:
+
+- `42/42 OK`
+
+Incluyen validaciones de:
+
+- generacion de PDF
+- content-type
+- PDF no vacio
+- datos del Evento
+- datos del Cliente
+- monto
+- horario
+- invitados
+- observaciones
+- aislamiento por sucursal
+- Evento inexistente
+- Evento cancelado
+- generacion sin modificar Evento/DB
+
+Nota:
+
+El `dotnet test` completo mantiene 2 tests preexistentes fallando
+en `UsuariosSubscriptionTest`, no relacionados con esta fase.
+
+### Tests frontend
+
+`EventosPage.test.tsx`
+
+Resultado:
+
+- `16/16 OK`
+
+Se verifica:
+
+- accion Contrato
+- apertura
+- impresion
+- permisos de lectura
+- generacion sin crear pagos
+- generacion sin cambiar estado
+
+Persisten warnings no bloqueantes de `act(...)`.
+
+### Build
+
+Backend:
+
+- `dotnet build PosWeb/PosWeb.csproj`: OK
+- `dotnet build PosWeb.Application.Test/PosWeb.Application.Test.csproj`: OK
+
+Frontend:
+
+- `npm run build`: OK
+
+### Verificacion manual
+
+Confirmado manualmente:
+
+- abrir Evento: OK
+- abrir Contrato: OK
+- PDF generado correctamente: OK
+- datos de Cliente: OK
+- datos de Evento: OK
+- visualizacion: OK
+- impresion: OK
+- funcionamiento desde PC: OK
+- funcionamiento desde celular: OK
+
+### Seguridad
+
+El contrato respeta el aislamiento por sucursal.
+
+La sucursal se obtiene desde JWT/claims.
+
+No se puede indicar otra sucursal mediante query para acceder
+al contrato de otro Evento.
+
+### No incluido todavia
+
+- firma digital
+- almacenamiento permanente del contrato firmado
+- versionado de contratos
+- PagoEvento
+- GastoEvento
+- integracion financiera con Caja
+- Mercado Pago
+- QR
+
+### No modificado
+
+La fase NO modifica:
+
+- regla de disponibilidad
+- separacion de 30 minutos entre Eventos
+- estados automaticos
+- Caja
+- Mercado Pago
+
+### Proximo paso
+
+Continuar puliendo Eventos antes de iniciar la parte financiera.
+
+La firma digital puede implementarse posteriormente como una fase
+independiente sobre esta base.
