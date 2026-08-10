@@ -14,6 +14,7 @@ public class EventoService : IEventoService
 
     public async Task<EventoDto> CrearEventoAsync(CrearEventoRequestDto request, int usuarioCreadorId, int sucursalId, CancellationToken cancellationToken = default)
     {
+        ValidarFechaNoAnteriorAHoy(request.Fecha);
         ValidarRequest(request);
 
         var evento = new Evento(
@@ -38,6 +39,7 @@ public class EventoService : IEventoService
 
     public async Task<EventoDto> EditarEventoAsync(int eventoId, EditarEventoRequestDto request, CancellationToken cancellationToken = default)
     {
+        ValidarFechaNoAnteriorAHoy(request.Fecha);
         ValidarRequest(request);
 
         var evento = await _repository.ObtenerPorIdAsync(eventoId, cancellationToken)
@@ -168,6 +170,14 @@ public class EventoService : IEventoService
             request.MontoTotal,
             request.Observaciones,
             fechaCreacion: DateTime.UtcNow);
+    }
+
+    private static void ValidarFechaNoAnteriorAHoy(DateOnly fecha)
+    {
+        // Se compara contra la fecha local del sistema para respetar el día operativo del salón.
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        if (fecha < hoy)
+            throw new ArgumentException("No se puede reservar un evento en una fecha anterior a hoy", nameof(fecha));
     }
 
     private static EventoDto Map(Evento evento)

@@ -14,6 +14,9 @@ namespace PosWeb.Application.Test.Eventos;
 
 public class EventosControllerTests
 {
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Today);
+    private static DateOnly Fecha(int dias) => Hoy.AddDays(dias);
+
     private const int UsuarioId = 9101;
     private const int SucursalId = 9101;
     private const int OtraSucursalId = 9102;
@@ -97,7 +100,7 @@ public class EventosControllerTests
         => new()
         {
             ClienteId = clienteId,
-            Fecha = fecha ?? new DateOnly(2026, 8, 10),
+            Fecha = fecha ?? Hoy,
             HoraInicio = inicio ?? new TimeOnly(18, 0),
             HoraFin = fin ?? new TimeOnly(22, 0),
             TipoEvento = "Cumpleanos",
@@ -110,7 +113,7 @@ public class EventosControllerTests
         => new()
         {
             ClienteId = clienteId,
-            Fecha = fecha ?? new DateOnly(2026, 8, 10),
+            Fecha = fecha ?? Hoy,
             HoraInicio = inicio ?? new TimeOnly(18, 0),
             HoraFin = fin ?? new TimeOnly(22, 0),
             TipoEvento = "Cumpleanos",
@@ -202,6 +205,50 @@ public class EventosControllerTests
     }
 
     [Fact]
+    public async Task Get_id_evento_historico_sigue_siendo_consultable()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = new Evento(ClienteId, UsuarioId, SucursalId, Fecha(-3), new TimeOnly(18, 0), new TimeOnly(22, 0), "Cumpleanos", 50, 100000m);
+            context.Evento.Add(evento);
+            await context.SaveChangesAsync();
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.ObtenerPorId(evento.ID_EVENTO, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var dto = Assert.IsType<EventoDto>(ok.Value);
+            Assert.Equal(Fecha(-3), dto.Fecha);
+        }
+    }
+
+    [Fact]
+    public async Task Get_id_evento_cancelado_historico_sigue_siendo_consultable()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = new Evento(ClienteId, UsuarioId, SucursalId, Fecha(-4), new TimeOnly(18, 0), new TimeOnly(22, 0), "Cumpleanos", 50, 100000m);
+            evento.Cancelar();
+            context.Evento.Add(evento);
+            await context.SaveChangesAsync();
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.ObtenerPorId(evento.ID_EVENTO, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var dto = Assert.IsType<EventoDto>(ok.Value);
+            Assert.Equal(EventoEstados.Cancelado, dto.Estado);
+            Assert.Equal(Fecha(-4), dto.Fecha);
+        }
+    }
+
+    [Fact]
     public async Task Get_id_otra_sucursal_devuelve_404()
     {
         var (connection, context) = await CrearContextoAsync();
@@ -246,8 +293,8 @@ public class EventosControllerTests
         await using (context)
         {
             await SeedAsync(context);
-            await CrearEventoPersistidoAsync(context, sucursalId: SucursalId, clienteId: ClienteId, fecha: new DateOnly(2026, 8, 10));
-            await CrearEventoPersistidoAsync(context, sucursalId: OtraSucursalId, clienteId: OtroClienteId, fecha: new DateOnly(2026, 8, 11));
+            await CrearEventoPersistidoAsync(context, sucursalId: SucursalId, clienteId: ClienteId, fecha: Hoy);
+            await CrearEventoPersistidoAsync(context, sucursalId: OtraSucursalId, clienteId: OtroClienteId, fecha: Fecha(1));
 
             var controller = CrearController(context, Roles.UsuarioComun);
             var result = await controller.ListarRango(new DateOnly(2026, 8, 9), new DateOnly(2026, 8, 12), CancellationToken.None);
@@ -269,8 +316,8 @@ public class EventosControllerTests
             await CrearEventoPersistidoAsync(context);
             var controller = CrearController(context, Roles.UsuarioComun);
 
-            var a29 = await controller.Disponibilidad(new DateOnly(2026, 8, 10), new TimeOnly(22, 29), new TimeOnly(23, 30), null, CancellationToken.None);
-            var a30 = await controller.Disponibilidad(new DateOnly(2026, 8, 10), new TimeOnly(22, 30), new TimeOnly(23, 30), null, CancellationToken.None);
+            var a29 = await controller.Disponibilidad(Hoy, new TimeOnly(22, 29), new TimeOnly(23, 30), null, CancellationToken.None);
+            var a30 = await controller.Disponibilidad(Hoy, new TimeOnly(22, 30), new TimeOnly(23, 30), null, CancellationToken.None);
 
             Assert.False((bool)Assert.IsType<OkObjectResult>(a29).Value!);
             Assert.True((bool)Assert.IsType<OkObjectResult>(a30).Value!);
@@ -325,7 +372,7 @@ public class EventosControllerTests
             var cancel = await controller.Cancelar(evento.ID_EVENTO, CancellationToken.None);
             Assert.IsType<OkObjectResult>(cancel);
 
-            var disponibilidad = await controller.Disponibilidad(new DateOnly(2026, 8, 10), new TimeOnly(20, 0), new TimeOnly(21, 0), null, CancellationToken.None);
+            var disponibilidad = await controller.Disponibilidad(Hoy, new TimeOnly(20, 0), new TimeOnly(21, 0), null, CancellationToken.None);
             Assert.True((bool)Assert.IsType<OkObjectResult>(disponibilidad).Value!);
         }
     }

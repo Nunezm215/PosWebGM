@@ -53,6 +53,10 @@ function formatDateInput(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+function isBeforeToday(value: string, today = formatDateInput(new Date())) {
+  return Boolean(value) && value < today
+}
+
 const EVENTO_ESTADOS = ['Reservado', 'Señado', 'Pagado', 'Cancelado'] as const
 type EventoEstado = typeof EVENTO_ESTADOS[number]
 
@@ -117,6 +121,39 @@ function formatMonthTitle(date: Date) {
 
 function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function addMonths(date: Date, months: number) {
+  return new Date(date.getFullYear(), date.getMonth() + months, date.getDate())
+}
+
+function parseEventDateTime(fecha: string, hora: string) {
+  const [year, month, day] = fecha.slice(0, 10).split('-').map(Number)
+  const [hours, minutes] = hora.slice(0, 5).split(':').map(Number)
+  return new Date(year, month - 1, day, hours, minutes, 0, 0)
+}
+
+function isUpcomingEvento(evento: EventoDto, now: Date) {
+  if (evento.estado === 'Cancelado') return false
+  return parseEventDateTime(evento.fecha, evento.horaFin).getTime() > now.getTime()
+}
+
+function compareEventosByDateTime(a: EventoDto, b: EventoDto) {
+  const fecha = a.fecha.localeCompare(b.fecha)
+  if (fecha !== 0) return fecha
+
+  const hora = a.horaInicio.localeCompare(b.horaInicio)
+  if (hora !== 0) return hora
+
+  return a.id - b.id
+}
+
+function formatUpcomingDay(evento: EventoDto) {
+  return fromDateKey(evento.fecha.slice(0, 10))
+    .toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
+    .replace(/\./g, '')
+    .replace(',', '')
+    .toUpperCase()
 }
 
 interface EventoAltaFormState {
@@ -199,6 +236,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function EventosPage() {
   const { user } = useAuth()
   const { notifySuccess } = useNotification()
+  const todayDateKey = formatDateInput(new Date())
   const canManageEvents = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()))
   const [eventos, setEventos] = useState<EventoDto[]>([])
@@ -243,6 +281,10 @@ export default function EventosPage() {
   const [contratoLoading, setContratoLoading] = useState(false)
   const [contratoError, setContratoError] = useState('')
 
+  const [proximosEventos, setProximosEventos] = useState<EventoDto[]>([])
+  const [proximosLoading, setProximosLoading] = useState(true)
+  const [proximosError, setProximosError] = useState<string | null>(null)
+
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
 
   useEffect(() => {
@@ -273,6 +315,34 @@ export default function EventosPage() {
     }
   }, [range.desde, range.hasta, reloadKey])
 
+  useEffect(() => {
+    let active = true
+    const hoy = new Date()
+    const desde = toDateKey(hoy)
+    const hasta = toDateKey(addMonths(hoy, 12))
+
+    setProximosLoading(true)
+    setProximosError(null)
+
+    api.eventos.listarPorRango(desde, hasta)
+      .then(data => {
+        if (!active) return
+        setProximosEventos(data)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        setProximosEventos([])
+        setProximosError(err instanceof Error ? err.message : 'Error al cargar próximos eventos')
+      })
+      .finally(() => {
+        if (active) setProximosLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [reloadKey])
+
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoDto[]>()
     for (const evento of eventos) {
@@ -287,12 +357,25 @@ export default function EventosPage() {
     return map
   }, [eventos])
 
+  const eventosProximosVisibles = useMemo(() => {
+    const ahora = new Date()
+    return proximosEventos
+      .filter(evento => isUpcomingEvento(evento, ahora))
+      .sort(compareEventosByDateTime)
+      .slice(0, 10)
+  }, [proximosEventos, reloadKey])
+
   const monthTitle = formatMonthTitle(monthAnchor)
 
   const timeError = useMemo(() => {
     if (!createForm.horaInicio || !createForm.horaFin) return ''
     return isValidTimeRange(createForm.horaInicio, createForm.horaFin) ? '' : 'La hora fin debe ser posterior a la hora inicio'
   }, [createForm.horaInicio, createForm.horaFin])
+
+  const fechaError = useMemo(() => {
+    if (!createForm.fecha) return ''
+    return isBeforeToday(createForm.fecha, todayDateKey) ? 'No se puede reservar un evento en una fecha anterior a hoy' : ''
+  }, [createForm.fecha, todayDateKey])
 
   const canGuardar = Boolean(
     clienteSeleccionado?.id &&
@@ -302,6 +385,7 @@ export default function EventosPage() {
     createForm.tipoEvento.trim() &&
     createForm.cantidadInvitados.trim() &&
     createForm.montoTotal.trim() &&
+    !fechaError &&
     !timeError &&
     disponibilidad.estado === 'available' &&
     !saving &&
@@ -597,36 +681,12 @@ export default function EventosPage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
-  async function imprimirContrato() {
-    const result = await obtenerContratoPdf()
-    if (!result) return
-
-    const url = URL.createObjectURL(result.blob)
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.right = '0'
-    iframe.style.bottom = '0'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.src = url
-
-    iframe.onload = () => {
-      window.setTimeout(() => {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      }, 200)
-      window.setTimeout(() => {
-        URL.revokeObjectURL(url)
-        iframe.remove()
-      }, 10_000)
-    }
-
-    document.body.appendChild(iframe)
-  }
-
   async function handleGuardarEvento(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (fechaError) {
+      return
+    }
 
     if (!clienteSeleccionado?.id) {
       setCreateError('Seleccioná un cliente')
@@ -795,73 +855,133 @@ export default function EventosPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-gray-500">
-          {WEEKDAY_LABELS.map(day => (
-            <div key={day} className="px-2 py-2 text-center">{day}</div>
-          ))}
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {WEEKDAY_LABELS.map(day => (
+                <div key={day} className="px-2 py-2 text-center">{day}</div>
+              ))}
+            </div>
 
-        <div className="grid grid-cols-7 gap-px bg-gray-200">
-          {range.days.map(day => {
-            const key = toDateKey(day)
-            const eventosDia = eventosPorDia.get(key) ?? []
-            const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
+            <div className="grid grid-cols-7 gap-px bg-gray-200">
+              {range.days.map(day => {
+                const key = toDateKey(day)
+                const eventosDia = eventosPorDia.get(key) ?? []
+                const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
 
-            return (
-              <div
-                key={key}
-                className={`min-h-[100px] bg-white p-2 text-sm sm:min-h-[122px] sm:p-3 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400 bg-gray-50'}`}
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isCurrentMonth ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
-                    {day.getDate()}
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  {eventosDia.slice(0, 3).map(evento => (
-                    <button
-                      key={evento.id}
-                      type="button"
-                      onClick={() => openEvent(evento.id)}
-                      className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado)}`}
-                      aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold">
-                            {formatTime(evento.horaInicio)} {evento.tipoEvento}
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-1 text-[10px] opacity-90">
-                            <Clock3 size={10} />
-                            <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
-                          </div>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
-                          {evento.estado}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-
-                  {eventosDia.length > 3 && (
-                    <div className="px-1 text-[10px] font-medium text-gray-500">
-                      +{eventosDia.length - 3} más
+                return (
+                  <div
+                    key={key}
+                    className={`min-h-[100px] bg-white p-2 text-sm sm:min-h-[122px] sm:p-3 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400 bg-gray-50'}`}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isCurrentMonth ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
+                        {day.getDate()}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
 
-      {!loading && eventos.length === 0 && !error && (
-        <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
-          No hay eventos en este rango.
+                    <div className="space-y-1">
+                      {eventosDia.slice(0, 3).map(evento => (
+                        <button
+                          key={evento.id}
+                          type="button"
+                          onClick={() => openEvent(evento.id)}
+                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado)}`}
+                          aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-semibold">
+                                {formatTime(evento.horaInicio)} {evento.tipoEvento}
+                              </div>
+                              <div className="mt-0.5 flex items-center gap-1 text-[10px] opacity-90">
+                                <Clock3 size={10} />
+                                <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
+                              </div>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                              {evento.estado}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+
+                      {eventosDia.length > 3 && (
+                        <div className="px-1 text-[10px] font-medium text-gray-500">
+                          +{eventosDia.length - 3} más
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {!loading && eventos.length === 0 && !error && (
+            <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
+              No hay eventos en este rango.
+            </div>
+          )}
         </div>
-      )}
+
+        <aside className="min-w-0">
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Próximos eventos</h2>
+                <p className="text-xs text-gray-500">Máximo 10 eventos futuros</p>
+              </div>
+              {proximosLoading && <span className="text-xs text-gray-500">Cargando...</span>}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {proximosError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+                  No se pudieron cargar los próximos eventos.
+                </div>
+              )}
+
+              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                  No hay próximos eventos.
+                </div>
+              )}
+
+              {eventosProximosVisibles.map(evento => (
+                <button
+                  key={evento.id}
+                  type="button"
+                  onClick={() => openEvent(evento.id)}
+                  className={`w-full rounded-2xl border px-3 py-3 text-left shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md ${statusStyles(evento.estado)}`}
+                  aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide opacity-90">
+                        {formatUpcomingDay(evento)}
+                      </div>
+                      <div className="text-sm font-semibold text-gray-900 truncate">
+                        {formatTime(evento.horaInicio)} - {formatTime(evento.horaFin)}
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {evento.tipoEvento}
+                      </div>
+                      <div className="text-xs text-gray-700">
+                        {evento.cantidadInvitados} invitados
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                      {evento.estado}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
 
       <Dialog
         open={createOpen}
@@ -983,6 +1103,7 @@ export default function EventosPage() {
               <input
                 id="evento-fecha"
                 type="date"
+                min={todayDateKey}
                 value={createForm.fecha}
                 onChange={e => setCreateForm(prev => ({ ...prev, fecha: e.target.value }))}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
@@ -1028,6 +1149,10 @@ export default function EventosPage() {
 
           {timeError && (
             <p className="text-xs font-medium text-red-600">{timeError}</p>
+          )}
+
+          {fechaError && (
+            <p className="text-xs font-medium text-red-600">{fechaError}</p>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1247,7 +1372,6 @@ export default function EventosPage() {
             <DetailRow label="Monto" value={formatCurrency(selectedEvento.montoTotal)} />
             <DetailRow label="Estado" value={selectedEvento.estado} />
             <DetailRow label="Cliente" value={`Cliente #${selectedEvento.clienteId}`} />
-            <DetailRow label="Sucursal" value={`Sucursal #${selectedEvento.sucursalId}`} />
             <DetailRow label="Usuario creador" value={`Usuario #${selectedEvento.usuarioCreadorId}`} />
             <div className="pt-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Observaciones</p>
@@ -1273,9 +1397,6 @@ export default function EventosPage() {
             </Button>
             <Button variant="secondary" size="sm" onClick={verContrato} loading={contratoLoading}>
               Ver contrato
-            </Button>
-            <Button variant="confirm" size="sm" onClick={imprimirContrato} loading={contratoLoading}>
-              Imprimir contrato
             </Button>
           </>
         }

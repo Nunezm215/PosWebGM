@@ -6,11 +6,15 @@ using PosWeb.Contracts;
 using PosWeb.Domain;
 using PosWeb.Testing;
 using UglyToad.PdfPig;
+using System.Globalization;
 
 namespace PosWeb.Application.Test.Eventos;
 
 public class ContratoEventoPdfServiceTests
 {
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Today);
+    private static string FormatoFecha(DateOnly fecha) => fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
     private const int UsuarioId = 9101;
     private const int SucursalId = 9101;
     private const int OtraSucursalId = 9102;
@@ -74,7 +78,7 @@ public class ContratoEventoPdfServiceTests
         var creado = await servicio.CrearEventoAsync(new CrearEventoRequestDto
         {
             ClienteId = clienteId,
-            Fecha = fecha ?? new DateOnly(2026, 8, 10),
+            Fecha = fecha ?? Hoy,
             HoraInicio = inicio ?? new TimeOnly(18, 0),
             HoraFin = fin ?? new TimeOnly(22, 0),
             TipoEvento = "Cumpleanos",
@@ -116,7 +120,7 @@ public class ContratoEventoPdfServiceTests
             Assert.Contains("1234-5678", texto);
             Assert.Contains("Calle 123", texto);
             Assert.Contains("cliente@correo.com", texto);
-            Assert.Contains("10/08/2026", texto);
+            Assert.Contains(FormatoFecha(Hoy), texto);
             Assert.Contains("18:00 - 22:00", texto);
             Assert.Contains("Cumpleanos", texto);
             Assert.Contains("50", texto);

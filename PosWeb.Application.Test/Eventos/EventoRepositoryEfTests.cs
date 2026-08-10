@@ -10,6 +10,9 @@ namespace PosWeb.Application.Test.Eventos;
 
 public class EventoRepositoryEfTests
 {
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Today);
+    private static DateOnly Fecha(int dias) => Hoy.AddDays(dias);
+
     private const int UsuarioId = 9001;
     private const int SuscripcionId = 9001;
     private const int EmpresaId = 9001;
@@ -84,7 +87,7 @@ public class EventoRepositoryEfTests
             await SeedBaseAsync(context);
             var repo = new EventoRepository(context);
 
-            var evento = CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0));
+            var evento = CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0));
             await repo.AgregarAsync(evento);
 
             var encontrado = await repo.ObtenerPorIdAsync(evento.ID_EVENTO);
@@ -109,11 +112,11 @@ public class EventoRepositoryEfTests
             await SeedBaseAsync(context);
             var repo = new EventoRepository(context);
 
-            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
-            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, new DateOnly(2026, 8, 12), new TimeOnly(18, 0), new TimeOnly(22, 0)));
-            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, new DateOnly(2026, 8, 20), new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, Fecha(2), new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Fecha(10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
 
-            var eventos = await repo.ListarPorRangoAsync(new DateOnly(2026, 8, 9), new DateOnly(2026, 8, 15));
+            var eventos = await repo.ListarPorRangoAsync(Fecha(-1), Fecha(5));
 
             Assert.Equal(2, eventos.Count);
         }
@@ -129,10 +132,10 @@ public class EventoRepositoryEfTests
             await SeedBaseAsync(context);
             var repo = new EventoRepository(context);
 
-            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
-            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)));
 
-            var eventosSucursal1 = await repo.ListarPorFechaYSucursalAsync(new DateOnly(2026, 8, 10), Sucursal1Id);
+            var eventosSucursal1 = await repo.ListarPorFechaYSucursalAsync(Hoy, Sucursal1Id);
 
             Assert.Single(eventosSucursal1);
             Assert.All(eventosSucursal1, e => Assert.Equal(Sucursal1Id, e.ID_SUCURSAL));
@@ -149,10 +152,10 @@ public class EventoRepositoryEfTests
             await SeedBaseAsync(context);
             var repo = new EventoRepository(context);
 
-            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
-            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, new DateOnly(2026, 8, 10), new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)));
+            await repo.AgregarAsync(CrearEvento(Cliente2Id, UsuarioId, Sucursal2Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)));
 
-            var eventosSucursal1 = await repo.ListarPorFechaYSucursalAsync(new DateOnly(2026, 8, 10), 1);
+            var eventosSucursal1 = await repo.ListarPorFechaYSucursalAsync(Hoy, 1);
 
             Assert.DoesNotContain(eventosSucursal1, e => e.ID_SUCURSAL == Sucursal2Id);
         }
@@ -193,7 +196,7 @@ public class EventoRepositoryEfTests
                 new CrearEventoRequestDto
                 {
                     ClienteId = Cliente1Id,
-                    Fecha = new DateOnly(2026, 8, 10),
+                    Fecha = Hoy,
                     HoraInicio = new TimeOnly(18, 0),
                     HoraFin = new TimeOnly(22, 0),
                     TipoEvento = "Cumpleanos",
@@ -205,7 +208,7 @@ public class EventoRepositoryEfTests
                 sucursalId: Sucursal1Id);
 
             Assert.Equal(EventoEstados.Reservado, creado.Estado);
-            var disponible = await service.EstaDisponibleAsync(new DateOnly(2026, 8, 10), new TimeOnly(20, 0), new TimeOnly(21, 0), Sucursal1Id);
+            var disponible = await service.EstaDisponibleAsync(Hoy, new TimeOnly(20, 0), new TimeOnly(21, 0), Sucursal1Id);
             Assert.False(disponible);
         }
     }
@@ -225,7 +228,7 @@ public class EventoRepositoryEfTests
                 new CrearEventoRequestDto
                 {
                     ClienteId = Cliente1Id,
-                    Fecha = new DateOnly(2026, 8, 10),
+                    Fecha = Hoy,
                     HoraInicio = new TimeOnly(18, 0),
                     HoraFin = new TimeOnly(22, 0),
                     TipoEvento = "Cumpleanos",
@@ -239,7 +242,7 @@ public class EventoRepositoryEfTests
             var cancelado = await service.CancelarAsync(creado.Id);
             Assert.Equal(EventoEstados.Cancelado, cancelado.Estado);
 
-            var disponible = await service.EstaDisponibleAsync(new DateOnly(2026, 8, 10), new TimeOnly(20, 0), new TimeOnly(21, 0), Sucursal1Id);
+            var disponible = await service.EstaDisponibleAsync(Hoy, new TimeOnly(20, 0), new TimeOnly(21, 0), Sucursal1Id);
             Assert.True(disponible);
         }
     }

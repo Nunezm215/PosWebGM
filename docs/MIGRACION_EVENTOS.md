@@ -1212,3 +1212,128 @@ Continuar puliendo Eventos antes de iniciar la parte financiera.
 
 La firma digital puede implementarse posteriormente como una fase
 independiente sobre esta base.
+
+## Fase 1B.4C - Pulido de Eventos
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1b4c-pulido-eventos-ok`
+
+### Próximos eventos
+
+- Se agregó una lista lateral de próximos eventos.
+- Muestra como máximo 10 eventos.
+- Se ordena por fecha y hora ascendente.
+- No incluye eventos `Cancelado`.
+- Incluye eventos de hoy que todavía no terminaron.
+- Excluye eventos de hoy ya finalizados.
+- Es independiente del mes que se visualiza en el calendario.
+- El click abre el mismo detalle existente.
+- Se actualiza después de crear, editar, cancelar y cambiar estado.
+- La vista responde bien en PC y celular.
+- No se creó backend nuevo para esta mejora.
+
+### Simplificación de contrato
+
+- En el detalle de Evento quedó una sola accion: `Ver contrato`.
+- Se elimino de la interfaz `Imprimir contrato`.
+- El usuario puede imprimir desde el visor PDF o el navegador.
+- El endpoint y la generacion del PDF siguen intactos.
+- `ContratoEventoPdfService` no fue modificado en esta mejora.
+- El contrato sigue disponible normalmente.
+
+### Detalle de Evento
+
+- Se dejo de mostrar visualmente `Sucursal` en el detalle.
+- El motivo es que actualmente el sistema trabaja con una sola sucursal.
+- `sucursalId` sigue existiendo internamente.
+- La seguridad y el aislamiento por sucursal siguen funcionando.
+- No se modificaron claims ni backend por este ajuste visual.
+
+### Validacion de fecha minima
+
+- No se puede crear ni editar un Evento con fecha anterior a hoy.
+- Ejemplo: si hoy es 10/08/2026, `09/08/2026` se rechaza, `10/08/2026` y `11/08/2026` se permiten.
+- La regla backend quedo centralizada en `EventoService`.
+- Usa `DateOnly.FromDateTime(DateTime.Today)` para tomar la fecha local del sistema.
+- El mensaje de validacion es: `No se puede reservar un evento en una fecha anterior a hoy`.
+- En frontend, el input de fecha usa `min` con la fecha de hoy.
+- Ademas existe validacion antes de `POST` y `PUT`.
+- La regla no depende solamente del navegador.
+- Los eventos historicos siguen siendo consultables.
+- Pueden abrirse en detalle, verse en calendario y abrir su contrato.
+- Solo no pueden crearse ni guardarse con fecha pasada.
+
+### Regla de disponibilidad
+
+- No se modifico la regla existente de separacion minima de 30 minutos.
+- Exactamente 30 minutos sigue permitido.
+- Menos de 30 minutos sigue rechazado.
+- `Cancelado` sigue sin bloquear.
+- `eventoIdExcluir` sigue funcionando en edicion.
+
+### Tests
+
+- Backend: tests filtrados de Evento `49 passed`.
+- Frontend: `EventosPage.test.tsx` `23 passed`.
+- El test de `Próximos eventos` inicialmente tuvo timeout por `fake timers`.
+- Se corrigio eliminando `fake timers` y usando fechas futuras relativas a `new Date()`.
+- No se modifico funcionalidad productiva para hacer pasar el test.
+- Persisten warnings no bloqueantes de `act(...)` en la suite frontend.
+
+### Builds
+
+- `dotnet build PosWeb/PosWeb.csproj`: OK
+- `npm run build`: OK
+
+### Verificacion manual
+
+**PC**
+
+- Próximos eventos: OK
+- maximo 10: OK
+- orden: OK
+- Cancelados excluidos: OK
+- click abre detalle: OK
+- Sucursal oculta: OK
+- solo Ver contrato: OK
+- contrato PDF sigue funcionando: OK
+- fecha pasada bloqueada: OK
+- fecha de hoy permitida: OK
+- edicion con fecha pasada bloqueada: OK
+
+**Celular**
+
+- visualizacion: OK
+- Próximos eventos: OK
+- detalle: OK
+- contrato: OK
+- selector y validacion de fecha: OK
+
+### No modificado
+
+Esta fase no toco:
+
+- PagoEvento
+- GastoEvento
+- Caja
+- Mercado Pago
+- QR
+- logica del contrato PDF
+- reglas de roles
+- aislamiento por sucursal
+- algoritmo de disponibilidad de 30 minutos
+
+### Proximo paso
+
+Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar el diseño de la fase financiera:
+
+- PagoEvento
+- senas
+- pagos parciales
+- saldo
+- Caja
+- Mercado Pago
+- QR
+- cambios automaticos de estado
+
+No se implementa ninguna de esas cosas en esta tarea.

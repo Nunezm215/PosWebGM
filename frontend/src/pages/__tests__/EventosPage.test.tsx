@@ -7,6 +7,7 @@ const apiState = vi.hoisted(() => ({
   obtenerPorId: vi.fn(),
   consultarDisponibilidad: vi.fn(),
   crear: vi.fn(),
+  editar: vi.fn(),
   crearCliente: vi.fn(),
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../api/client', () => ({
       obtenerPorId: apiState.obtenerPorId,
       consultarDisponibilidad: apiState.consultarDisponibilidad,
       crear: apiState.crear,
+      editar: apiState.editar,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
     },
     clientes: {
@@ -62,6 +64,7 @@ describe('EventosPage', () => {
     apiState.obtenerPorId.mockReset()
     apiState.consultarDisponibilidad.mockReset()
     apiState.crear.mockReset()
+    apiState.editar.mockReset()
     apiState.crearCliente.mockReset()
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
@@ -70,6 +73,7 @@ describe('EventosPage', () => {
     apiState.obtenerPorId.mockResolvedValue(null)
     apiState.consultarDisponibilidad.mockResolvedValue(true)
     apiState.crear.mockResolvedValue({})
+    apiState.editar.mockResolvedValue({})
     apiState.crearCliente.mockResolvedValue({})
     apiState.obtenerCliente.mockResolvedValue(null)
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
@@ -77,6 +81,12 @@ describe('EventosPage', () => {
   })
 
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const dateKeyFromToday = (offsetDays = 0) => {
+    const date = new Date()
+    date.setDate(date.getDate() + offsetDays)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
 
   function renderPage() {
     return import('../../pages/EventosPage').then(({ default: EventosPage }) => render(<EventosPage />))
@@ -268,6 +278,240 @@ describe('EventosPage', () => {
     expect(within(editDialog).queryByRole('button', { name: 'Crear cliente nuevo' })).not.toBeInTheDocument()
   })
 
+  it('sets today as the minimum date in create mode', async () => {
+    const { dialog } = await abrirAlta()
+
+    expect(within(dialog).getByLabelText(/Fecha/)).toHaveAttribute('min', dateKeyFromToday())
+  })
+
+  it('sets today as the minimum date in edit mode', async () => {
+    apiState.obtenerCliente.mockResolvedValueOnce({
+      id: 1,
+      nombre: 'Cliente Prueba',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: dateKeyFromToday(-1),
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Editar' }))
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Editar Evento' })
+    expect(within(editDialog).getByLabelText(/Fecha/)).toHaveAttribute('min', dateKeyFromToday())
+  })
+
+  it('blocks yesterday on create and does not POST', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+
+    const { user, dialog } = await abrirAlta()
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: dateKeyFromToday(-1) } })
+
+    expect(within(dialog).getByText('No se puede reservar un evento en una fecha anterior a hoy')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Guardar Evento' })).toBeDisabled()
+    expect(apiState.crear).not.toHaveBeenCalled()
+  })
+
+  it('blocks yesterday on edit and does not PUT', async () => {
+    apiState.obtenerCliente.mockResolvedValueOnce({
+      id: 1,
+      nombre: 'Cliente Prueba',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: dateKeyFromToday(-2),
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Editar' }))
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Editar Evento' })
+    fireEvent.change(within(editDialog).getByLabelText(/Fecha/), { target: { value: dateKeyFromToday(-1) } })
+    await pause(350)
+
+    expect(within(editDialog).getByText('No se puede reservar un evento en una fecha anterior a hoy')).toBeInTheDocument()
+    expect(within(editDialog).getByRole('button', { name: 'Guardar Cambios' })).toBeDisabled()
+    expect(apiState.editar).not.toHaveBeenCalled()
+  })
+
+  it('allows today on create', async () => {
+    apiState.listarClientes.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+
+    const fecha = dateKeyFromToday()
+    const created = {
+      id: 99,
+      clienteId: 1,
+      usuarioCreadorId: 7,
+      sucursalId: 3,
+      fecha,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    }
+
+    apiState.crear.mockResolvedValueOnce(created)
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const { user, dialog } = await abrirAlta()
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: fecha } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+
+    await pause(350)
+    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument()
+  }, 10000)
+
+  it('allows tomorrow on create', async () => {
+    apiState.listarClientes.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+
+    const fecha = dateKeyFromToday(1)
+    const created = {
+      id: 99,
+      clienteId: 1,
+      usuarioCreadorId: 7,
+      sucursalId: 3,
+      fecha,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    }
+
+    apiState.crear.mockResolvedValueOnce(created)
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const { user, dialog } = await abrirAlta()
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: fecha } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+
+    await pause(350)
+    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument()
+  }, 10000)
+
   it('validates that end time is after start time', async () => {
     const { user, dialog } = await abrirAlta()
 
@@ -347,6 +591,8 @@ describe('EventosPage', () => {
     })
     apiState.listarRango
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([created])
       .mockResolvedValueOnce([created])
     apiState.consultarDisponibilidad.mockResolvedValueOnce(true)
     apiState.crear.mockResolvedValueOnce(created)
@@ -384,7 +630,7 @@ describe('EventosPage', () => {
     expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('estado')
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument())
-    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(4))
     expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
   }, 10000)
 
@@ -517,6 +763,7 @@ describe('EventosPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
+    expect(within(dialog).queryByText(/Sucursal/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancelar evento' })).not.toBeInTheDocument()
   })
@@ -553,7 +800,7 @@ describe('EventosPage', () => {
 
     const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
     expect(within(contratoDialog).getByRole('button', { name: 'Ver contrato' })).toBeInTheDocument()
-    expect(within(contratoDialog).getByRole('button', { name: 'Imprimir contrato' })).toBeInTheDocument()
+    expect(within(contratoDialog).queryByRole('button', { name: 'Imprimir contrato' })).not.toBeInTheDocument()
 
     await user.click(within(contratoDialog).getByRole('button', { name: 'Ver contrato' }))
 
@@ -563,5 +810,210 @@ describe('EventosPage', () => {
     objectUrlSpy.mockRestore()
     revokeSpy.mockRestore()
     openSpy.mockRestore()
+  })
+
+  it('shows the 10 nearest upcoming events and skips cancelados', async () => {
+    const base = new Date()
+    base.setHours(12, 0, 0, 0)
+
+    const makeDate = (daysAhead: number) => {
+      const date = new Date(base)
+      date.setDate(date.getDate() + daysAhead)
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
+
+    apiState.listarRango
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(1),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 1',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 2,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(2),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 2',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 3,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(3),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 3',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 4,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(4),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 4',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 5,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(5),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 5',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 6,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(6),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 6',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 7,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(7),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 7',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 8,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(8),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 8',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 9,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(9),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 9',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 10,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(10),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 10',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 11,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(11),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento 11',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Reservado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+        {
+          id: 12,
+          clienteId: 1,
+          usuarioCreadorId: 1,
+          sucursalId: 1,
+          fecha: makeDate(12),
+          horaInicio: '11:00:00',
+          horaFin: '13:00:00',
+          tipoEvento: 'Evento Cancelado',
+          cantidadInvitados: 20,
+          montoTotal: 1000,
+          observaciones: null,
+          estado: 'Cancelado',
+          fechaCreacion: '2026-08-01T10:00:00',
+        },
+      ])
+
+    await renderPage()
+
+    const upcomingButtons = await screen.findAllByRole('button', { name: /^11:00 Evento / })
+    expect(upcomingButtons).toHaveLength(10)
+    expect(screen.getByRole('button', { name: '11:00 Evento 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '11:00 Evento 10' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '11:00 Evento 11' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '11:00 Evento Cancelado' })).not.toBeInTheDocument()
   })
 })
