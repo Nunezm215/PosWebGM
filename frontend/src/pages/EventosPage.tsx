@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
-import type { EventoDto } from '../types'
+import { useNotification } from '../context/NotificationContext'
+import type { ClienteDto, CrearEventoRequestDto, EventoDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
+import Button from '../components/ui/Button'
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
@@ -46,6 +48,30 @@ function formatTime(value: string) {
   return value.slice(0, 5)
 }
 
+function normalizeTimeForApi(value: string) {
+  if (!value) return ''
+  return value.length === 5 ? `${value}:00` : value
+}
+
+function parseTimeToMinutes(value: string) {
+  if (!value) return NaN
+  const [hours, minutes] = value.split(':').map(Number)
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return NaN
+  return (hours * 60) + minutes
+}
+
+function isValidTimeRange(horaInicio: string, horaFin: string) {
+  const inicio = parseTimeToMinutes(horaInicio)
+  const fin = parseTimeToMinutes(horaFin)
+  if (Number.isNaN(inicio) || Number.isNaN(fin)) return false
+  return fin > inicio
+}
+
+function formatClienteLabel(cliente: ClienteDto) {
+  const documento = cliente.numeroDocumento?.trim() ? `${cliente.tipoDocumento} ${cliente.numeroDocumento}` : ''
+  return documento ? `${cliente.nombre} · ${documento}` : cliente.nombre
+}
+
 function formatDate(value: string) {
   const date = fromDateKey(value.slice(0, 10))
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -58,6 +84,30 @@ function formatMonthTitle(date: Date) {
 
 function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+interface EventoAltaFormState {
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  tipoEvento: string
+  cantidadInvitados: string
+  montoTotal: string
+  observaciones: string
+}
+
+type DisponibilidadEstado = 'idle' | 'loading' | 'available' | 'unavailable' | 'error'
+
+function createEmptyForm(): EventoAltaFormState {
+  return {
+    fecha: '',
+    horaInicio: '',
+    horaFin: '',
+    tipoEvento: '',
+    cantidadInvitados: '',
+    montoTotal: '',
+    observaciones: '',
+  }
 }
 
 function buildVisibleDays(anchor: Date) {
@@ -114,11 +164,29 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function EventosPage() {
+  const { notifySuccess } = useNotification()
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()))
   const [eventos, setEventos] = useState<EventoDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<EventoDto | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState<EventoAltaFormState>(createEmptyForm)
+  const [createError, setCreateError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [clienteBusqueda, setClienteBusqueda] = useState('')
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteDto | null>(null)
+  const [clienteResultados, setClienteResultados] = useState<ClienteDto[]>([])
+  const [clienteBuscando, setClienteBuscando] = useState(false)
+  const [clienteError, setClienteError] = useState('')
+
+  const [disponibilidad, setDisponibilidad] = useState<{ estado: DisponibilidadEstado; mensaje: string }>({
+    estado: 'idle',
+    mensaje: '',
+  })
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
 
@@ -148,7 +216,7 @@ export default function EventosPage() {
     return () => {
       active = false
     }
-  }, [range.desde, range.hasta])
+  }, [range.desde, range.hasta, reloadKey])
 
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoDto[]>()
@@ -165,6 +233,208 @@ export default function EventosPage() {
   }, [eventos])
 
   const monthTitle = formatMonthTitle(monthAnchor)
+
+  const timeError = useMemo(() => {
+    if (!createForm.horaInicio || !createForm.horaFin) return ''
+    return isValidTimeRange(createForm.horaInicio, createForm.horaFin) ? '' : 'La hora fin debe ser posterior a la hora inicio'
+  }, [createForm.horaInicio, createForm.horaFin])
+
+  const canGuardar = Boolean(
+    clienteSeleccionado?.id &&
+    createForm.fecha &&
+    createForm.horaInicio &&
+    createForm.horaFin &&
+    createForm.tipoEvento.trim() &&
+    createForm.cantidadInvitados.trim() &&
+    createForm.montoTotal.trim() &&
+    !timeError &&
+    disponibilidad.estado === 'available' &&
+    !saving
+  )
+
+  useEffect(() => {
+    if (!createOpen) return
+
+    const query = clienteBusqueda.trim()
+    if (!query) {
+      setClienteResultados([])
+      setClienteBuscando(false)
+      setClienteError('')
+      return
+    }
+
+    if (clienteSeleccionado && query === formatClienteLabel(clienteSeleccionado)) {
+      return
+    }
+
+    let active = true
+    const timeoutId = window.setTimeout(async () => {
+      setClienteBuscando(true)
+      setClienteError('')
+      try {
+        const result = await api.clientes.listar(query, 1, 10)
+        if (!active) return
+        setClienteResultados(result.items ?? [])
+      } catch (err) {
+        if (!active) return
+        setClienteResultados([])
+        setClienteError(err instanceof Error ? err.message : 'Error al buscar clientes')
+      } finally {
+        if (active) setClienteBuscando(false)
+      }
+    }, 300)
+
+    return () => {
+      active = false
+      window.clearTimeout(timeoutId)
+    }
+  }, [createOpen, clienteBusqueda, clienteSeleccionado?.id])
+
+  useEffect(() => {
+    if (!createOpen) return
+
+    const fecha = createForm.fecha
+    const horaInicio = createForm.horaInicio
+    const horaFin = createForm.horaFin
+
+    if (!fecha || !horaInicio || !horaFin) {
+      setDisponibilidad({ estado: 'idle', mensaje: '' })
+      return
+    }
+
+    if (!isValidTimeRange(horaInicio, horaFin)) {
+      setDisponibilidad({ estado: 'idle', mensaje: '' })
+      return
+    }
+
+    let active = true
+    const timeoutId = window.setTimeout(async () => {
+      setDisponibilidad({ estado: 'loading', mensaje: 'Comprobando disponibilidad...' })
+      try {
+        const disponible = await api.eventos.consultarDisponibilidad({
+          fecha,
+          horaInicio: normalizeTimeForApi(horaInicio),
+          horaFin: normalizeTimeForApi(horaFin),
+        })
+        if (!active) return
+        setDisponibilidad({
+          estado: disponible ? 'available' : 'unavailable',
+          mensaje: disponible ? 'Disponible' : 'Horario no disponible',
+        })
+      } catch (err) {
+        if (!active) return
+        setDisponibilidad({
+          estado: 'error',
+          mensaje: err instanceof Error ? err.message : 'Error al consultar disponibilidad',
+        })
+      }
+    }, 300)
+
+    return () => {
+      active = false
+      window.clearTimeout(timeoutId)
+    }
+  }, [createOpen, createForm.fecha, createForm.horaInicio, createForm.horaFin])
+
+  function abrirAltaEvento() {
+    setSelectedEvento(null)
+    setCreateOpen(true)
+    resetAltaEventoState()
+  }
+
+  function resetAltaEventoState() {
+    setCreateForm(createEmptyForm())
+    setCreateError('')
+    setClienteBusqueda('')
+    setClienteSeleccionado(null)
+    setClienteResultados([])
+    setClienteBuscando(false)
+    setClienteError('')
+    setDisponibilidad({ estado: 'idle', mensaje: '' })
+  }
+
+  function cerrarAltaEvento() {
+    if (saving) return
+    setCreateOpen(false)
+    setSaving(false)
+    resetAltaEventoState()
+  }
+
+  function seleccionarCliente(cliente: ClienteDto) {
+    setClienteSeleccionado(cliente)
+    setClienteBusqueda(formatClienteLabel(cliente))
+    setClienteResultados([])
+    setClienteError('')
+  }
+
+  function limpiarCliente() {
+    setClienteSeleccionado(null)
+    setClienteBusqueda('')
+    setClienteResultados([])
+    setClienteError('')
+  }
+
+  function handleClienteBusquedaChange(value: string) {
+    setClienteBusqueda(value)
+    if (clienteSeleccionado && value.trim() !== formatClienteLabel(clienteSeleccionado)) {
+      setClienteSeleccionado(null)
+    }
+  }
+
+  async function handleCrearEvento(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+
+    if (!clienteSeleccionado?.id) {
+      setCreateError('Seleccioná un cliente')
+      return
+    }
+
+    if (!createForm.fecha || !createForm.horaInicio || !createForm.horaFin || !createForm.tipoEvento.trim() || !createForm.cantidadInvitados.trim() || !createForm.montoTotal.trim()) {
+      setCreateError('Completá los campos obligatorios')
+      return
+    }
+
+    if (timeError) {
+      setCreateError(timeError)
+      return
+    }
+
+    if (disponibilidad.estado === 'unavailable') {
+      setCreateError('El evento no está disponible en ese horario')
+      return
+    }
+
+    if (disponibilidad.estado !== 'available') {
+      setCreateError('Esperá la validación de disponibilidad')
+      return
+    }
+
+    const payload: CrearEventoRequestDto = {
+      clienteId: clienteSeleccionado.id,
+      fecha: createForm.fecha,
+      horaInicio: normalizeTimeForApi(createForm.horaInicio),
+      horaFin: normalizeTimeForApi(createForm.horaFin),
+      tipoEvento: createForm.tipoEvento.trim(),
+      cantidadInvitados: Number(createForm.cantidadInvitados),
+      montoTotal: Number(createForm.montoTotal),
+      observaciones: createForm.observaciones.trim() ? createForm.observaciones.trim() : null,
+    }
+
+    setSaving(true)
+    setCreateError('')
+
+    try {
+      await api.eventos.crear(payload)
+      setReloadKey(value => value + 1)
+      setCreateOpen(false)
+      resetAltaEventoState()
+      notifySuccess('Evento creado correctamente')
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Error al crear evento')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function openEvent(id: number) {
     const cached = eventos.find(evento => evento.id === id)
@@ -184,12 +454,15 @@ export default function EventosPage() {
     <PageShell
       title="Eventos"
       subtitle="Calendario de reservas y eventos"
-      loading={loading}
+      loading={loading && eventos.length === 0}
       loadingMessage="Cargando calendario..."
       error={error}
       onErrorClose={() => setError(null)}
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={abrirAltaEvento}>
+            Nuevo Evento
+          </Button>
           <button
             type="button"
             onClick={() => setMonthAnchor(shiftMonth(monthAnchor, -1))}
@@ -295,6 +568,216 @@ export default function EventosPage() {
           No hay eventos en este rango.
         </div>
       )}
+
+      <Dialog
+        open={createOpen}
+        onClose={cerrarAltaEvento}
+        title="Nuevo Evento"
+        description="Crear una nueva reserva"
+        width="lg"
+        closeOnBackdrop={!saving}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={cerrarAltaEvento} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button
+              variant="confirm"
+              size="sm"
+              type="submit"
+              form="evento-alta-form"
+              loading={saving}
+              disabled={!canGuardar}
+            >
+              {saving ? 'Guardando...' : 'Guardar Evento'}
+            </Button>
+          </>
+        }
+      >
+        <form id="evento-alta-form" onSubmit={handleCrearEvento} className="space-y-4">
+          {createError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              {createError}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="evento-cliente-busqueda" className="text-xs font-semibold text-gray-700">Cliente *</label>
+            <div className="mt-1 space-y-2">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="evento-cliente-busqueda"
+                  type="text"
+                  value={clienteBusqueda}
+                  onChange={e => handleClienteBusquedaChange(e.target.value)}
+                  placeholder="Buscar cliente por nombre o documento"
+                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-10 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                {clienteSeleccionado && (
+                  <button
+                    type="button"
+                    onClick={limpiarCliente}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Limpiar cliente"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {clienteSeleccionado ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  <UserRound size={14} />
+                  <span className="font-medium">{formatClienteLabel(clienteSeleccionado)}</span>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Escribí al menos un caracter para buscar clientes existentes.</p>
+              )}
+
+              {clienteBuscando && (
+                <p className="text-xs text-gray-500">Buscando clientes...</p>
+              )}
+
+              {clienteError && (
+                <p className="text-xs text-red-600">{clienteError}</p>
+              )}
+
+              {!clienteSeleccionado && clienteBusqueda.trim() && !clienteBuscando && clienteResultados.length > 0 && (
+                <div className="max-h-48 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                  {clienteResultados.map(cliente => (
+                    <button
+                      key={cliente.id}
+                      type="button"
+                      onClick={() => seleccionarCliente(cliente)}
+                      className="flex w-full items-start justify-between gap-3 border-b border-gray-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-gray-50"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900">{cliente.nombre}</div>
+                        <div className="text-xs text-gray-500">
+                          {cliente.numeroDocumento ? `${cliente.tipoDocumento} ${cliente.numeroDocumento}` : 'Sin documento'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!clienteSeleccionado && clienteBusqueda.trim() && !clienteBuscando && !clienteError && clienteResultados.length === 0 && (
+                <p className="text-xs text-gray-500">Sin resultados</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-fecha" className="text-xs font-semibold text-gray-700">Fecha *</label>
+              <input
+                id="evento-fecha"
+                type="date"
+                value={createForm.fecha}
+                onChange={e => setCreateForm(prev => ({ ...prev, fecha: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="evento-tipo" className="text-xs font-semibold text-gray-700">Tipo de evento *</label>
+              <input
+                id="evento-tipo"
+                type="text"
+                value={createForm.tipoEvento}
+                onChange={e => setCreateForm(prev => ({ ...prev, tipoEvento: e.target.value }))}
+                placeholder="Cumpleaños, casamiento, bautismo..."
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-hora-inicio" className="text-xs font-semibold text-gray-700">Hora inicio *</label>
+              <input
+                id="evento-hora-inicio"
+                type="time"
+                step="60"
+                value={createForm.horaInicio}
+                onChange={e => setCreateForm(prev => ({ ...prev, horaInicio: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="evento-hora-fin" className="text-xs font-semibold text-gray-700">Hora fin *</label>
+              <input
+                id="evento-hora-fin"
+                type="time"
+                step="60"
+                value={createForm.horaFin}
+                onChange={e => setCreateForm(prev => ({ ...prev, horaFin: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          {timeError && (
+            <p className="text-xs font-medium text-red-600">{timeError}</p>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-invitados" className="text-xs font-semibold text-gray-700">Cantidad de invitados *</label>
+              <input
+                id="evento-invitados"
+                type="number"
+                min="0"
+                step="1"
+                value={createForm.cantidadInvitados}
+                onChange={e => setCreateForm(prev => ({ ...prev, cantidadInvitados: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="evento-monto" className="text-xs font-semibold text-gray-700">Monto total *</label>
+              <input
+                id="evento-monto"
+                type="number"
+                min="0"
+                step="0.01"
+                value={createForm.montoTotal}
+                onChange={e => setCreateForm(prev => ({ ...prev, montoTotal: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="evento-observaciones" className="text-xs font-semibold text-gray-700">Observaciones</label>
+            <textarea
+              id="evento-observaciones"
+              value={createForm.observaciones}
+              onChange={e => setCreateForm(prev => ({ ...prev, observaciones: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              placeholder="Opcional"
+            />
+          </div>
+
+          <div className={`rounded-xl border px-4 py-3 text-sm ${
+            disponibilidad.estado === 'available'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : disponibilidad.estado === 'unavailable'
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : disponibilidad.estado === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-600'
+          }`}>
+            {disponibilidad.estado === 'idle' && 'Completá fecha y horarios para validar disponibilidad.'}
+            {disponibilidad.estado === 'loading' && disponibilidad.mensaje}
+            {disponibilidad.estado === 'available' && disponibilidad.mensaje}
+            {disponibilidad.estado === 'unavailable' && disponibilidad.mensaje}
+            {disponibilidad.estado === 'error' && disponibilidad.mensaje}
+          </div>
+        </form>
+      </Dialog>
 
       <Dialog
         open={selectedEvento !== null}

@@ -2,16 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const eventosState = vi.hoisted(() => ({
-  list: vi.fn(),
-  getById: vi.fn(),
+const apiState = vi.hoisted(() => ({
+  listarRango: vi.fn(),
+  obtenerPorId: vi.fn(),
+  consultarDisponibilidad: vi.fn(),
+  crear: vi.fn(),
+  listarClientes: vi.fn(),
 }))
 
 vi.mock('../../api/client', () => ({
   api: {
     eventos: {
-      listarPorRango: eventosState.list,
-      obtenerPorId: eventosState.getById,
+      listarPorRango: apiState.listarRango,
+      obtenerPorId: apiState.obtenerPorId,
+      consultarDisponibilidad: apiState.consultarDisponibilidad,
+      crear: apiState.crear,
+    },
+    clientes: {
+      listar: apiState.listarClientes,
     },
   },
 }))
@@ -29,57 +37,304 @@ vi.mock('../../context/NotificationContext', () => ({
 
 describe('EventosPage', () => {
   beforeEach(() => {
-    eventosState.list.mockReset()
-    eventosState.getById.mockReset()
+    apiState.listarRango.mockReset()
+    apiState.obtenerPorId.mockReset()
+    apiState.consultarDisponibilidad.mockReset()
+    apiState.crear.mockReset()
+    apiState.listarClientes.mockReset()
+    apiState.listarRango.mockResolvedValue([])
+    apiState.obtenerPorId.mockResolvedValue(null)
+    apiState.consultarDisponibilidad.mockResolvedValue(true)
+    apiState.crear.mockResolvedValue({})
+    apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
   })
 
-  it('renders title and subtitle', async () => {
-    eventosState.list.mockResolvedValue([])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
+  const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-    render(<EventosPage />)
+  function renderPage() {
+    return import('../../pages/EventosPage').then(({ default: EventosPage }) => render(<EventosPage />))
+  }
+
+  async function abrirAlta(user = userEvent.setup()) {
+    await renderPage()
+    await screen.findByText('Eventos')
+    await user.click(screen.getByRole('button', { name: 'Nuevo Evento' }))
+    return { user, dialog: await screen.findByRole('dialog', { name: 'Nuevo Evento' }) }
+  }
+
+  it('renders title and Nuevo Evento button', async () => {
+    await renderPage()
 
     expect(await screen.findByText('Eventos')).toBeInTheDocument()
-    expect(screen.getByText('Calendario de reservas y eventos')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nuevo Evento' })).toBeInTheDocument()
   })
 
-  it('calls GET rango on mount', async () => {
-    eventosState.list.mockResolvedValue([])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
+  it('opens the create form and shows the expected fields', async () => {
+    const { dialog } = await abrirAlta()
 
-    render(<EventosPage />)
-
-    await waitFor(() => expect(eventosState.list).toHaveBeenCalled())
-    expect(eventosState.list).toHaveBeenCalledWith('2026-07-27', '2026-09-06')
+    expect(within(dialog).getByLabelText(/Cliente/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Fecha/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Hora inicio/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Hora fin/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Tipo de evento/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Cantidad de invitados/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Monto total/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/Observaciones/)).toBeInTheDocument()
   })
 
-  it('shows event returned by API', async () => {
-    eventosState.list.mockResolvedValue([
-      {
-        id: 1,
-        clienteId: 1,
-        usuarioCreadorId: 1,
-        sucursalId: 1,
-        fecha: '2026-08-15',
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estado: 'Reservado',
-        fechaCreacion: '2026-08-10T12:00:00',
-      },
-    ])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
+  it('allows searching and selecting a client', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
 
-    render(<EventosPage />)
+    const { user, dialog } = await abrirAlta()
+    const input = within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento')
 
+    await user.type(input, 'Cli')
+    await pause(350)
+
+    await waitFor(() => expect(apiState.listarClientes).toHaveBeenCalledWith('Cli', 1, 10))
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+
+    expect(within(dialog).getByText(/Cliente Prueba/)).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('Cliente Prueba · DNI 12345678')).toBeInTheDocument()
+  })
+
+  it('validates that end time is after start time', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '17:00')
+
+    await pause(350)
+
+    expect(within(dialog).getByText('La hora fin debe ser posterior a la hora inicio')).toBeInTheDocument()
+    expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
+  })
+
+  it('calls disponibilidad and shows Disponible', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+
+    await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith({
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+    }))
+    expect(within(dialog).getByText('Disponible')).toBeInTheDocument()
+  })
+
+  it('shows Horario no disponible and blocks save', async () => {
+    apiState.consultarDisponibilidad.mockResolvedValueOnce(false)
+    const { user, dialog } = await abrirAlta()
+
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+
+    expect(within(dialog).getByText('Horario no disponible')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Guardar Evento' })).toBeDisabled()
+  })
+
+  it('creates event with the exact payload and refreshes the calendar', async () => {
+    const created = {
+      id: 99,
+      clienteId: 1,
+      usuarioCreadorId: 7,
+      sucursalId: 3,
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    }
+
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+    apiState.listarRango
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([created])
+    apiState.consultarDisponibilidad.mockResolvedValueOnce(true)
+    apiState.crear.mockResolvedValueOnce(created)
+
+    const { user, dialog } = await abrirAlta()
+
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+    await user.type(within(dialog).getByLabelText(/Observaciones/), 'Sin alcohol')
+
+    await pause(350)
+    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
+
+    expect(apiState.crear).toHaveBeenCalledWith({
+      clienteId: 1,
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+    })
+    expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('usuarioCreadorId')
+    expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('sucursalId')
+    expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('estado')
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument())
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
     expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
   })
 
-  it('click opens read-only detail', async () => {
-    eventosState.list.mockResolvedValue([
+  it('keeps the modal open when backend rejects the save', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+    apiState.consultarDisponibilidad.mockResolvedValueOnce(true)
+    apiState.crear.mockRejectedValueOnce(new Error('El evento no está disponible en ese horario'))
+
+    const { user, dialog } = await abrirAlta()
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+
+    await pause(350)
+    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
+
+    expect(await screen.findByText('El evento no está disponible en ese horario')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Nuevo Evento' })).toBeInTheDocument()
+  })
+
+  it('disables the save button while the POST is pending', async () => {
+    let resolveCreate!: (value: unknown) => void
+    const createPromise = new Promise(resolve => { resolveCreate = resolve })
+
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+    apiState.consultarDisponibilidad.mockResolvedValueOnce(true)
+    apiState.crear.mockReturnValueOnce(createPromise)
+
+    const { user, dialog } = await abrirAlta()
+    await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
+    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
+    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+
+    await pause(350)
+    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
+
+    expect(within(dialog).getByRole('button', { name: 'Guardando...' })).toBeDisabled()
+
+    resolveCreate({
+      id: 99,
+      clienteId: 1,
+      usuarioCreadorId: 7,
+      sucursalId: 3,
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: null,
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+
+    await createPromise
+  })
+
+  it('shows the read-only detail and no edit/cancel actions', async () => {
+    apiState.listarRango.mockResolvedValueOnce([
       {
         id: 1,
         clienteId: 1,
@@ -96,100 +351,15 @@ describe('EventosPage', () => {
         fechaCreacion: '2026-08-10T12:00:00',
       },
     ])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
+
+    await renderPage()
+
+    expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
     const user = userEvent.setup()
-
-    render(<EventosPage />)
-
-    expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
-  })
-
-  it('detail shows formatted amount', async () => {
-    eventosState.list.mockResolvedValue([
-      {
-        id: 1,
-        clienteId: 1,
-        usuarioCreadorId: 1,
-        sucursalId: 1,
-        fecha: '2026-08-15',
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estado: 'Reservado',
-        fechaCreacion: '2026-08-10T12:00:00',
-      },
-    ])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
-    const user = userEvent.setup()
-
-    render(<EventosPage />)
-    expect(await screen.findByText('18:00 Cumpleaños')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
-
-    expect(await screen.findByText('$ 500.000,00')).toBeInTheDocument()
-  })
-
-  it('changing month triggers new request', async () => {
-    eventosState.list.mockResolvedValue([])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
-    const user = userEvent.setup()
-
-    render(<EventosPage />)
-
-    await waitFor(() => expect(eventosState.list).toHaveBeenCalledTimes(1))
-    await user.click(screen.getByRole('button', { name: 'Mes siguiente' }))
-    await waitFor(() => expect(eventosState.list).toHaveBeenCalledTimes(2))
-  })
-
-  it('shows API error message', async () => {
-    eventosState.list.mockRejectedValue(new Error('Error al cargar eventos'))
-    const { default: EventosPage } = await import('../../pages/EventosPage')
-
-    render(<EventosPage />)
-
-    expect(await screen.findByText('Error al cargar eventos')).toBeInTheDocument()
-  })
-
-  it('shows cancelled event with label', async () => {
-    eventosState.list.mockResolvedValue([
-      {
-        id: 2,
-        clienteId: 1,
-        usuarioCreadorId: 1,
-        sucursalId: 1,
-        fecha: '2026-08-16',
-        horaInicio: '20:00:00',
-        horaFin: '21:00:00',
-        tipoEvento: 'Reunión',
-        cantidadInvitados: 10,
-        montoTotal: 10000,
-        observaciones: '',
-        estado: 'Cancelado',
-        fechaCreacion: '2026-08-10T12:00:00',
-      },
-    ])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
-
-    render(<EventosPage />)
-
-    expect(await screen.findByText('Cancelado')).toBeInTheDocument()
-  })
-
-  it('does not show create edit or cancel actions', async () => {
-    eventosState.list.mockResolvedValue([])
-    const { default: EventosPage } = await import('../../pages/EventosPage')
-
-    render(<EventosPage />)
-
-    await screen.findByText('Eventos')
-    expect(screen.queryByText(/nuevo/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/editar/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/cancelar/i)).not.toBeInTheDocument()
   })

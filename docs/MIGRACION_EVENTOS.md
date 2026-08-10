@@ -488,3 +488,119 @@ Incluir:
 ## Proximo paso
 
 **Fase 1A.2:** persistencia EF Core + migraciones + API de Eventos.
+
+## Fase 1B.2 - Alta de Evento desde frontend
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1b2-alta-evento-ok`
+
+### Implementado
+
+- Boton `Nuevo Evento`.
+- Modal de alta.
+- Busqueda de clientes existentes.
+- Debounce de 300 ms en busqueda.
+- Seleccion y limpieza del cliente.
+- Campos:
+  - Cliente
+  - Fecha
+  - Hora inicio
+  - Hora fin
+  - Tipo de evento
+  - Cantidad de invitados
+  - Monto total
+  - Observaciones
+- Validacion simple de horarios en frontend.
+- Consulta real a:
+  `GET /api/eventos/disponibilidad`
+- Estado visual:
+  - Disponible
+  - Horario no disponible
+- Alta mediante:
+  `POST /api/eventos`
+- No se envian:
+  - usuarioCreadorId
+  - sucursalId
+  - estado
+- Backend continua obteniendo usuario/sucursal desde JWT.
+- Despues de crear:
+  - cierra modal
+  - limpia formulario
+  - refresca rango visible
+  - Evento aparece automaticamente en calendario
+- Proteccion contra doble click mediante estado `saving`.
+- Errores backend quedan visibles sin cerrar modal.
+- Labels asociados correctamente a inputs con `htmlFor`/`id`.
+
+### Payload
+
+El alta envia:
+
+- `clienteId`
+- `fecha`
+- `horaInicio`
+- `horaFin`
+- `tipoEvento`
+- `cantidadInvitados`
+- `montoTotal`
+- `observaciones`
+
+### Disponibilidad
+
+- Frontend no duplica la regla completa de 30 minutos.
+- La autoridad sigue siendo backend.
+- Se consulta `/api/eventos/disponibilidad`.
+- Si backend informa conflicto, no se permite guardar.
+
+### Responsive
+
+Verificado manualmente en:
+
+- PC
+- celular por red local
+
+El alta funciona correctamente en ambos.
+
+### Tests
+
+- EventosPage + Layout
+- 13/13 OK
+- cobertura de:
+  - apertura de modal
+  - campos
+  - busqueda/seleccion cliente
+  - horarios
+  - disponibilidad
+  - payload
+  - exclusion de usuario/sucursal/estado
+  - refresh
+  - errores
+  - doble click
+
+### Build
+
+- `npm run build`: OK
+
+### Verificacion manual
+
+Confirmado:
+
+- crear Evento desde PC: OK
+- crear Evento desde celular: OK
+- Evento aparece inmediatamente en calendario
+- disponibilidad funciona correctamente
+- flujo completo frontend -> API -> SQLite funciona
+
+### No incluido todavia
+
+- editar Evento
+- cancelar Evento
+- cambiar estado
+- PagoEvento
+- GastoEvento
+- Caja financiera de Eventos
+- QR
+
+### Proximo paso
+
+**Fase 1B.3: detalle editable + edicion + cancelacion de Evento.**
