@@ -1337,3 +1337,97 @@ Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar
 - cambios automaticos de estado
 
 No se implementa ninguna de esas cosas en esta tarea.
+
+## Fase 1B.4D - Contacto rapido del Cliente
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1b4d-contacto-cliente-ok`
+
+### Contacto rapido
+
+- Desde el detalle de un Evento se agregaron dos acciones: `Llamar` y `WhatsApp`.
+- El telefono se obtiene del Cliente real asociado al Evento.
+- No se duplico el telefono dentro de `Evento`.
+- Estas acciones estan disponibles para cualquier usuario que tenga permiso para visualizar el Evento.
+- No son acciones administrativas.
+- No se modificaron roles ni autorizacion backend.
+
+### Llamar
+
+- Boton `Llamar`.
+- Utiliza enlace `tel:`.
+- En celular abre el marcador o la aplicacion de llamadas.
+- No inicia una llamada automaticamente.
+- En PC delega en la aplicacion disponible para manejar enlaces `tel:`.
+
+### WhatsApp
+
+- Boton `WhatsApp`.
+- Utiliza enlace `wa.me`.
+- Abre el contacto o chat correspondiente.
+- Funciona desde celular.
+- Puede abrir WhatsApp Web o la app en PC segun el entorno.
+- No se implemento WhatsApp Business API.
+- No se implemento envio automatico de mensajes.
+- No se implemento verificacion previa de si el numero posee WhatsApp.
+- Si el numero no tiene WhatsApp, la propia plataforma se encarga de informarlo.
+
+### Normalizacion
+
+- `sanitizePhoneInput` hace `trim()` y elimina todo excepto digitos y `+`.
+- Para `tel:`:
+  - si el valor empieza con `+`, se conserva tal cual
+  - si no, se eliminan los caracteres no numericos y se usan solo digitos
+- Para `wa.me`:
+  - se eliminan todos los caracteres no numericos
+  - si los digitos empiezan con `54`, se usan asi
+  - si el valor sanitizado empezaba con `+`, se usan solo los digitos
+  - si los digitos empiezan con `00`, se quitan esos dos ceros
+  - si el numero tiene 10 u 11 digitos y no trae prefijo internacional, se antepone `54`
+  - en cualquier otro caso se usa el numero resultante sin mas transformaciones
+
+### Cliente sin telefono
+
+- Si el Cliente no tiene telefono, o el campo esta vacio o contiene solo espacios, no se muestran los botones de contacto.
+- En ese caso se muestra `Cliente sin teléfono registrado.`
+- Si falla la carga del Cliente, se muestra `Las acciones de contacto no están disponibles.` y tampoco se muestran botones.
+
+### Responsive y verificacion
+
+- Se verifico manualmente el flujo en el detalle del Evento.
+- En celular: `Evento -> Detalle -> Llamar` abre el marcador.
+- En celular: `Evento -> Detalle -> WhatsApp` abre WhatsApp o el chat correspondiente.
+- En PC, el comportamiento depende de la aplicacion disponible para manejar `tel:` y del navegador o aplicacion que maneje `wa.me`.
+- La funcionalidad fue validada manualmente y funciona correctamente.
+
+### No modificado
+
+- backend
+- base de datos
+- migraciones
+- `EventoService`
+- disponibilidad
+- regla de separacion de 30 minutos
+- validacion de fechas
+- contrato PDF
+- `PagoEvento`
+- `GastoEvento`
+- `Caja`
+- `Mercado Pago`
+- `QR`
+- no se agregaron dependencias nuevas
+
+### Proximo paso
+
+- Continuar con pequenas mejoras de Eventos, o
+- comenzar la fase financiera:
+  - `PagoEvento`
+  - senas
+  - pagos parciales
+  - saldo
+  - `Caja`
+  - `Mercado Pago`
+  - `QR`
+  - cambio automatico de estado
+
+No se implementa ninguna de esas cosas en esta tarea.

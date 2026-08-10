@@ -75,7 +75,17 @@ describe('EventosPage', () => {
     apiState.crear.mockResolvedValue({})
     apiState.editar.mockResolvedValue({})
     apiState.crearCliente.mockResolvedValue({})
-    apiState.obtenerCliente.mockResolvedValue(null)
+    apiState.obtenerCliente.mockResolvedValue({
+      id: 1,
+      nombre: 'Cliente Prueba',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '+54 11-1234-5678',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
   })
@@ -181,16 +191,18 @@ describe('EventosPage', () => {
     apiState.crearCliente.mockResolvedValueOnce(createdClient)
 
     const { user, dialog } = await abrirAlta()
+    fireEvent.change(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), { target: { value: 'Cli' } })
+    await pause(350)
     fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
-    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
-    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
-    await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
-    await user.type(within(dialog).getByLabelText(/Cantidad de invitados/), '50')
-    await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
+    fireEvent.change(within(dialog).getByLabelText(/Hora inicio/), { target: { value: '18:00' } })
+    fireEvent.change(within(dialog).getByLabelText(/Hora fin/), { target: { value: '22:00' } })
+    fireEvent.change(within(dialog).getByLabelText(/Tipo de evento/), { target: { value: 'Cumpleaños' } })
+    fireEvent.change(within(dialog).getByLabelText(/Cantidad de invitados/), { target: { value: '50' } })
+    fireEvent.change(within(dialog).getByLabelText(/Monto total/), { target: { value: '500000' } })
 
     await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
-    await user.type(within(clientDialog).getByLabelText(/Nombre/), 'Cliente Nuevo')
+    fireEvent.change(within(clientDialog).getByLabelText(/Nombre/), { target: { value: 'Cliente Nuevo' } })
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
     await waitFor(() => expect(apiState.crearCliente).toHaveBeenCalledWith({
@@ -735,7 +747,7 @@ describe('EventosPage', () => {
   })
 
   it('shows the read-only detail and no edit/cancel actions', async () => {
-    authState.rol = 'Vendedor'
+    authState.rol = 'UsuarioComun'
     apiState.listarRango.mockResolvedValueOnce([
       {
         id: 1,
@@ -761,11 +773,92 @@ describe('EventosPage', () => {
     await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await waitFor(() => expect(apiState.obtenerCliente).toHaveBeenCalledWith(1))
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
+    expect(await within(dialog).findByText('Contacto')).toBeInTheDocument()
+    expect(await within(dialog).findByText('+54 11-1234-5678')).toBeInTheDocument()
+    expect(await within(dialog).findByRole('link', { name: 'Llamar' })).toHaveAttribute('href', 'tel:+541112345678')
+    const whatsappLink = await within(dialog).findByRole('link', { name: 'WhatsApp' })
+    expect(whatsappLink).toHaveAttribute('href', 'https://wa.me/541112345678')
+    expect(whatsappLink).toHaveAttribute('target', '_blank')
+    expect(whatsappLink.getAttribute('rel')).toContain('noopener')
+    expect(whatsappLink.getAttribute('rel')).toContain('noreferrer')
+    expect(whatsappLink.getAttribute('href')).not.toContain('text=')
     expect(within(dialog).queryByText(/Sucursal/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancelar evento' })).not.toBeInTheDocument()
+  })
+
+  it('hides contact actions when the client has no phone', async () => {
+    apiState.obtenerCliente.mockResolvedValueOnce({
+      id: 1,
+      nombre: 'Cliente Prueba',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '   ',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+
+    expect(await within(dialog).findByText('Cliente sin teléfono registrado.')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'Llamar' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument()
+  })
+
+  it('shows contact fallback when client loading fails', async () => {
+    apiState.obtenerCliente.mockRejectedValueOnce(new Error('Cliente no encontrado'))
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+
+    expect(await within(dialog).findByText('Las acciones de contacto no están disponibles.')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'Llamar' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
   })
 
   it('opens contract options and requests the PDF', async () => {

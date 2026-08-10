@@ -123,6 +123,44 @@ function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function sanitizePhoneInput(phone: string) {
+  return phone.trim().replace(/[^\d+]/g, '')
+}
+
+function normalizePhoneForDial(phone: string) {
+  const sanitized = sanitizePhoneInput(phone)
+  if (!sanitized) return ''
+  if (sanitized.startsWith('+')) return sanitized
+  return sanitized.replace(/\D/g, '')
+}
+
+function normalizePhoneForWhatsApp(phone: string) {
+  const sanitized = sanitizePhoneInput(phone)
+  if (!sanitized) return ''
+
+  const digits = sanitized.replace(/\D/g, '')
+  if (!digits) return ''
+
+  if (digits.startsWith('54')) return digits
+  if (sanitized.startsWith('+')) return digits
+  if (digits.startsWith('00')) return digits.slice(2)
+
+  // Estrategia mínima: solo asumir Argentina si el número ya luce local.
+  if (digits.length >= 10 && digits.length <= 11) return `54${digits}`
+
+  return digits
+}
+
+function buildTelHref(phone: string) {
+  const normalized = normalizePhoneForDial(phone)
+  return normalized ? `tel:${normalized}` : ''
+}
+
+function buildWhatsAppHref(phone: string) {
+  const normalized = normalizePhoneForWhatsApp(phone)
+  return normalized ? `https://wa.me/${normalized}` : ''
+}
+
 function addMonths(date: Date, months: number) {
   return new Date(date.getFullYear(), date.getMonth() + months, date.getDate())
 }
@@ -273,6 +311,10 @@ export default function EventosPage() {
   const [estadoError, setEstadoError] = useState('')
   const [estadoSaving, setEstadoSaving] = useState(false)
 
+  const [clienteDetalle, setClienteDetalle] = useState<ClienteDto | null>(null)
+  const [clienteDetalleLoading, setClienteDetalleLoading] = useState(false)
+  const [clienteDetalleError, setClienteDetalleError] = useState('')
+
   const [cancelarOpen, setCancelarOpen] = useState(false)
   const [cancelarError, setCancelarError] = useState('')
   const [cancelarSaving, setCancelarSaving] = useState(false)
@@ -342,6 +384,38 @@ export default function EventosPage() {
       active = false
     }
   }, [reloadKey])
+
+  useEffect(() => {
+    if (!selectedEvento) {
+      setClienteDetalle(null)
+      setClienteDetalleLoading(false)
+      setClienteDetalleError('')
+      return
+    }
+
+    let active = true
+    setClienteDetalle(null)
+    setClienteDetalleLoading(true)
+    setClienteDetalleError('')
+
+    api.clientes.obtener(selectedEvento.clienteId)
+      .then(cliente => {
+        if (!active) return
+        setClienteDetalle(cliente)
+      })
+      .catch(() => {
+        if (!active) return
+        setClienteDetalle(null)
+        setClienteDetalleError('No se pudieron cargar las acciones de contacto')
+      })
+      .finally(() => {
+        if (active) setClienteDetalleLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedEvento?.clienteId, selectedEvento?.id])
 
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoDto[]>()
@@ -1373,6 +1447,42 @@ export default function EventosPage() {
             <DetailRow label="Estado" value={selectedEvento.estado} />
             <DetailRow label="Cliente" value={`Cliente #${selectedEvento.clienteId}`} />
             <DetailRow label="Usuario creador" value={`Usuario #${selectedEvento.usuarioCreadorId}`} />
+            <div className="pt-3 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contacto</p>
+              {clienteDetalleLoading && (
+                <p className="mt-1 text-sm text-gray-500">Cargando contacto del cliente...</p>
+              )}
+              {!clienteDetalleLoading && clienteDetalleError && (
+                <p className="mt-1 text-sm text-gray-500">Las acciones de contacto no están disponibles.</p>
+              )}
+              {!clienteDetalleLoading && !clienteDetalleError && clienteDetalle && (
+                <div className="mt-2 space-y-2">
+                  {clienteDetalle.telefono?.trim() ? (
+                    <>
+                      <DetailRow label="Teléfono" value={clienteDetalle.telefono.trim()} />
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={buildTelHref(clienteDetalle.telefono)}
+                          className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 sm:flex-none"
+                        >
+                          Llamar
+                        </a>
+                        <a
+                          href={buildWhatsAppHref(clienteDetalle.telefono)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 sm:flex-none"
+                        >
+                          WhatsApp
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-600">Cliente sin teléfono registrado.</p>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="pt-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Observaciones</p>
               <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
