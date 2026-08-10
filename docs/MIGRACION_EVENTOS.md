@@ -737,3 +737,184 @@ Incluyendo conceptualmente:
 - gastos asociados al Evento
 
 No implementar esa fase todavia.
+
+## Fase 1B.4A - Alta de Cliente desde Nuevo Evento
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1b4a-cliente-desde-evento-ok`
+
+### Objetivo
+
+Permitir crear un Cliente real del sistema directamente desde el flujo
+de alta de un Evento cuando el Cliente todavia no existe.
+
+### Implementado
+
+Dentro de `Nuevo Evento`:
+
+- se mantiene la busqueda de Clientes existentes
+- se agrego la accion `Crear cliente nuevo`
+- se abre un formulario de alta de Cliente sin abandonar el Evento
+- se utiliza el endpoint real:
+  `POST /api/clientes`
+
+El Cliente creado:
+
+- se persiste normalmente en `CLIENTE`
+- queda disponible globalmente en el sistema
+- aparece posteriormente en `/clientes`
+- no es un Cliente temporal ni exclusivo del Evento
+
+### Campos del Cliente
+
+Se utilizan los campos reales del modulo Clientes:
+
+- nombre
+- tipoDocumento
+- numeroDocumento
+- ivaCondicion
+- telefono
+- mail
+- domicilio
+
+Payload utilizado:
+
+- nombre
+- tipoDocumento
+- numeroDocumento
+- ivaCondicion
+- telefono
+- domicilio
+- mail
+
+### Flujo
+
+Al crear correctamente el Cliente:
+
+1. se guarda mediante `POST /api/clientes`
+2. se cierra el formulario de Cliente
+3. se vuelve al alta del Evento
+4. se conservan todos los datos previamente cargados del Evento
+5. el Cliente recien creado queda seleccionado automaticamente
+6. el usuario continua normalmente con `Guardar Evento`
+
+Crear el Cliente NO crea automaticamente el Evento.
+
+### Cancelacion del alta de Cliente
+
+Si se cancela el alta del Cliente:
+
+- se vuelve al formulario de Evento
+- no se pierden los datos cargados
+- no se selecciona ningun Cliente nuevo
+
+### Errores
+
+Si falla el alta del Cliente:
+
+- el formulario permanece abierto
+- se muestra el mensaje devuelto por backend
+- se pueden corregir los datos y reintentar
+- los datos del Evento no se pierden
+
+### Proteccion contra duplicados
+
+Durante `POST /api/clientes`:
+
+- el boton queda deshabilitado
+- se evita doble creacion por doble click
+
+### Permisos
+
+El endpoint real `POST /api/clientes` esta autorizado para:
+
+- Admin
+- SuperAdmin
+
+La autorizacion real continua dependiendo del backend.
+
+No se modificaron permisos del backend.
+
+### Edicion de Evento
+
+La creacion de Cliente nuevo se agrego unicamente al alta de Evento.
+
+En edicion de Evento:
+
+- se pueden seleccionar Clientes existentes
+- no se ofrece creacion inline de Cliente
+
+### Responsive
+
+Verificado manualmente en:
+
+- PC
+- celular por red local
+
+El flujo funciona correctamente en ambos.
+
+### Tests
+
+Se amplio:
+
+`frontend/src/pages/__tests__/EventosPage.test.tsx`
+
+Resultado:
+
+- 15/15 OK
+
+Se verifico:
+
+- apertura del alta de Cliente
+- campos del Cliente
+- payload
+- creacion
+- conservacion de datos del Evento
+- seleccion automatica del Cliente creado
+- cancelacion
+- errores
+- proteccion contra doble click
+- ausencia de creacion inline durante edicion
+
+Persisten warnings no bloqueantes de `act(...)` en Vitest.
+
+### Build
+
+- `npm run build`: OK
+
+### Verificacion manual
+
+Confirmado:
+
+- creacion de Cliente desde Nuevo Evento: OK
+- Cliente queda registrado globalmente: OK
+- Cliente queda seleccionado automaticamente: OK
+- datos previamente cargados del Evento se conservan: OK
+- Evento puede guardarse posteriormente: OK
+- Cliente aparece en el modulo Clientes: OK
+- funcionamiento en PC: OK
+- funcionamiento en celular: OK
+
+### Git
+
+Implementacion guardada inicialmente en:
+
+`650793f Fase 1B.4A: permitir crear cliente desde nuevo evento`
+
+### No modificado
+
+- backend
+- DbContext
+- migraciones
+- estructura de base de datos
+- Caja
+- PagoEvento
+- GastoEvento
+- Mercado Pago
+
+### Proximo paso
+
+Continuar con mejoras funcionales y de usabilidad del modulo Eventos
+antes de comenzar la parte financiera.
+
+No implementar pagos todavia.
