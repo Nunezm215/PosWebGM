@@ -296,6 +296,21 @@ export interface CrearEventoRequestDto {
   observaciones?: string | null
 }
 
+export interface EditarEventoRequestDto {
+  clienteId: number
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  tipoEvento: string
+  cantidadInvitados: number
+  montoTotal: number
+  observaciones?: string | null
+}
+
+export interface ActualizarEstadoEventoRequestDto {
+  estado: string
+}
+
 // --- Cliente types ---
 export interface ClienteDto {
   id?: number

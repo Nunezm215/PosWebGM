@@ -6,6 +6,7 @@ import type { ClienteDto, CrearEventoRequestDto, EventoDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
+import { useAuth } from '../context/AuthContext'
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
@@ -47,6 +48,13 @@ function endOfWeekSunday(date: Date) {
 function formatTime(value: string) {
   return value.slice(0, 5)
 }
+
+function formatDateInput(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const EVENTO_ESTADOS = ['Reservado', 'Señado', 'Pagado', 'Cancelado'] as const
+type EventoEstado = typeof EVENTO_ESTADOS[number]
 
 function normalizeTimeForApi(value: string) {
   if (!value) return ''
@@ -100,7 +108,7 @@ type DisponibilidadEstado = 'idle' | 'loading' | 'available' | 'unavailable' | '
 
 function createEmptyForm(): EventoAltaFormState {
   return {
-    fecha: '',
+    fecha: formatDateInput(new Date()),
     horaInicio: '',
     horaFin: '',
     tipoEvento: '',
@@ -164,7 +172,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function EventosPage() {
+  const { user } = useAuth()
   const { notifySuccess } = useNotification()
+  const canManageEvents = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()))
   const [eventos, setEventos] = useState<EventoDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -173,6 +183,8 @@ export default function EventosPage() {
   const [reloadKey, setReloadKey] = useState(0)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
+  const [editingEventoId, setEditingEventoId] = useState<number | null>(null)
   const [createForm, setCreateForm] = useState<EventoAltaFormState>(createEmptyForm)
   const [createError, setCreateError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -182,11 +194,21 @@ export default function EventosPage() {
   const [clienteResultados, setClienteResultados] = useState<ClienteDto[]>([])
   const [clienteBuscando, setClienteBuscando] = useState(false)
   const [clienteError, setClienteError] = useState('')
+  const [clienteLoading, setClienteLoading] = useState(false)
 
   const [disponibilidad, setDisponibilidad] = useState<{ estado: DisponibilidadEstado; mensaje: string }>({
     estado: 'idle',
     mensaje: '',
   })
+
+  const [estadoModalOpen, setEstadoModalOpen] = useState(false)
+  const [estadoSeleccionado, setEstadoSeleccionado] = useState<EventoEstado>('Reservado')
+  const [estadoError, setEstadoError] = useState('')
+  const [estadoSaving, setEstadoSaving] = useState(false)
+
+  const [cancelarOpen, setCancelarOpen] = useState(false)
+  const [cancelarError, setCancelarError] = useState('')
+  const [cancelarSaving, setCancelarSaving] = useState(false)
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
 
@@ -249,7 +271,8 @@ export default function EventosPage() {
     createForm.montoTotal.trim() &&
     !timeError &&
     disponibilidad.estado === 'available' &&
-    !saving
+    !saving &&
+    !clienteLoading
   )
 
   useEffect(() => {
@@ -315,6 +338,7 @@ export default function EventosPage() {
           fecha,
           horaInicio: normalizeTimeForApi(horaInicio),
           horaFin: normalizeTimeForApi(horaFin),
+          eventoIdExcluir: formMode === 'edit' ? editingEventoId ?? undefined : undefined,
         })
         if (!active) return
         setDisponibilidad({
@@ -334,10 +358,12 @@ export default function EventosPage() {
       active = false
       window.clearTimeout(timeoutId)
     }
-  }, [createOpen, createForm.fecha, createForm.horaInicio, createForm.horaFin])
+  }, [createOpen, formMode, editingEventoId, createForm.fecha, createForm.horaInicio, createForm.horaFin])
 
   function abrirAltaEvento() {
     setSelectedEvento(null)
+    setFormMode('create')
+    setEditingEventoId(null)
     setCreateOpen(true)
     resetAltaEventoState()
   }
@@ -345,19 +371,53 @@ export default function EventosPage() {
   function resetAltaEventoState() {
     setCreateForm(createEmptyForm())
     setCreateError('')
+    setFormMode('create')
+    setEditingEventoId(null)
     setClienteBusqueda('')
     setClienteSeleccionado(null)
     setClienteResultados([])
     setClienteBuscando(false)
     setClienteError('')
+    setClienteLoading(false)
     setDisponibilidad({ estado: 'idle', mensaje: '' })
+    setSaving(false)
   }
 
   function cerrarAltaEvento() {
     if (saving) return
     setCreateOpen(false)
-    setSaving(false)
     resetAltaEventoState()
+  }
+
+  async function abrirEdicionEvento(evento: EventoDto) {
+    setCreateError('')
+    setSelectedEvento(evento)
+    setFormMode('edit')
+    setEditingEventoId(evento.id)
+    setCreateOpen(true)
+    setClienteLoading(true)
+
+    try {
+      const cliente = await api.clientes.obtener(evento.clienteId)
+      setCreateForm({
+        fecha: evento.fecha.slice(0, 10),
+        horaInicio: formatTime(evento.horaInicio),
+        horaFin: formatTime(evento.horaFin),
+        tipoEvento: evento.tipoEvento,
+        cantidadInvitados: String(evento.cantidadInvitados),
+        montoTotal: String(evento.montoTotal),
+        observaciones: evento.observaciones ?? '',
+      })
+      setClienteSeleccionado(cliente)
+      setClienteBusqueda(formatClienteLabel(cliente))
+      setClienteResultados([])
+      setClienteError('')
+      setDisponibilidad({ estado: 'idle', mensaje: '' })
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Error al cargar el evento')
+    } finally {
+      setClienteLoading(false)
+    }
   }
 
   function seleccionarCliente(cliente: ClienteDto) {
@@ -381,7 +441,33 @@ export default function EventosPage() {
     }
   }
 
-  async function handleCrearEvento(e: React.FormEvent<HTMLFormElement>) {
+  function abrirCambioEstado(evento: EventoDto) {
+    setSelectedEvento(evento)
+    setEstadoSeleccionado(evento.estado as EventoEstado)
+    setEstadoError('')
+    setEstadoModalOpen(true)
+  }
+
+  function cerrarCambioEstado() {
+    if (estadoSaving) return
+    setEstadoModalOpen(false)
+    setEstadoError('')
+    setEstadoSeleccionado('Reservado')
+  }
+
+  function abrirCancelar(evento: EventoDto) {
+    setSelectedEvento(evento)
+    setCancelarError('')
+    setCancelarOpen(true)
+  }
+
+  function cerrarCancelar() {
+    if (cancelarSaving) return
+    setCancelarOpen(false)
+    setCancelarError('')
+  }
+
+  async function handleGuardarEvento(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
     if (!clienteSeleccionado?.id) {
@@ -419,20 +505,70 @@ export default function EventosPage() {
       montoTotal: Number(createForm.montoTotal),
       observaciones: createForm.observaciones.trim() ? createForm.observaciones.trim() : null,
     }
+    const successMessage = formMode === 'edit' ? 'Evento actualizado correctamente' : 'Evento creado correctamente'
 
     setSaving(true)
     setCreateError('')
 
     try {
-      await api.eventos.crear(payload)
+      if (formMode === 'edit' && !editingEventoId) {
+        throw new Error('No se pudo determinar el evento a editar')
+      }
+
+      const eventoId = editingEventoId as number
+      const result = formMode === 'edit'
+        ? await api.eventos.editar(eventoId, payload)
+        : await api.eventos.crear(payload)
+
       setReloadKey(value => value + 1)
+      if (formMode === 'edit') {
+        setSelectedEvento(result)
+      }
       setCreateOpen(false)
       resetAltaEventoState()
-      notifySuccess('Evento creado correctamente')
+      notifySuccess(successMessage)
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Error al crear evento')
+      setCreateError(err instanceof Error ? err.message : formMode === 'edit' ? 'Error al editar evento' : 'Error al crear evento')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function confirmarCambioEstado() {
+    if (!selectedEvento) return
+
+    setEstadoSaving(true)
+    setEstadoError('')
+
+    try {
+      const actualizado = await api.eventos.cambiarEstado(selectedEvento.id, { estado: estadoSeleccionado })
+      setSelectedEvento(actualizado)
+      setReloadKey(value => value + 1)
+      setEstadoModalOpen(false)
+      notifySuccess('Estado actualizado correctamente')
+    } catch (err) {
+      setEstadoError(err instanceof Error ? err.message : 'Error al cambiar el estado')
+    } finally {
+      setEstadoSaving(false)
+    }
+  }
+
+  async function confirmarCancelacion() {
+    if (!selectedEvento) return
+
+    setCancelarSaving(true)
+    setCancelarError('')
+
+    try {
+      const cancelado = await api.eventos.cancelar(selectedEvento.id)
+      setSelectedEvento(cancelado)
+      setReloadKey(value => value + 1)
+      setCancelarOpen(false)
+      notifySuccess('Evento cancelado correctamente')
+    } catch (err) {
+      setCancelarError(err instanceof Error ? err.message : 'Error al cancelar el evento')
+    } finally {
+      setCancelarSaving(false)
     }
   }
 
@@ -572,8 +708,8 @@ export default function EventosPage() {
       <Dialog
         open={createOpen}
         onClose={cerrarAltaEvento}
-        title="Nuevo Evento"
-        description="Crear una nueva reserva"
+        title={formMode === 'edit' ? 'Editar Evento' : 'Nuevo Evento'}
+        description={formMode === 'edit' ? 'Editar una reserva existente' : 'Crear una nueva reserva'}
         width="lg"
         closeOnBackdrop={!saving}
         footer={
@@ -589,12 +725,15 @@ export default function EventosPage() {
               loading={saving}
               disabled={!canGuardar}
             >
-              {saving ? 'Guardando...' : 'Guardar Evento'}
+              {saving ? 'Guardando...' : formMode === 'edit' ? 'Guardar Cambios' : 'Guardar Evento'}
             </Button>
           </>
         }
       >
-        <form id="evento-alta-form" onSubmit={handleCrearEvento} className="space-y-4">
+        <form id="evento-alta-form" onSubmit={handleGuardarEvento} className="space-y-4">
+          {clienteLoading && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Cargando cliente...</div>
+          )}
           {createError && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
               {createError}
@@ -785,6 +924,21 @@ export default function EventosPage() {
         title="Detalle del evento"
         icon={<CalendarDays size={18} />}
         width="md"
+        footer={selectedEvento && canManageEvents ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
+              Editar
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => abrirCambioEstado(selectedEvento)}>
+              Cambiar estado
+            </Button>
+            {selectedEvento.estado !== 'Cancelado' && (
+              <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
+                Cancelar evento
+              </Button>
+            )}
+          </>
+        ) : undefined}
       >
         {selectedEvento && (
           <div className="space-y-1">
@@ -805,6 +959,55 @@ export default function EventosPage() {
             </div>
           </div>
         )}
+      </Dialog>
+
+      <Dialog
+        open={estadoModalOpen}
+        onClose={cerrarCambioEstado}
+        title="Cambiar estado"
+        description="Seleccioná el nuevo estado del evento"
+        width="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={cerrarCambioEstado} disabled={estadoSaving}>Cancelar</Button>
+            <Button variant="confirm" size="sm" onClick={confirmarCambioEstado} loading={estadoSaving}>
+              {estadoSaving ? 'Guardando...' : 'Confirmar'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {estadoError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{estadoError}</div>}
+          <div>
+            <label htmlFor="evento-estado-select" className="text-xs font-semibold text-gray-700">Estado</label>
+            <select
+              id="evento-estado-select"
+              value={estadoSeleccionado}
+              onChange={e => setEstadoSeleccionado(e.target.value as EventoEstado)}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 bg-white"
+            >
+              {EVENTO_ESTADOS.map(estado => <option key={estado} value={estado}>{estado}</option>)}
+            </select>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={cancelarOpen}
+        onClose={cerrarCancelar}
+        title="Cancelar evento"
+        description="¿Confirmás que querés cancelar este evento? El evento quedará cancelado y liberará su horario."
+        width="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={cerrarCancelar} disabled={cancelarSaving}>No, volver</Button>
+            <Button variant="destructive" size="sm" onClick={confirmarCancelacion} loading={cancelarSaving}>
+              {cancelarSaving ? 'Cancelando...' : 'Sí, cancelar'}
+            </Button>
+          </>
+        }
+      >
+        {cancelarError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{cancelarError}</div>}
       </Dialog>
     </PageShell>
   )

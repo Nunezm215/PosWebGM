@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const apiState = vi.hoisted(() => ({
@@ -8,6 +8,10 @@ const apiState = vi.hoisted(() => ({
   consultarDisponibilidad: vi.fn(),
   crear: vi.fn(),
   listarClientes: vi.fn(),
+}))
+
+const authState = vi.hoisted(() => ({
+  rol: 'Admin' as string,
 }))
 
 vi.mock('../../api/client', () => ({
@@ -35,8 +39,19 @@ vi.mock('../../context/NotificationContext', () => ({
   }),
 }))
 
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 1, nombre: 'Admin', rol: authState.rol },
+    isAuthenticated: true,
+    login: vi.fn(),
+    pinLogin: vi.fn(),
+    logout: vi.fn(),
+  }),
+}))
+
 describe('EventosPage', () => {
   beforeEach(() => {
+    authState.rol = 'Admin'
     apiState.listarRango.mockReset()
     apiState.obtenerPorId.mockReset()
     apiState.consultarDisponibilidad.mockReset()
@@ -116,7 +131,7 @@ describe('EventosPage', () => {
   it('validates that end time is after start time', async () => {
     const { user, dialog } = await abrirAlta()
 
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '17:00')
 
@@ -129,7 +144,7 @@ describe('EventosPage', () => {
   it('calls disponibilidad and shows Disponible', async () => {
     const { user, dialog } = await abrirAlta()
 
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
 
@@ -147,7 +162,7 @@ describe('EventosPage', () => {
     apiState.consultarDisponibilidad.mockResolvedValueOnce(false)
     const { user, dialog } = await abrirAlta()
 
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
 
@@ -201,7 +216,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -257,7 +272,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -300,7 +315,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    await user.type(within(dialog).getByLabelText(/Fecha/), '2026-08-15')
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -334,6 +349,7 @@ describe('EventosPage', () => {
   })
 
   it('shows the read-only detail and no edit/cancel actions', async () => {
+    authState.rol = 'Vendedor'
     apiState.listarRango.mockResolvedValueOnce([
       {
         id: 1,
@@ -360,7 +376,7 @@ describe('EventosPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
-    expect(screen.queryByText(/editar/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/cancelar/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancelar evento' })).not.toBeInTheDocument()
   })
 })

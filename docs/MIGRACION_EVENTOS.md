@@ -604,3 +604,136 @@ Confirmado:
 ### Proximo paso
 
 **Fase 1B.3: detalle editable + edicion + cancelacion de Evento.**
+
+## Fase 1B.3 - Edicion, estado y cancelacion de Eventos
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1b3-edicion-eventos-ok`
+
+### Implementado
+
+Desde el detalle de Evento:
+
+- editar Evento
+- cambiar estado
+- cancelar Evento
+
+### Permisos
+
+Las acciones de modificacion estan disponibles para:
+
+- Admin
+- SuperAdmin
+
+UsuarioComun mantiene acceso de solo lectura.
+
+El backend continua siendo la autoridad final de autorizacion.
+
+### Edicion
+
+Se permite modificar los datos admitidos por el contrato real de edicion.
+
+La disponibilidad se consulta nuevamente cuando corresponde.
+
+En edicion se utiliza `eventoIdExcluir` para que el Evento no genere conflicto consigo mismo.
+
+Despues de guardar:
+
+- se actualiza el Evento
+- se refresca el calendario
+- los cambios aparecen sin recargar completamente la aplicacion
+
+### Disponibilidad
+
+La regla continua en backend:
+
+- separacion minima de 30 minutos entre Eventos
+- exactamente 30 minutos: permitido
+- menos de 30 minutos: rechazado
+- Evento Cancelado no bloquea disponibilidad
+
+Frontend consulta la disponibilidad pero no reemplaza la regla del backend.
+
+### Cambio de estado
+
+Se agrego cambio manual de estado mediante el endpoint existente.
+
+Estados existentes:
+
+- Reservado
+- Señado
+- Pagado
+- Cancelado
+
+En esta fase el cambio de estado NO genera movimientos financieros.
+
+### Cancelacion
+
+- requiere confirmacion
+- no elimina fisicamente el Evento
+- Evento queda con estado Cancelado
+- un Evento Cancelado libera su horario
+- no se ofrece nuevamente la accion Cancelar cuando ya esta cancelado
+
+### Responsive
+
+Verificado manualmente en:
+
+- PC
+- celular por red local
+
+Funcionan correctamente:
+
+- detalle
+- edicion
+- cambio de estado
+- cancelacion
+
+### Tests
+
+- `EventosPage.test.tsx`: 10/10 OK
+- existen warnings de `act(...)` en Vitest
+- los warnings no rompen la suite y quedan como mejora tecnica futura
+
+### Build
+
+- `npm run build`: OK
+
+### Verificacion manual
+
+Confirmado de punta a punta:
+
+- edicion de Evento: OK
+- disponibilidad durante edicion: OK
+- regla de 30 minutos: OK
+- cambio de estado: OK
+- cancelacion: OK
+- Evento Cancelado libera horario: OK
+- funcionamiento PC: OK
+- funcionamiento celular: OK
+
+### No incluido todavia
+
+- PagoEvento
+- GastoEvento
+- integracion financiera con Caja
+- QR de Evento
+- Mercado Pago para Evento
+
+### Proximo paso
+
+Antes de implementar la parte financiera, definir y disenar:
+
+**Fase 2 - Finanzas de Evento**
+
+Incluyendo conceptualmente:
+
+- senas
+- pagos parciales
+- saldo pendiente
+- multiples pagos por Evento
+- medios de pago
+- movimientos de Caja
+- gastos asociados al Evento
+
+No implementar esa fase todavia.
