@@ -322,7 +322,14 @@ export interface ClienteDto {
   telefono?: string | null
   domicilio?: string | null
   mail?: string | null
+  familiares?: FamiliarClienteDto[]
   activo?: boolean
+}
+
+export interface FamiliarClienteDto {
+  id?: number | null
+  nombre: string
+  fechaNacimiento?: string | null
 }
 
 // --- MedioPago types ---

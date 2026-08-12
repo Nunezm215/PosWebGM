@@ -15,9 +15,14 @@ public class ClienteService
         _context = context;
     }
 
-    public PagedResult<ClienteDto> Listar(string? q, int page, int pageSize)
+    public PagedResult<ClienteDto> Listar(string? q, int page, int pageSize, bool incluirInactivos = false)
     {
         IQueryable<Cliente> query = _context.Cliente;
+
+        if (!incluirInactivos)
+        {
+            query = query.Where(c => c.ACTIVO);
+        }
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -175,6 +180,18 @@ public class ClienteService
             throw new ClienteNoEncontradoException(id);
 
         cliente.Desactivar();
+        _context.SaveChanges();
+    }
+
+    public void Reactivar(int id)
+    {
+        Cliente? cliente = _context.Cliente
+            .Include(c => c.FAMILIARES)
+            .FirstOrDefault(c => c.ID_CLIENTE == id);
+        if (cliente == null || cliente.ACTIVO)
+            throw new ClienteNoEncontradoException(id);
+
+        cliente.Activar();
         _context.SaveChanges();
     }
 

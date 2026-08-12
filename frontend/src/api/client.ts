@@ -342,11 +342,12 @@ export const api = {
 
   // Clientes
   clientes: {
-    listar: (q?: string, page: number = 1, pageSize: number = 20) => {
+    listar: (q?: string, page: number = 1, pageSize: number = 20, incluirInactivos: boolean = false) => {
       const query = new URLSearchParams()
       if (q) query.set('q', q)
       query.set('page', page.toString())
       query.set('pageSize', pageSize.toString())
+      if (incluirInactivos) query.set('incluirInactivos', 'true')
       return request<PagedResult<ClienteDto>>(`/clientes?${query.toString()}`)
     },
     obtener: (id: number) => request<ClienteDto>(`/clientes/${id}`),
@@ -359,6 +360,7 @@ export const api = {
       body: JSON.stringify(dto),
     }),
     desactivar: (id: number) => request<void>(`/clientes/${id}`, { method: 'DELETE' }),
+    reactivar: (id: number) => request<void>(`/clientes/${id}/reactivar`, { method: 'POST' }),
   },
 
   // Medios de pago

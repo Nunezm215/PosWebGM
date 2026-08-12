@@ -1727,6 +1727,224 @@ Incluiria:
 - fecha de nacimiento
 - integracion con Crear Cliente desde Nuevo Evento
 
+## Fase 1C.2B - Familiares y administracion de Clientes en frontend
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1c2b-familiares-frontend-ok`
+
+### Resumen
+
+- Se agrego la administracion de familiares en `ClientesPage`.
+- Un Cliente puede tener 0, 1 o varios familiares.
+- La lista de Clientes quedo con scroll vertical propio.
+- Se agrego reactivacion de Clientes inactivos desde la misma administracion.
+- No se implementaron familiares en Nuevo Evento.
+
+### Tipos frontend
+
+- Se agrego/ajusto `FamiliarClienteDto`.
+- `ClienteDto` ahora incluye `familiares`.
+- Cada familiar contiene:
+  - `id`
+  - `nombre`
+  - `fechaNacimiento`
+
+### Alta de Cliente
+
+- Se agrego la seccion `Familiares (opcional)`.
+- Boton `Agregar familiar`.
+- Cada fila permite:
+  - Nombre
+  - Fecha de nacimiento
+  - Eliminar
+- En alta, el familiar nuevo se maneja localmente.
+- Eliminar no llama endpoint separado.
+- El payload `POST` incluye la coleccion de familiares.
+- Cliente sin familiares sigue siendo valido.
+
+### Edicion de Cliente
+
+- Al editar Cliente, se cargan familiares existentes mediante `GET /api/clientes/{id}`.
+- Se muestran en el formulario.
+- Pueden editarse.
+- Pueden agregarse nuevos.
+- Pueden eliminarse.
+- La coleccion completa se envia en `PUT`.
+- El familiar existente conserva su `id`.
+- El familiar nuevo usa `id` compatible con backend.
+- El familiar eliminado se omite del payload final.
+
+### Validaciones de familiar
+
+- Nombre obligatorio.
+- Nombre con `trim`.
+- Nombre no vacio.
+- Fecha de nacimiento obligatoria.
+- Fecha de nacimiento no futura.
+- `input[type=date]` usa `max = hoy local`.
+- Mensajes frontend claros.
+- No se agregaron:
+  - DNI
+  - telefono
+  - mail
+  - parentesco
+  - observaciones
+
+### Accesibilidad
+
+- Los campos de familiares usan `id` unicos y `htmlFor`.
+- Ejemplos:
+  - `familiar-0-nombre`
+  - `familiar-0-fecha`
+- No se repiten IDs entre filas.
+
+### Responsive
+
+- En PC, los campos pueden mostrarse en 2 columnas si hay espacio.
+- En celular, los campos se apilan.
+- El boton Eliminar sigue accesible.
+- No se genero scroll horizontal nuevo.
+- El modal mantiene scroll interno.
+
+### Scroll de lista de Clientes
+
+- La tabla/lista tiene scroll vertical propio.
+- Contenedor con `overflow-y-auto`.
+- `max-h-[calc(100vh-19rem)]`.
+- Encabezado sticky con `sticky top-0`.
+- Fondo del encabezado con `bg-gray-50`.
+- Buscador queda fuera del area scrolleable.
+- Boton `Nuevo cliente` queda fuera del scroll y visible.
+- No se modificaron columnas ni logica de negocio.
+
+### Reactivacion de Clientes
+
+- Se resolvio que un Cliente podia desactivarse pero no reactivarse.
+- Antes:
+  - `DELETE /api/clientes/{id}`
+  - `cliente.Desactivar()`
+  - `ACTIVO = false`
+- La entidad ya tenia `cliente.Activar()`, pero no habia endpoint/servicio expuesto.
+- Se agrego endpoint:
+  - `POST /api/clientes/{id}/reactivar`
+
+### Administracion activo/inactivo
+
+- Cliente activo:
+  - estado `Activo`
+  - accion `Desactivar`
+- Cliente inactivo:
+  - estado `Inactivo`
+  - accion `Reactivar`
+- Despues de Reactivar:
+  - mismo ID
+  - mismos datos
+  - mismos familiares
+  - `Activo = true`
+  - la lista se refresca
+- No se crea Cliente nuevo.
+- No se elimina fisicamente.
+
+### Clientes inactivos y Eventos
+
+- `ClientesPage` administrativa puede mostrar clientes inactivos para permitir reactivacion.
+- Otros consumidores mantienen el listado normal.
+- Por lo tanto, los clientes inactivos no quedan disponibles para nuevas reservas mientras siguen inactivos.
+- No se modifico `EventosPage`.
+
+### Familiares y desactivacion
+
+- Desactivar Cliente NO elimina familiares.
+- Reactivar Cliente conserva:
+  - datos del Cliente
+  - ID
+  - familiares asociados
+
+### Permisos
+
+- Desactivar/Reactivar mantiene permisos de `ClientesController`:
+  - `SuperAdmin`
+  - `Admin`
+
+### Tests frontend
+
+- `ClientesPage.test.tsx`
+- Resultado final: `24 passed / 0 failed`
+- Cobertura incluye:
+  - seccion Familiares
+  - agregar familiar
+  - varios familiares
+  - eliminar familiar
+  - validaciones
+  - payload POST
+  - payload PUT
+  - edicion
+  - scroll
+  - Cliente activo muestra Desactivar
+  - Cliente inactivo muestra Reactivar
+  - reactivacion
+  - conservacion de familiares
+  - cliente inactivo visible en administracion
+
+- Build frontend:
+  - `npm run build`
+  - OK
+
+### Backend
+
+- Ajuste minimo para reactivacion:
+  - `ClienteService`
+  - `ClientesController`
+  - endpoint `POST /api/clientes/{id}/reactivar`
+- No hubo cambios de DB ni migraciones.
+- La funcionalidad backend fue probada manualmente y funciona.
+
+### Verificacion manual
+
+- Cliente sin familiares: OK
+- Cliente con familiar: OK
+- Cliente con varios familiares: OK
+- edicion familiar: OK
+- agregar familiar en edicion: OK
+- eliminar familiar: OK
+- persistencia despues de recargar: OK
+- scroll de Clientes: OK
+- Activo -> Desactivar: OK
+- Inactivo -> Reactivar: OK
+- familiares se conservan: OK
+- funcionamiento general: OK
+
+### No incluido todavia
+
+- familiares en `Nuevo Evento -> Crear cliente nuevo`
+- Eso queda para `Fase 1C.2C`
+
+### No modificado
+
+- DB schema
+- migraciones
+- `EventoService`
+- disponibilidad
+- regla de 30 minutos
+- contrato PDF
+- `PagoEvento`
+- `GastoEvento`
+- `Caja`
+- `Mercado Pago`
+- `QR`
+
+### Proximo paso
+
+Proxima fase prevista: `Fase 1C.2C - Familiares desde Nuevo Evento`.
+
+Objetivo futuro:
+
+- Nuevo Evento
+- Crear cliente nuevo
+- Familiares opcionales
+
+Reutilizando las mismas reglas ya implementadas en `ClientesPage`.
+
 ## Fase 1B.4D - Contacto rapido del Cliente
 
 **Estado:** COMPLETADA

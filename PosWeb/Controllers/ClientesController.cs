@@ -19,9 +19,9 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Listar([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public IActionResult Listar([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool incluirInactivos = false)
     {
-        var result = _clienteService.Listar(q, page, pageSize);
+        var result = _clienteService.Listar(q, page, pageSize, incluirInactivos);
         return Ok(result);
     }
 
@@ -54,6 +54,13 @@ public class ClientesController : ControllerBase
     public IActionResult Desactivar(int id)
     {
         _clienteService.Desactivar(id);
+        return NoContent();
+    }
+
+    [HttpPost("{id}/reactivar")]
+    public IActionResult Reactivar(int id)
+    {
+        _clienteService.Reactivar(id);
         return NoContent();
     }
 }
