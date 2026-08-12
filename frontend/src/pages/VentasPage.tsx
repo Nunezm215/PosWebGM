@@ -89,6 +89,7 @@ export default function VentasPage() {
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('')
   const [esOcasional, setEsOcasional] = useState(true)
   const [formCliente, setFormCliente] = useState({
+    fechaNacimiento: '',
     tipoDocumento: 'DNI',
     numeroDocumento: '',
     ivaCondicion: 'ConsumidorFinal',
@@ -236,21 +237,33 @@ export default function VentasPage() {
   async function crearClienteYRevertir() {
     if (nuevoClienteNombre.trim().length < 2) return
     try {
+      if (!formCliente.fechaNacimiento) { notifyError('Completá la fecha de nacimiento'); return }
+      const hoy = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
+      if (formCliente.fechaNacimiento > hoy) { notifyError('La fecha de nacimiento no puede ser futura'); return }
+      if (!formCliente.telefono.trim()) { notifyError('Completá el celular o teléfono'); return }
+      if (!formCliente.mail.trim()) { notifyError('Completá el email'); return }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formCliente.mail.trim())) { notifyError('El email no es válido'); return }
+
       const dto: ClienteDto = esOcasional
-        ? {
-            nombre: nuevoClienteNombre.trim(),
-            tipoDocumento: 'ConsumidorFinal',
-            numeroDocumento: '',
-            ivaCondicion: 'ConsumidorFinal',
+          ? {
+              nombre: nuevoClienteNombre.trim(),
+              fechaNacimiento: formCliente.fechaNacimiento,
+              tipoDocumento: 'ConsumidorFinal',
+              numeroDocumento: null,
+              ivaCondicion: 'ConsumidorFinal',
+              telefono: formCliente.telefono.trim(),
+              domicilio: formCliente.domicilio.trim() || null,
+            mail: formCliente.mail.trim(),
           }
         : {
             nombre: nuevoClienteNombre.trim(),
+            fechaNacimiento: formCliente.fechaNacimiento,
             tipoDocumento: formCliente.tipoDocumento,
-            numeroDocumento: formCliente.numeroDocumento,
+            numeroDocumento: formCliente.numeroDocumento || null,
             ivaCondicion: formCliente.ivaCondicion,
-            telefono: formCliente.telefono || undefined,
-            domicilio: formCliente.domicilio || undefined,
-            mail: formCliente.mail || undefined,
+            telefono: formCliente.telefono.trim(),
+            domicilio: formCliente.domicilio.trim() || null,
+            mail: formCliente.mail.trim(),
           }
       const nuevo = await api.clientes.crear(dto)
       setClienteSeleccionado(nuevo)
@@ -258,7 +271,7 @@ export default function VentasPage() {
       setShowClientPopup(false)
       setNuevoClienteNombre('')
       setEsOcasional(true)
-      setFormCliente({ tipoDocumento: 'DNI', numeroDocumento: '', ivaCondicion: 'ConsumidorFinal', telefono: '', domicilio: '', mail: '' })
+      setFormCliente({ fechaNacimiento: '', tipoDocumento: 'DNI', numeroDocumento: '', ivaCondicion: 'ConsumidorFinal', telefono: '', domicilio: '', mail: '' })
       ejecutarVenta(parseFloat(recibio) || 0, pendingAllowSinStock.current, nuevo)
     } catch (e: any) { notifyError(e.message) }
   }

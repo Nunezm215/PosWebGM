@@ -10,9 +10,11 @@ public class Cliente
 
     public string NOMBRE { get; private set; } = null!;
 
+    public DateOnly? FECHA_NACIMIENTO { get; private set; }
+
     public string TIPO_DOCUMENTO { get; private set; } = null!;
 
-    public string NRO_DOCUMENTO { get; private set; } = null!;
+    public string? NRO_DOCUMENTO { get; private set; }
 
     public string? COD_CLIENTE { get; private set; }
 
@@ -28,15 +30,17 @@ public class Cliente
 
     private static readonly string[] TiposDocumentoValidos = { "DNI", "CUIT", "CUIL", "ConsumidorFinal" };
 
-    public Cliente(string nombre, string tipoDocumento, string nroDocumento,
+    public Cliente(string nombre, string tipoDocumento, string? nroDocumento,
+                   DateOnly? fechaNacimiento = null,
                    string? codCliente = null, string? telefono = null, string? domicilio = null, string? mail = null,
                    string? ivaCondicion = null)
     {
         CambiarNombre(nombre);
+        CambiarFechaNacimiento(fechaNacimiento);
         CambiarTipoDocumento(tipoDocumento, nroDocumento);
         COD_CLIENTE = codCliente;
-        TELEFONO = telefono;
-        DOMICILIO = domicilio;
+        CambiarTelefono(telefono);
+        CambiarDomicilio(domicilio);
         SetMail(mail);
         SetIvaCondicion(ivaCondicion);
         ACTIVO = true;
@@ -53,51 +57,66 @@ public class Cliente
             throw new ArgumentException("El nombre es requerido y debe tener hasta 200 caracteres");
         }
 
-        NOMBRE = nombre;
+        NOMBRE = nombre.Trim();
     }
 
-    public void CambiarTipoDocumento(string tipoDocumento, string numeroDocumento)
+    public void CambiarFechaNacimiento(DateOnly? fechaNacimiento)
     {
-        if (!TiposDocumentoValidos.Contains(tipoDocumento))
+        if (fechaNacimiento.HasValue && fechaNacimiento.Value > DateOnly.FromDateTime(DateTime.Today))
         {
-            throw new DocumentoInvalidoException(tipoDocumento, "Tipo de documento inválido");
+            throw new ArgumentException("La fecha de nacimiento no puede ser futura");
         }
 
-        if (tipoDocumento == "ConsumidorFinal")
+        FECHA_NACIMIENTO = fechaNacimiento;
+    }
+
+    public void CambiarTipoDocumento(string? tipoDocumento, string? numeroDocumento)
+    {
+        var tipoNormalizado = string.IsNullOrWhiteSpace(tipoDocumento) ? "ConsumidorFinal" : tipoDocumento.Trim();
+
+        if (!TiposDocumentoValidos.Contains(tipoNormalizado))
         {
-            NRO_DOCUMENTO = string.IsNullOrWhiteSpace(numeroDocumento) ? "0" : numeroDocumento;
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(numeroDocumento))
-            {
-                throw new DocumentoInvalidoException(tipoDocumento, "Número de documento requerido");
-            }
-
-            if (tipoDocumento == "CUIT" && numeroDocumento.Length != 11)
-            {
-                throw new DocumentoInvalidoException(tipoDocumento, "CUIT debe tener 11 dígitos");
-            }
-
-            if (tipoDocumento == "CUIL" && numeroDocumento.Length != 11)
-            {
-                throw new DocumentoInvalidoException(tipoDocumento, "CUIL debe tener 11 dígitos");
-            }
-
-            if (tipoDocumento == "DNI" && (numeroDocumento.Length < 7 || numeroDocumento.Length > 8))
-            {
-                throw new DocumentoInvalidoException(tipoDocumento, "DNI debe tener entre 7 y 8 dígitos");
-            }
-
-            if (!numeroDocumento.All(char.IsDigit))
-            {
-                throw new DocumentoInvalidoException(tipoDocumento, "El número de documento debe ser numérico");
-            }
-
-            NRO_DOCUMENTO = numeroDocumento;
+            throw new DocumentoInvalidoException(tipoNormalizado, "Tipo de documento inválido");
         }
 
-        TIPO_DOCUMENTO = tipoDocumento;
+        var numeroNormalizado = string.IsNullOrWhiteSpace(numeroDocumento) ? null : numeroDocumento.Trim();
+
+        if (numeroNormalizado == null)
+        {
+            TIPO_DOCUMENTO = tipoNormalizado;
+            NRO_DOCUMENTO = null;
+            return;
+        }
+
+        if (tipoNormalizado == "ConsumidorFinal")
+        {
+            TIPO_DOCUMENTO = tipoNormalizado;
+            NRO_DOCUMENTO = numeroNormalizado;
+            return;
+        }
+
+        if (tipoNormalizado == "CUIT" && numeroNormalizado.Length != 11)
+        {
+            throw new DocumentoInvalidoException(tipoNormalizado, "CUIT debe tener 11 dígitos");
+        }
+
+        if (tipoNormalizado == "CUIL" && numeroNormalizado.Length != 11)
+        {
+            throw new DocumentoInvalidoException(tipoNormalizado, "CUIL debe tener 11 dígitos");
+        }
+
+        if (tipoNormalizado == "DNI" && (numeroNormalizado.Length < 7 || numeroNormalizado.Length > 8))
+        {
+            throw new DocumentoInvalidoException(tipoNormalizado, "DNI debe tener entre 7 y 8 dígitos");
+        }
+
+        if (!numeroNormalizado.All(char.IsDigit))
+        {
+            throw new DocumentoInvalidoException(tipoNormalizado, "El número de documento debe ser numérico");
+        }
+
+        TIPO_DOCUMENTO = tipoNormalizado;
+        NRO_DOCUMENTO = numeroNormalizado;
     }
 
     public void CambiarCodCliente(string? codCliente)
@@ -116,8 +135,7 @@ public class Cliente
     {
         if (string.IsNullOrWhiteSpace(mail))
         {
-            MAIL = null;
-            return;
+            throw new ArgumentException("El mail es requerido");
         }
 
         try
@@ -134,12 +152,17 @@ public class Cliente
 
     public void CambiarTelefono(string? telefono)
     {
-        TELEFONO = telefono;
+        if (string.IsNullOrWhiteSpace(telefono))
+        {
+            throw new ArgumentException("El teléfono es requerido");
+        }
+
+        TELEFONO = telefono.Trim();
     }
 
     public void CambiarDomicilio(string? domicilio)
     {
-        DOMICILIO = domicilio;
+        DOMICILIO = string.IsNullOrWhiteSpace(domicilio) ? null : domicilio.Trim();
     }
 
     public void Activar()

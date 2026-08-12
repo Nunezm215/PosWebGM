@@ -59,11 +59,11 @@ public class EventosControllerTests
         TestHelpers.SetId(otraSucursal, OtraSucursalId, "ID_SUCURSAL");
         context.Sucursal.Add(otraSucursal);
 
-        var cliente = new Cliente("Cliente Uno", "DNI", "12345678");
+        var cliente = new Cliente("Cliente Uno", "DNI", "12345678", telefono: "11111111", mail: "cliente1@correo.com");
         TestHelpers.SetId(cliente, ClienteId, "ID_CLIENTE");
         context.Cliente.Add(cliente);
 
-        var otroCliente = new Cliente("Cliente Dos", "DNI", "87654321");
+        var otroCliente = new Cliente("Cliente Dos", "DNI", "87654321", telefono: "22222222", mail: "cliente2@correo.com");
         TestHelpers.SetId(otroCliente, OtroClienteId, "ID_CLIENTE");
         context.Cliente.Add(otroCliente);
 

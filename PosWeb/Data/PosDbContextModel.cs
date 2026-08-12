@@ -234,6 +234,11 @@ public partial class PosDbContext
                 .HasMaxLength(200)
                 .IsRequired();
 
+            entity.Property(c => c.FECHA_NACIMIENTO)
+                .HasColumnName("FECHA_NACIMIENTO")
+                .HasColumnType("date")
+                .IsRequired(false);
+
             entity.Property(c => c.MAIL)
                 .HasColumnName("MAIL")
                 .HasMaxLength(200);
@@ -241,7 +246,7 @@ public partial class PosDbContext
             entity.Property(c => c.NRO_DOCUMENTO)
                 .HasColumnName("NRO_DOCUMENTO")
                 .HasMaxLength(20)
-                .IsRequired();
+                .IsRequired(false);
 
             entity.Property(c => c.ACTIVO)
                 .HasColumnName("ACTIVO");

@@ -167,24 +167,26 @@ describe('EventosPage', () => {
 
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
     expect(within(clientDialog).getByLabelText(/Nombre/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Fecha de nacimiento/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Celular \/ Teléfono/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/Email/)).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText(/Tipo documento/)).toBeInTheDocument()
-    expect(within(clientDialog).getByLabelText(/N° documento/)).toBeInTheDocument()
-    expect(within(clientDialog).getByLabelText(/Condición IVA/)).toBeInTheDocument()
-    expect(within(clientDialog).getByLabelText(/Teléfono/)).toBeInTheDocument()
-    expect(within(clientDialog).getByLabelText(/Mail/)).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText(/DNI \/ número de documento/)).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText(/Domicilio/)).toBeInTheDocument()
+    expect(within(clientDialog).queryByLabelText(/Condición IVA/)).not.toBeInTheDocument()
   })
 
   it('keeps Evento data while creating a Cliente and auto-selects the new Cliente', async () => {
     const createdClient = {
       id: 10,
       nombre: 'Cliente Nuevo',
+      fechaNacimiento: '1990-01-01',
       tipoDocumento: 'DNI',
-      numeroDocumento: '99999999',
+      numeroDocumento: null,
       ivaCondicion: 'ConsumidorFinal',
-      telefono: '',
-      domicilio: '',
-      mail: '',
+      telefono: '11111111',
+      domicilio: null,
+      mail: 'cliente@correo.com',
       activo: true,
     }
 
@@ -203,20 +205,24 @@ describe('EventosPage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
     fireEvent.change(within(clientDialog).getByLabelText(/Nombre/), { target: { value: 'Cliente Nuevo' } })
+    fireEvent.change(within(clientDialog).getByLabelText(/Fecha de nacimiento/), { target: { value: '1990-01-01' } })
+    fireEvent.change(within(clientDialog).getByLabelText(/Celular \/ Teléfono/), { target: { value: '11111111' } })
+    fireEvent.change(within(clientDialog).getByLabelText(/Email/), { target: { value: 'cliente@correo.com' } })
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
     await waitFor(() => expect(apiState.crearCliente).toHaveBeenCalledWith({
       nombre: 'Cliente Nuevo',
+      fechaNacimiento: '1990-01-01',
       tipoDocumento: 'DNI',
-      numeroDocumento: '',
+      numeroDocumento: null,
       ivaCondicion: 'ConsumidorFinal',
-      telefono: '',
-      domicilio: '',
-      mail: '',
+      telefono: '11111111',
+      domicilio: null,
+      mail: 'cliente@correo.com',
     }))
 
     expect(screen.queryByRole('dialog', { name: 'Nuevo Cliente' })).not.toBeInTheDocument()
-    expect(within(dialog).getByText('Cliente Nuevo · DNI 99999999')).toBeInTheDocument()
+    expect(within(dialog).getByDisplayValue('Cliente Nuevo')).toBeInTheDocument()
   })
 
   it('cancels cliente creation and preserves Evento data', async () => {
@@ -246,7 +252,7 @@ describe('EventosPage', () => {
     await user.type(within(clientDialog).getByLabelText(/Nombre/), 'Cliente Nuevo')
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
-    expect(await screen.findByText('Documento duplicado')).toBeInTheDocument()
+    expect(await screen.findByText('Completá la fecha de nacimiento')).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Nuevo Cliente' })).toBeInTheDocument()
   })
 

@@ -61,10 +61,9 @@ const EVENTO_ESTADOS = ['Reservado', 'Señado', 'Pagado', 'Cancelado'] as const
 type EventoEstado = typeof EVENTO_ESTADOS[number]
 
 const CLIENTE_TIPOS_DOCUMENTO = ['DNI', 'CUIT', 'CUIL', 'ConsumidorFinal']
-const CLIENTE_IVA_CONDICIONES = ['ResponsableInscripto', 'Monotributo', 'Exento', 'ConsumidorFinal']
-
 interface ClienteAltaFormState {
   nombre: string
+  fechaNacimiento: string
   tipoDocumento: string
   numeroDocumento: string
   ivaCondicion: string
@@ -76,6 +75,7 @@ interface ClienteAltaFormState {
 function createEmptyClienteForm(nombre = ''): ClienteAltaFormState {
   return {
     nombre,
+    fechaNacimiento: '',
     tipoDocumento: 'DNI',
     numeroDocumento: '',
     ivaCondicion: 'ConsumidorFinal',
@@ -466,7 +466,7 @@ export default function EventosPage() {
     !clienteLoading
   )
 
-  const canGuardarCliente = Boolean(clienteCreateForm.nombre.trim() && !clienteCreateSaving)
+  const canGuardarCliente = !clienteCreateSaving
 
   useEffect(() => {
     if (!createOpen) return
@@ -658,14 +658,40 @@ export default function EventosPage() {
       return
     }
 
+    if (!clienteCreateForm.fechaNacimiento) {
+      setClienteCreateError('Completá la fecha de nacimiento')
+      return
+    }
+
+    if (clienteCreateForm.fechaNacimiento > formatDateInput(new Date())) {
+      setClienteCreateError('La fecha de nacimiento no puede ser futura')
+      return
+    }
+
+    if (!clienteCreateForm.telefono.trim()) {
+      setClienteCreateError('Completá el celular o teléfono')
+      return
+    }
+
+    if (!clienteCreateForm.mail.trim()) {
+      setClienteCreateError('Completá el email')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clienteCreateForm.mail.trim())) {
+      setClienteCreateError('El email no es válido')
+      return
+    }
+
     const payload: ClienteDto = {
       nombre: clienteCreateForm.nombre.trim(),
+      fechaNacimiento: clienteCreateForm.fechaNacimiento,
       tipoDocumento: clienteCreateForm.tipoDocumento,
-      numeroDocumento: clienteCreateForm.numeroDocumento.trim(),
+      numeroDocumento: clienteCreateForm.numeroDocumento.trim() || null,
       ivaCondicion: clienteCreateForm.ivaCondicion,
-      telefono: clienteCreateForm.telefono.trim() || '',
-      domicilio: clienteCreateForm.domicilio.trim() || '',
-      mail: clienteCreateForm.mail.trim() || '',
+      telefono: clienteCreateForm.telefono.trim(),
+      domicilio: clienteCreateForm.domicilio.trim() || null,
+      mail: clienteCreateForm.mail.trim(),
     }
 
     setClienteCreateSaving(true)
@@ -1329,6 +1355,40 @@ export default function EventosPage() {
             />
           </div>
 
+          <div>
+            <label htmlFor="evento-cliente-fecha-nacimiento" className="text-xs font-semibold text-gray-700">Fecha de nacimiento *</label>
+            <input
+              id="evento-cliente-fecha-nacimiento"
+              type="date"
+              value={clienteCreateForm.fechaNacimiento}
+              onChange={e => setClienteCreateForm(prev => ({ ...prev, fechaNacimiento: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="evento-cliente-telefono" className="text-xs font-semibold text-gray-700">Celular / Teléfono *</label>
+              <input
+                id="evento-cliente-telefono"
+                type="text"
+                value={clienteCreateForm.telefono}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, telefono: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div>
+              <label htmlFor="evento-cliente-mail" className="text-xs font-semibold text-gray-700">Email *</label>
+              <input
+                id="evento-cliente-mail"
+                type="email"
+                value={clienteCreateForm.mail}
+                onChange={e => setClienteCreateForm(prev => ({ ...prev, mail: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="evento-cliente-tipo-documento" className="text-xs font-semibold text-gray-700">Tipo documento</label>
@@ -1342,61 +1402,26 @@ export default function EventosPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="evento-cliente-numero-documento" className="text-xs font-semibold text-gray-700">N° documento</label>
+              <label htmlFor="evento-cliente-numero-documento" className="text-xs font-semibold text-gray-700">DNI / número de documento</label>
               <input
                 id="evento-cliente-numero-documento"
                 type="text"
                 value={clienteCreateForm.numeroDocumento}
                 onChange={e => setClienteCreateForm(prev => ({ ...prev, numeroDocumento: e.target.value }))}
-                disabled={clienteCreateForm.tipoDocumento === 'ConsumidorFinal'}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-100"
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="evento-cliente-iva" className="text-xs font-semibold text-gray-700">Condición IVA</label>
-            <select
-              id="evento-cliente-iva"
-              value={clienteCreateForm.ivaCondicion}
-              onChange={e => setClienteCreateForm(prev => ({ ...prev, ivaCondicion: e.target.value }))}
-              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 bg-white"
-            >
-              {CLIENTE_IVA_CONDICIONES.map(iva => <option key={iva} value={iva}>{iva}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="evento-cliente-telefono" className="text-xs font-semibold text-gray-700">Teléfono</label>
-              <input
-                id="evento-cliente-telefono"
-                type="text"
-                value={clienteCreateForm.telefono}
-                onChange={e => setClienteCreateForm(prev => ({ ...prev, telefono: e.target.value }))}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-            <div>
-              <label htmlFor="evento-cliente-mail" className="text-xs font-semibold text-gray-700">Mail</label>
-              <input
-                id="evento-cliente-mail"
-                type="email"
-                value={clienteCreateForm.mail}
-                onChange={e => setClienteCreateForm(prev => ({ ...prev, mail: e.target.value }))}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label htmlFor="evento-cliente-domicilio" className="text-xs font-semibold text-gray-700">Domicilio</label>
-              <input
-                id="evento-cliente-domicilio"
-                type="text"
-                value={clienteCreateForm.domicilio}
-                onChange={e => setClienteCreateForm(prev => ({ ...prev, domicilio: e.target.value }))}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
+            <label htmlFor="evento-cliente-domicilio" className="text-xs font-semibold text-gray-700">Domicilio</label>
+            <input
+              id="evento-cliente-domicilio"
+              type="text"
+              value={clienteCreateForm.domicilio}
+              onChange={e => setClienteCreateForm(prev => ({ ...prev, domicilio: e.target.value }))}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            />
           </div>
 
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">

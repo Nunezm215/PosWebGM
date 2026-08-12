@@ -61,7 +61,7 @@ public class ContratoEventoPdfServiceTests
         TestHelpers.SetId(cliente, ClienteId, "ID_CLIENTE");
         context.Cliente.Add(cliente);
 
-        var otroCliente = new Cliente("Cliente Dos", "DNI", "87654321");
+        var otroCliente = new Cliente("Cliente Dos", "DNI", "87654321", telefono: "22222222", mail: "cliente2@correo.com");
         TestHelpers.SetId(otroCliente, OtroClienteId, "ID_CLIENTE");
         context.Cliente.Add(otroCliente);
 

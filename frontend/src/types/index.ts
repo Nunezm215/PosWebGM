@@ -315,12 +315,13 @@ export interface ActualizarEstadoEventoRequestDto {
 export interface ClienteDto {
   id?: number
   nombre: string
+  fechaNacimiento?: string | null
   tipoDocumento: string
-  numeroDocumento: string
+  numeroDocumento?: string | null
   ivaCondicion: string
-  telefono?: string
-  domicilio?: string
-  mail?: string
+  telefono?: string | null
+  domicilio?: string | null
+  mail?: string | null
   activo?: boolean
 }
 

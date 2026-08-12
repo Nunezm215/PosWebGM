@@ -63,11 +63,11 @@ public class EventoRepositoryEfTests
         TestHelpers.SetId(sucursal2, Sucursal2Id, "ID_SUCURSAL");
         context.Sucursal.Add(sucursal2);
 
-        var cliente1 = new Cliente("Cliente Uno", "DNI", "12345678");
+        var cliente1 = new Cliente("Cliente Uno", "DNI", "12345678", telefono: "11111111", mail: "cliente1@correo.com");
         TestHelpers.SetId(cliente1, Cliente1Id, "ID_CLIENTE");
         context.Cliente.Add(cliente1);
 
-        var cliente2 = new Cliente("Cliente Dos", "DNI", "87654321");
+        var cliente2 = new Cliente("Cliente Dos", "DNI", "87654321", telefono: "22222222", mail: "cliente2@correo.com");
         TestHelpers.SetId(cliente2, Cliente2Id, "ID_CLIENTE");
         context.Cliente.Add(cliente2);
 

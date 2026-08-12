@@ -152,6 +152,10 @@ namespace PosWeb.Migrations.Local
                     b.Property<string>("DOMICILIO")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateOnly?>("FECHA_NACIMIENTO")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_NACIMIENTO");
+
                     b.Property<string>("IVA_CONDICION")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -170,7 +174,6 @@ namespace PosWeb.Migrations.Local
                         .HasColumnName("NOMBRE");
 
                     b.Property<string>("NRO_DOCUMENTO")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT")
                         .HasColumnName("NRO_DOCUMENTO");

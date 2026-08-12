@@ -29,11 +29,11 @@ interface VentaDialogsProps {
   showNuevoCliente: boolean
   nuevoClienteNombre: string
   esOcasional: boolean
-  formCliente: { tipoDocumento: string; numeroDocumento: string; ivaCondicion: string; telefono: string; domicilio: string; mail: string }
+  formCliente: { fechaNacimiento: string; tipoDocumento: string; numeroDocumento: string; ivaCondicion: string; telefono: string; domicilio: string; mail: string }
   onNuevoClienteClose: () => void
   onNuevoClienteNombreChange: (n: string) => void
   onEsOcasionalChange: (v: boolean) => void
-  onFormClienteChange: (f: { tipoDocumento: string; numeroDocumento: string; ivaCondicion: string; telefono: string; domicilio: string; mail: string }) => void
+  onFormClienteChange: (f: { fechaNacimiento: string; tipoDocumento: string; numeroDocumento: string; ivaCondicion: string; telefono: string; domicilio: string; mail: string }) => void
   onCrearCliente: () => void
   onAbrirNuevoCliente: () => void
 }
@@ -218,11 +218,31 @@ export default function VentaDialogs({
         <label className="flex items-center gap-2 cursor-pointer mt-2 mb-3">
           <input type="checkbox" checked={esOcasional} onChange={e => onEsOcasionalChange(e.target.checked)}
             className="w-4 h-4 rounded border-gray-300 text-[oklch(0.52_0.255_278)] focus:ring-[oklch(0.52_0.255_278_/_0.30)]" />
-          <span className="text-sm text-gray-700">Cliente ocasional (solo nombre, sin DNI)</span>
+          <span className="text-sm text-gray-700">Cliente ocasional (sin DNI)</span>
         </label>
 
-        {!esOcasional && (
-          <div className="space-y-3 pt-2 border-t border-gray-100">
+        <div className="space-y-3 pt-2 border-t border-gray-100">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Fecha de nacimiento *</label>
+            <input type="date" value={formCliente.fechaNacimiento}
+              onChange={e => onFormClienteChange({ ...formCliente, fechaNacimiento: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Celular / Teléfono *</label>
+              <input type="text" value={formCliente.telefono}
+                onChange={e => onFormClienteChange({ ...formCliente, telefono: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Email *</label>
+              <input type="email" value={formCliente.mail}
+                onChange={e => onFormClienteChange({ ...formCliente, mail: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+          </div>
+          {!esOcasional && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Tipo documento</label>
@@ -236,46 +256,20 @@ export default function VentaDialogs({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">N° documento</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">DNI / número de documento</label>
                 <input type="text" value={formCliente.numeroDocumento}
                   onChange={e => onFormClienteChange({ ...formCliente, numeroDocumento: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  disabled={formCliente.tipoDocumento === 'ConsumidorFinal'} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Condición IVA</label>
-              <select value={formCliente.ivaCondicion}
-                onChange={e => onFormClienteChange({ ...formCliente, ivaCondicion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                <option value="ResponsableInscripto">Responsable Inscripto</option>
-                <option value="Monotributo">Monotributo</option>
-                <option value="Exento">Exento</option>
-                <option value="ConsumidorFinal">Consumidor Final</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Mail</label>
-              <input type="email" value={formCliente.mail}
-                onChange={e => onFormClienteChange({ ...formCliente, mail: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Teléfono</label>
-                <input type="text" value={formCliente.telefono}
-                  onChange={e => onFormClienteChange({ ...formCliente, telefono: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Domicilio</label>
-                <input type="text" value={formCliente.domicilio}
-                  onChange={e => onFormClienteChange({ ...formCliente, domicilio: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
               </div>
             </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Domicilio</label>
+            <input type="text" value={formCliente.domicilio}
+              onChange={e => onFormClienteChange({ ...formCliente, domicilio: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
           </div>
-        )}
+        </div>
       </Dialog>
     </>
   )

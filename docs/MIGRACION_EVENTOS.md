@@ -1338,6 +1338,193 @@ Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar
 
 No se implementa ninguna de esas cosas en esta tarea.
 
+## Fase 1C.1 - Datos basicos de Cliente para Eventos
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1c1-cliente-basico-ok`
+
+### Alcance
+
+- Cliente fue adaptado al sistema de Eventos.
+- No se implementaron familiares todavia.
+- La condicion de IVA dejo de mostrarse al usuario.
+- Se mantiene internamente por compatibilidad usando `ConsumidorFinal`.
+
+### Campos obligatorios
+
+- Nombre
+- Fecha de nacimiento
+- Celular/Teléfono
+- Email
+
+### Campos opcionales
+
+- DNI / numero de documento
+- Domicilio
+
+### Fecha de nacimiento
+
+- Se agrego `FechaNacimiento`.
+- El backend usa `DateOnly?`.
+- La base de datos permite `null` para compatibilidad historica.
+- En altas nuevas es obligatoria.
+- En edicion es obligatoria.
+- No puede ser futura.
+- No se inventaron fechas para Clientes existentes.
+- Los Clientes historicos sin `fechaNacimiento` siguen listandose.
+- Tambien siguen consultandose.
+- No rompen Eventos.
+- Al editar, deben completar la fecha antes de guardar.
+
+### Telefono
+
+- Celular/Teléfono es obligatorio.
+- No se permite `null`, vacio ni solo espacios.
+- No se agrego validacion internacional compleja.
+- Se conserva compatibilidad con telefonos existentes.
+- Esto mantiene funcionando `Llamar` y `WhatsApp` desde el detalle de Evento.
+
+### Email
+
+- Email es obligatorio.
+- Se valida formato.
+- No puede estar vacio.
+
+### DNI / Documento
+
+- El numero de documento dejo de ser obligatorio.
+- Permite `null` y vacio.
+- No se generan DNIs ficticios.
+- `TipoDocumento` se mantiene por compatibilidad.
+
+### Domicilio
+
+- Domicilio dejo de ser obligatorio.
+- Permite `null` y vacio.
+- No se asignan valores ficticios.
+
+### IVA
+
+- Se auditaron referencias legacy a `ivaCondicion`.
+- No se elimino la propiedad ni la columna todavia.
+- Se mantiene compatibilidad interna.
+- Se oculta completamente del nuevo flujo de Cliente.
+- No se pide en alta.
+- No se pide en edicion.
+- Internamente se usa `ConsumidorFinal`.
+- La decision evita romper modulos legacy que todavia referencian el campo.
+
+### Base de datos
+
+- MySQL: `PosWeb/Migrations/20260811114658_UpdateClienteNacimientoContacto.cs`
+- SQLite: `PosWeb/Migrations/Local/20260811114738_UpdateClienteNacimientoContacto.cs`
+- Ambas agregan soporte para `fechaNacimiento`.
+- Ambas preservan Clientes existentes.
+- No inventan fechas.
+- Ajustan la nullabilidad necesaria para campos opcionales.
+- No crean todavia `FAMILIAR_CLIENTE`.
+- No eliminan datos.
+- Los snapshots quedaron actualizados para ambos providers.
+
+### ClientesPage
+
+- El formulario ahora muestra:
+  - Nombre *
+  - Fecha de nacimiento *
+  - Celular / Teléfono *
+  - Email *
+  - Tipo documento
+  - DNI / número de documento
+  - Domicilio
+- No muestra `Condición IVA`.
+- Se agregaron validaciones inline.
+- Se asociaron correctamente labels e inputs mediante `htmlFor` + `id`.
+- IDs utilizados:
+  - `cliente-nombre`
+  - `cliente-fecha-nacimiento`
+  - `cliente-telefono`
+  - `cliente-mail`
+  - `cliente-tipo-documento`
+  - `cliente-numero-documento`
+  - `cliente-domicilio`
+
+### Cliente desde Nuevo Evento
+
+- `Nuevo Evento -> Crear cliente nuevo` usa las mismas reglas.
+- Obligatorio: Nombre, FechaNacimiento, Celular, Email.
+- Opcional: DNI, Domicilio.
+- IVA queda oculto.
+- El Cliente creado sigue siendo un Cliente real y global del sistema.
+
+### Compatibilidad legacy
+
+- Se hicieron ajustes minimos de compatibilidad en pantallas legacy relacionadas con Cliente, incluyendo `VentasPage` y `VentaDialogs`.
+- No se redisenio Ventas.
+- No se modifico la logica de negocio de Ventas.
+
+### Tests backend
+
+- Nueva suite `ClienteServiceTests`.
+- Ajustes en tests de Eventos que construyen `Cliente`.
+- Comando: `dotnet test PosWeb.Application.Test/PosWeb.Application.Test.csproj --filter "FullyQualifiedName~Cliente|FullyQualifiedName~Evento"`
+- Resultado combinado: `59 passed`.
+- Build backend: `dotnet build PosWeb/PosWeb.csproj`: OK.
+
+### Tests frontend
+
+- `ClientesPage.test.tsx`: `6/6 OK`.
+- Corrida combinada `ClientesPage + EventosPage`: `31/31 OK`.
+- Build frontend: `npm run build`: OK.
+- Los tests inicialmente fallaban porque los labels no estaban asociados semanticamente a sus inputs.
+- Se corrigio el formulario con `htmlFor` + `id`.
+- No se modificaron los tests para evitar el problema.
+
+### Verificacion manual
+
+- Alta Cliente con obligatorios: OK
+- Alta sin DNI: OK
+- Alta sin domicilio: OK
+- IVA no visible: OK
+- Fecha futura bloqueada: OK
+- Email invalido bloqueado: OK
+- Edicion Cliente: OK
+- Creacion Cliente desde Nuevo Evento: OK
+- Cliente aparece globalmente: OK
+- Funcionamiento general: OK
+
+### No incluido todavia
+
+- familiares
+- `FamiliarCliente`
+- tabla `FAMILIAR_CLIENTE`
+- cumpleaños de familiares
+- recordatorios familiares
+
+### No modificado
+
+- disponibilidad de Eventos
+- regla de 30 minutos
+- estados de Evento
+- contrato PDF
+- `PagoEvento`
+- `GastoEvento`
+- `Caja`
+- `Mercado Pago`
+- `QR`
+
+### Proximo paso
+
+Proxima fase prevista: `Fase 1C.2 - Familiares de Cliente`.
+
+Todavia no se implementa.
+
+Conceptualmente incluiria:
+
+- 0..N familiares por Cliente
+- nombre
+- fecha de nacimiento
+- relacion 1:N
+
 ## Fase 1B.4D - Contacto rapido del Cliente
 
 **Estado:** COMPLETADA

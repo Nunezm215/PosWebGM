@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
 import type { ClienteDto } from '../types'
@@ -13,10 +13,9 @@ import { useEntityForm } from '../hooks/useEntityForm'
 import { useEntityPagination } from '../hooks/useEntityPagination'
 
 const TIPOS_DOCUMENTO = ['DNI', 'CUIT', 'CUIL', 'ConsumidorFinal']
-const IVA_CONDICIONES = ['ResponsableInscripto', 'Monotributo', 'Exento', 'ConsumidorFinal']
-
 const emptyForm: ClienteDto = {
   nombre: '',
+  fechaNacimiento: '',
   tipoDocumento: 'DNI',
   numeroDocumento: '',
   ivaCondicion: 'ConsumidorFinal',
@@ -42,6 +41,13 @@ export default function ClientesPage() {
   const pagination = useEntityPagination(list.totalPages)
 
   const form = useEntityForm<ClienteDto, ClienteDto>({ emptyForm })
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    if (!form.showForm) {
+      setFormError('')
+    }
+  }, [form.showForm])
 
   // ── Workflow ───────────────────────────────────────────────────────
   // LOAD on mount, search, or page change
@@ -52,15 +58,41 @@ export default function ClientesPage() {
   // SAVING → DONE → REFRESH
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.form.nombre.trim()) return
+    const nombre = form.form.nombre.trim()
+    const fechaNacimiento = form.form.fechaNacimiento?.slice(0, 10) || ''
+    const telefono = form.form.telefono?.trim() || ''
+    const mail = form.form.mail?.trim() || ''
+    const hoyDate = new Date()
+    const hoy = `${hoyDate.getFullYear()}-${String(hoyDate.getMonth() + 1).padStart(2, '0')}-${String(hoyDate.getDate()).padStart(2, '0')}`
+
+    if (!nombre) { setFormError('El nombre es obligatorio'); return }
+    if (!fechaNacimiento) { setFormError('La fecha de nacimiento es obligatoria'); return }
+    if (fechaNacimiento > hoy) { setFormError('La fecha de nacimiento no puede ser futura'); return }
+    if (!telefono) { setFormError('El celular/teléfono es obligatorio'); return }
+    if (!mail) { setFormError('El email es obligatorio'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { setFormError('El email no es válido'); return }
+
+    setFormError('')
     form.setSaving(true)
     try {
+      const payload: ClienteDto = {
+        ...form.form,
+        nombre,
+        fechaNacimiento,
+        telefono,
+        mail,
+        numeroDocumento: form.form.numeroDocumento?.trim() || null,
+        domicilio: form.form.domicilio?.trim() || null,
+        ivaCondicion: 'ConsumidorFinal',
+      }
+
       if (form.editingId) {
-        await api.clientes.actualizar(form.editingId, form.form)
+        await api.clientes.actualizar(form.editingId, payload)
       } else {
-        await api.clientes.crear(form.form)
+        await api.clientes.crear(payload)
       }
       form.closeForm(() => searchRef.current?.focus())
+      setFormError('')
       list.load({ q: search.debouncedSearch || undefined, page: pagination.page })
     } catch (err: any) {
       notifyError(err.message || 'Error al guardar cliente')
@@ -97,7 +129,6 @@ export default function ClientesPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Nombre</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Documento</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">IVA</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Teléfono</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Mail</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Estado</th>
@@ -108,8 +139,7 @@ export default function ClientesPage() {
                 {list.data.map(c => (
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{c.nombre}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.tipoDocumento} {c.numeroDocumento}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.ivaCondicion}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.numeroDocumento?.trim() ? `${c.tipoDocumento} ${c.numeroDocumento}` : 'Sin documento'}</td>
                     <td className="px-4 py-3 text-gray-600">{c.telefono || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{c.mail || '—'}</td>
                     <td className="px-4 py-3 text-center">
@@ -120,6 +150,7 @@ export default function ClientesPage() {
                     <td className="px-4 py-3 text-right space-x-1">
                       <Button variant="ghost" size="sm"                       onClick={() => form.openEdit(c, item => ({
                         nombre: item.nombre,
+                        fechaNacimiento: item.fechaNacimiento || '',
                         tipoDocumento: item.tipoDocumento,
                         numeroDocumento: item.numeroDocumento,
                         ivaCondicion: item.ivaCondicion,
@@ -161,56 +192,54 @@ export default function ClientesPage() {
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => form.closeForm(() => searchRef.current?.focus())}>Cancelar</Button>
-            <Button variant="primary" size="sm" onClick={handleSubmit} disabled={form.saving || !form.form.nombre.trim()}>
+            <Button variant="primary" size="sm" onClick={handleSubmit} disabled={form.saving}>
               {form.saving ? 'Guardando...' : 'Guardar'}
             </Button>
           </>
         }
       >
         <form id="cliente-form" onSubmit={handleSubmit} className="space-y-3">
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
           <div>
-            <label className="text-xs font-semibold text-gray-700">Nombre *</label>
-            <input type="text" value={form.form.nombre} onChange={e => form.setForm({ ...form.form, nombre: e.target.value })}
+            <label htmlFor="cliente-nombre" className="text-xs font-semibold text-gray-700">Nombre *</label>
+            <input id="cliente-nombre" type="text" value={form.form.nombre} onChange={e => form.setForm({ ...form.form, nombre: e.target.value })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
+          </div>
+          <div>
+            <label htmlFor="cliente-fecha-nacimiento" className="text-xs font-semibold text-gray-700">Fecha de nacimiento *</label>
+            <input id="cliente-fecha-nacimiento" type="date" value={form.form.fechaNacimiento || ''} onChange={e => form.setForm({ ...form.form, fechaNacimiento: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="cliente-telefono" className="text-xs font-semibold text-gray-700">Celular / Teléfono *</label>
+              <input id="cliente-telefono" type="text" value={form.form.telefono || ''} onChange={e => form.setForm({ ...form.form, telefono: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
+            </div>
+            <div>
+              <label htmlFor="cliente-mail" className="text-xs font-semibold text-gray-700">Email *</label>
+              <input id="cliente-mail" type="email" value={form.form.mail || ''} onChange={e => form.setForm({ ...form.form, mail: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-gray-700">Tipo documento</label>
-              <select value={form.form.tipoDocumento} onChange={e => form.setForm({ ...form.form, tipoDocumento: e.target.value })}
+              <label htmlFor="cliente-tipo-documento" className="text-xs font-semibold text-gray-700">Tipo documento</label>
+              <select id="cliente-tipo-documento" value={form.form.tipoDocumento} onChange={e => form.setForm({ ...form.form, tipoDocumento: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
                 {TIPOS_DOCUMENTO.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-700">N° documento</label>
-              <input type="text" value={form.form.numeroDocumento} onChange={e => form.setForm({ ...form.form, numeroDocumento: e.target.value })}
-                disabled={form.form.tipoDocumento === 'ConsumidorFinal'}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none disabled:bg-gray-100" />
+              <label htmlFor="cliente-numero-documento" className="text-xs font-semibold text-gray-700">DNI / número de documento</label>
+              <input id="cliente-numero-documento" type="text" value={form.form.numeroDocumento || ''} onChange={e => form.setForm({ ...form.form, numeroDocumento: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700">Condición IVA</label>
-            <select value={form.form.ivaCondicion} onChange={e => form.setForm({ ...form.form, ivaCondicion: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
-              {IVA_CONDICIONES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-700">Teléfono</label>
-              <input type="text" value={form.form.telefono || ''} onChange={e => form.setForm({ ...form.form, telefono: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-700">Mail</label>
-              <input type="email" value={form.form.mail || ''} onChange={e => form.setForm({ ...form.form, mail: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-700">Domicilio</label>
-              <input type="text" value={form.form.domicilio || ''} onChange={e => form.setForm({ ...form.form, domicilio: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
-            </div>
+            <label htmlFor="cliente-domicilio" className="text-xs font-semibold text-gray-700">Domicilio</label>
+            <input id="cliente-domicilio" type="text" value={form.form.domicilio || ''} onChange={e => form.setForm({ ...form.form, domicilio: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
           </div>
         </form>
       </Dialog>
