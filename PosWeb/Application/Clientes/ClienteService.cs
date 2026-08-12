@@ -31,21 +31,12 @@ public class ClienteService
         var totalCount = query.Count();
 
         var items = query
+            .Include(c => c.FAMILIARES)
             .OrderBy(c => c.NOMBRE)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(c => new ClienteDto
-            {
-                Id = c.ID_CLIENTE,
-                Nombre = c.NOMBRE,
-                FechaNacimiento = c.FECHA_NACIMIENTO,
-                TipoDocumento = c.TIPO_DOCUMENTO,
-                NumeroDocumento = c.NRO_DOCUMENTO,
-                IvaCondicion = c.IVA_CONDICION,
-                Telefono = c.TELEFONO,
-                Domicilio = c.DOMICILIO,
-                Activo = c.ACTIVO
-            })
+            .AsEnumerable()
+            .Select(MapToDto)
             .ToList();
 
         return new PagedResult<ClienteDto>
@@ -59,7 +50,9 @@ public class ClienteService
 
     public ClienteDto? Obtener(int id)
     {
-        Cliente? cliente = _context.Cliente.Find(id);
+        Cliente? cliente = _context.Cliente
+            .Include(c => c.FAMILIARES)
+            .FirstOrDefault(c => c.ID_CLIENTE == id);
         if (cliente == null) return null;
 
         return MapToDto(cliente);
@@ -118,6 +111,8 @@ public class ClienteService
             dto.IvaCondicion
         );
 
+        SincronizarFamiliares(cliente, dto.Familiares);
+
         _context.Cliente.Add(cliente);
         _context.SaveChanges();
 
@@ -126,7 +121,9 @@ public class ClienteService
 
     public ClienteDto Actualizar(int id, ClienteDto dto)
     {
-        Cliente? cliente = _context.Cliente.Find(id);
+        Cliente? cliente = _context.Cliente
+            .Include(c => c.FAMILIARES)
+            .FirstOrDefault(c => c.ID_CLIENTE == id);
         if (cliente == null)
         {
             throw new ClienteNoEncontradoException(id);
@@ -162,6 +159,7 @@ public class ClienteService
         cliente.CambiarDomicilio(domicilio);
         cliente.SetMail(mail);
         cliente.SetIvaCondicion(dto.IvaCondicion);
+        SincronizarFamiliares(cliente, dto.Familiares);
 
         _context.SaveChanges();
 
@@ -170,7 +168,9 @@ public class ClienteService
 
     public void Desactivar(int id)
     {
-        Cliente? cliente = _context.Cliente.Find(id);
+        Cliente? cliente = _context.Cliente
+            .Include(c => c.FAMILIARES)
+            .FirstOrDefault(c => c.ID_CLIENTE == id);
         if (cliente == null || !cliente.ACTIVO)
             throw new ClienteNoEncontradoException(id);
 
@@ -192,9 +192,45 @@ public class ClienteService
             Domicilio = cliente.DOMICILIO,
             CodCliente = cliente.COD_CLIENTE,
             Mail = cliente.MAIL,
+            Familiares = cliente.FAMILIARES
+                .OrderBy(f => f.ID_FAMILIAR_CLIENTE)
+                .Select(MapFamiliarToDto)
+                .ToList(),
             Activo = cliente.ACTIVO
         };
     }
+
+    private void SincronizarFamiliares(Cliente cliente, List<FamiliarClienteDto>? familiaresDto)
+    {
+        var existentes = cliente.FAMILIARES.ToDictionary(f => f.ID_FAMILIAR_CLIENTE);
+        var nuevos = new List<FamiliarCliente>();
+
+        foreach (var dto in familiaresDto ?? new List<FamiliarClienteDto>())
+        {
+            var nombre = Requerido(dto.Nombre, "El nombre del familiar es requerido");
+            var fechaNacimiento = RequeridoFechaNacimiento(dto.FechaNacimiento);
+
+            if (dto.Id.HasValue && dto.Id.Value > 0 && existentes.TryGetValue(dto.Id.Value, out var existente))
+            {
+                existente.CambiarNombre(nombre);
+                existente.CambiarFechaNacimiento(fechaNacimiento);
+                nuevos.Add(existente);
+                continue;
+            }
+
+            nuevos.Add(new FamiliarCliente(cliente.ID_CLIENTE, nombre, fechaNacimiento));
+        }
+
+        cliente.ReemplazarFamiliares(nuevos);
+    }
+
+    private static FamiliarClienteDto MapFamiliarToDto(FamiliarCliente familiar)
+        => new()
+        {
+            Id = familiar.ID_FAMILIAR_CLIENTE,
+            Nombre = familiar.NOMBRE,
+            FechaNacimiento = familiar.FECHA_NACIMIENTO,
+        };
 
     private static string Requerido(string? value, string message)
     {

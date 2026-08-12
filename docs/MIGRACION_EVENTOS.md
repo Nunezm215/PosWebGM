@@ -1525,6 +1525,208 @@ Conceptualmente incluiria:
 - fecha de nacimiento
 - relacion 1:N
 
+## Fase 1C.2A - Familiares de Cliente: backend y persistencia
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1c2a-familiares-backend-ok`
+
+### Resumen
+
+- Se agrego la entidad `FamiliarCliente`.
+- La relacion quedo como `Cliente 1 -> N FamiliarCliente`.
+- Un Cliente puede tener 0, 1 o varios familiares.
+- Los familiares son opcionales.
+- No se agrego UI de familiares.
+- Esta fase solo cubre backend, persistencia y tests.
+
+### Entidad
+
+`FamiliarCliente` contiene solo:
+
+- `ID_FAMILIAR_CLIENTE`
+- `ID_CLIENTE`
+- `NOMBRE`
+- `FECHA_NACIMIENTO`
+
+Validaciones:
+
+- nombre obligatorio
+- nombre no vacio
+- fecha de nacimiento obligatoria
+- fecha de nacimiento no futura
+
+No se agrego:
+
+- documento
+- telefono
+- mail
+- parentesco
+- observaciones
+
+### Relacion
+
+- `Cliente` tiene coleccion de familiares.
+- Clientes existentes sin familiares siguen funcionando.
+- Devuelven coleccion vacia.
+- No necesitan datos ficticios.
+
+### DeleteBehavior
+
+- `DeleteBehavior = Cascade`
+- Si un Cliente se elimina fisicamente, sus familiares se eliminan junto con el.
+- No afecta la eliminacion logica mientras el Cliente siga fisicamente en la DB.
+
+### DbSet y mapping
+
+Se agrego `DbSet<FamiliarCliente>` en:
+
+- `PosDbContext`
+- `PosDbContextLocal`
+
+Tabla:
+
+- `FAMILIAR_CLIENTE`
+
+PK:
+
+- `PK_FAMILIAR_CLIENTE`
+- sobre `ID_FAMILIAR_CLIENTE`
+
+FK:
+
+- `FK_FAMILIAR_CLIENTE_CLIENTE_ID_CLIENTE`
+- hacia `CLIENTE(ID_CLIENTE)`
+
+Indice:
+
+- `IX_FAMILIAR_CLIENTE_ID_CLIENTE`
+
+### Migracion MySQL
+
+Migracion generada:
+
+- `20260812222950_AddFamiliarCliente`
+
+`Up()`:
+
+- crea solo `FAMILIAR_CLIENTE`
+- crea `ID_FAMILIAR_CLIENTE`
+- crea `ID_CLIENTE`
+- crea `NOMBRE`
+- crea `FECHA_NACIMIENTO`
+- crea PK
+- crea FK
+- crea indice
+
+`Down()`:
+
+- elimina solo `FAMILIAR_CLIENTE`
+
+No modifica otras tablas.
+
+### Migracion SQLite
+
+Migracion generada:
+
+- `20260812223033_AddFamiliarCliente`
+
+`Up()`:
+
+- crea solo `FAMILIAR_CLIENTE`
+- crea PK
+- crea FK
+- crea indice
+
+`Down()`:
+
+- elimina solo `FAMILIAR_CLIENTE`
+
+No modifica otras tablas.
+
+### SQLite fisica
+
+- La migracion SQLite fue aplicada correctamente a la DB fisica local con `dotnet ef database update --context PosDbContextLocal --project PosWeb --startup-project PosWeb`.
+- Luego el backend arranco indicando que no habia migraciones pendientes.
+- La base quedo actualizada.
+
+### Backend
+
+`ClienteDto` ahora incluye familiares.
+
+`ClienteService` permite:
+
+- crear Cliente sin familiares
+- crear Cliente con familiares
+- obtener Cliente con familiares
+- editar familiares
+- agregar familiares
+- actualizar familiares
+- eliminar familiares
+
+Estrategia implementada:
+
+- al crear o actualizar Cliente, se sincroniza la coleccion completa de familiares desde el DTO
+- familiares con `Id` existente se actualizan
+- familiares sin `Id` se crean
+- familiares que no vienen en el DTO se eliminan de la coleccion y quedan cubiertos por cascada al persistir
+- al consultar, los familiares se devuelven ordenados por `ID_FAMILIAR_CLIENTE`
+
+### Snapshots
+
+- `PosDbContextModelSnapshot` y `PosDbContextLocalModelSnapshot` quedaron actualizados y coherentes con las migraciones reales.
+- Inicialmente los snapshots habian sido modificados manualmente, lo cual impedio que EF detectara una diferencia de modelo.
+- Luego se corrigio generando las migraciones reales:
+  - `20260812222950_AddFamiliarCliente`
+  - `20260812223033_AddFamiliarCliente`
+
+### Tests y build
+
+- `dotnet build PosWeb/PosWeb.csproj`: OK
+- `dotnet test PosWeb.Application.Test/PosWeb.Application.Test.csproj --filter "FullyQualifiedName~Cliente|FullyQualifiedName~Evento"`: `66 passed`, `0 failed`
+- Verificacion especifica `ClienteServiceTests`: `17/17 OK`
+
+### Backend en ejecucion
+
+- El backend inicia correctamente despues de aplicar la migracion.
+- Mensaje relevante: `Now listening on: http://0.0.0.0:5196`
+- Mensaje relevante: `The database is already up to date.`
+
+### Frontend
+
+- No se modifico frontend en esta fase.
+- Todavia no existe UI de familiares en `ClientesPage`.
+- Todavia no existe boton `Agregar familiar`.
+- Todavia no existen familiares en `Nuevo Evento`.
+- Todavia no existe edicion visual de familiares.
+- Eso corresponde a `Fase 1C.2B`.
+
+### No modificado
+
+- `EventoService`
+- disponibilidad
+- regla de 30 minutos
+- regla de fechas de Evento
+- `ContratoEventoPdfService`
+- `PagoEvento`
+- `GastoEvento`
+- `Caja`
+- `Mercado Pago`
+- `QR`
+
+### Proximo paso
+
+Proxima fase prevista: `Fase 1C.2B - Familiares en frontend`.
+
+Incluiria:
+
+- mostrar familiares en Cliente
+- agregar familiar
+- editar familiar
+- eliminar familiar
+- nombre
+- fecha de nacimiento
+- integracion con Crear Cliente desde Nuevo Evento
+
 ## Fase 1B.4D - Contacto rapido del Cliente
 
 **Estado:** COMPLETADA

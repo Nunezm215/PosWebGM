@@ -28,6 +28,9 @@ public class Cliente
 
     public bool ACTIVO { get; private set; }
 
+    private readonly List<FamiliarCliente> _FAMILIARES = new();
+    public IReadOnlyCollection<FamiliarCliente> FAMILIARES => _FAMILIARES;
+
     private static readonly string[] TiposDocumentoValidos = { "DNI", "CUIT", "CUIL", "ConsumidorFinal" };
 
     public Cliente(string nombre, string tipoDocumento, string? nroDocumento,
@@ -173,5 +176,11 @@ public class Cliente
     public void Desactivar()
     {
         ACTIVO = false;
+    }
+
+    public void ReemplazarFamiliares(IEnumerable<FamiliarCliente> familiares)
+    {
+        _FAMILIARES.Clear();
+        _FAMILIARES.AddRange(familiares);
     }
 }

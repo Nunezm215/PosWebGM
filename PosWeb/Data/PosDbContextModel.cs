@@ -255,6 +255,45 @@ public partial class PosDbContext
                 .HasColumnName("IVA_CONDICION")
                 .HasMaxLength(50)
                 .IsRequired();
+
+            entity.Navigation(c => c.FAMILIARES)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            entity.HasMany(c => c.FAMILIARES)
+                .WithOne()
+                .HasForeignKey(f => f.ID_CLIENTE)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ---- FAMILIAR CLIENTE ----
+        modelBuilder.Entity<FamiliarCliente>(entity =>
+        {
+            entity.ToTable("FAMILIAR_CLIENTE");
+
+            entity.HasKey(f => f.ID_FAMILIAR_CLIENTE);
+
+            entity.Property(f => f.ID_FAMILIAR_CLIENTE)
+                .HasColumnName("ID_FAMILIAR_CLIENTE");
+
+            entity.Property(f => f.ID_CLIENTE)
+                .HasColumnName("ID_CLIENTE");
+
+            entity.Property(f => f.NOMBRE)
+                .HasColumnName("NOMBRE")
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(f => f.FECHA_NACIMIENTO)
+                .HasColumnName("FECHA_NACIMIENTO")
+                .HasColumnType("date")
+                .IsRequired();
+
+            entity.HasIndex(f => f.ID_CLIENTE);
+
+            entity.HasOne<Cliente>()
+                .WithMany(c => c.FAMILIARES)
+                .HasForeignKey(f => f.ID_CLIENTE)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ---- VENTA ----

@@ -12,5 +12,6 @@ public class ClienteDto
     public string? Domicilio { get; set; }
     public string? CodCliente { get; set; }
     public string? Mail { get; set; }
+    public List<FamiliarClienteDto> Familiares { get; set; } = new();
     public bool Activo { get; set; } = true;
 }

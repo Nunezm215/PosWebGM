@@ -509,6 +509,36 @@ namespace PosWeb.Migrations
                     b.ToTable("EVENTO", (string)null);
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.FamiliarCliente", b =>
+                {
+                    b.Property<int>("ID_FAMILIAR_CLIENTE")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID_FAMILIAR_CLIENTE");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ID_FAMILIAR_CLIENTE"));
+
+                    b.Property<DateOnly>("FECHA_NACIMIENTO")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_NACIMIENTO");
+
+                    b.Property<int>("ID_CLIENTE")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_CLIENTE");
+
+                    b.Property<string>("NOMBRE")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("NOMBRE");
+
+                    b.HasKey("ID_FAMILIAR_CLIENTE");
+
+                    b.HasIndex("ID_CLIENTE");
+
+                    b.ToTable("FAMILIAR_CLIENTE", (string)null);
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Gasto", b =>
                 {
                     b.Property<int>("ID_GASTO")
@@ -1599,6 +1629,15 @@ namespace PosWeb.Migrations
                     b.Navigation("UsuarioCreador");
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.FamiliarCliente", b =>
+                {
+                    b.HasOne("PosWeb.Domain.Cliente", null)
+                        .WithMany("FAMILIARES")
+                        .HasForeignKey("ID_CLIENTE")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Gasto", b =>
                 {
                     b.HasOne("PosWeb.Domain.Caja", null)
@@ -1807,6 +1846,11 @@ namespace PosWeb.Migrations
                         .WithMany()
                         .HasForeignKey("ID_USUARIO")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PosWeb.Domain.Cliente", b =>
+                {
+                    b.Navigation("FAMILIARES");
                 });
 
             modelBuilder.Entity("PosWeb.Domain.Combo", b =>
