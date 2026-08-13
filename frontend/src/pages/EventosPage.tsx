@@ -176,6 +176,16 @@ function formatUpcomingDay(evento: EventoDto) {
     .toUpperCase()
 }
 
+function formatLongDayLabel(dateKey: string) {
+  const raw = fromDateKey(dateKey).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
 interface EventoAltaFormState {
   fecha: string
   horaInicio: string
@@ -264,6 +274,7 @@ export default function EventosPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<EventoDto | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
@@ -414,6 +425,11 @@ export default function EventosPage() {
     }
     return map
   }, [eventos])
+
+  const selectedDayEventos = useMemo(() => {
+    if (!selectedDay) return []
+    return (eventosPorDia.get(selectedDay) ?? []).slice().sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+  }, [selectedDay, eventosPorDia])
 
   const eventosProximosVisibles = useMemo(() => {
     const ahora = new Date()
@@ -980,6 +996,10 @@ export default function EventosPage() {
     }
   }
 
+  function openDay(dateKey: string) {
+    setSelectedDay(dateKey)
+  }
+
   return (
     <PageShell
       title="Eventos"
@@ -1049,7 +1069,17 @@ export default function EventosPage() {
                 return (
                   <div
                     key={key}
-                    className={`min-h-[100px] bg-white p-2 text-sm sm:min-h-[122px] sm:p-3 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400 bg-gray-50'}`}
+                    role="button"
+                    aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
+                    tabIndex={0}
+                    onClick={() => openDay(key)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        openDay(key)
+                      }
+                    }}
+                    className={`min-h-[100px] bg-white p-2 text-sm transition hover:bg-indigo-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 sm:min-h-[122px] sm:p-3 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400 bg-gray-50'}`}
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isCurrentMonth ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
@@ -1062,7 +1092,10 @@ export default function EventosPage() {
                         <button
                           key={evento.id}
                           type="button"
-                          onClick={() => openEvent(evento.id)}
+                          onClick={event => {
+                            event.stopPropagation()
+                            openEvent(evento.id)
+                          }}
                           className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado)}`}
                           aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
                         >
@@ -1158,6 +1191,54 @@ export default function EventosPage() {
           </div>
         </aside>
       </div>
+
+      <Dialog
+        open={selectedDay !== null}
+        onClose={() => setSelectedDay(null)}
+        title="Eventos del día"
+        description={selectedDay ? formatLongDayLabel(selectedDay) : undefined}
+        width="md"
+      >
+        {selectedDay && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              {selectedDayEventos.length === 0
+                ? 'No hay eventos para este día.'
+                : `${selectedDayEventos.length} evento${selectedDayEventos.length === 1 ? '' : 's'}`}
+            </div>
+            {selectedDayEventos.length > 0 && (
+              <div className="space-y-2">
+                {selectedDayEventos.map(evento => (
+                  <button
+                    key={evento.id}
+                    type="button"
+                    onClick={() => openEvent(evento.id)}
+                    className={`w-full rounded-xl border px-3 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${statusStyles(evento.estado)}`}
+                    aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {formatTime(evento.horaInicio)} - {formatTime(evento.horaFin)}
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {evento.tipoEvento}
+                        </div>
+                        <div className="text-xs text-gray-700">
+                          {evento.cantidadInvitados} invitados
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                        {evento.estado}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
 
       <Dialog
         open={createOpen}

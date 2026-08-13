@@ -258,6 +258,117 @@ La disponibilidad sigue siendo logica de `EventoService`, no del repository.
 
 - La migracion SQLite todavia NO fue aplicada a la DB fisica.
 - Tests usan `DataSource=:memory:`
+
+## Fase 1D.1A - Popup diario del calendario
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1d1a-popup-diario-ok`
+
+### Objetivo
+
+- Hacer que el calendario permita click o tap sobre un dia.
+- Abrir el popup `Eventos del día` para mostrar los eventos de esa fecha.
+- Reutilizar los eventos ya cargados por `EventosPage`, sin cambios de backend.
+
+### Click en dia
+
+- Las celdas del calendario son interactivas.
+- Al seleccionar una celda se guarda la fecha del dia.
+- Se abre el popup diario correspondiente.
+- El comportamiento funciona tambien para fechas pasadas.
+
+### Popup diario
+
+- El popup muestra el titulo `Eventos del día`.
+- Muestra la fecha seleccionada.
+- Muestra los eventos correspondientes a esa fecha.
+- Los datos se obtienen de los eventos ya cargados en `EventosPage`.
+
+### Orden
+
+- Los eventos del dia se muestran ordenados por hora.
+- No se modifico ninguna regla de horarios ni disponibilidad.
+
+### Dia vacio
+
+- Cuando no existen eventos para la fecha aparece `No hay eventos para este día.`
+- No genera error ni request adicional.
+
+### Click en evento
+
+- Se preservo el comportamiento existente.
+- Click en celda o dia: abre el popup diario.
+- Click directamente en un evento: abre el detalle existente del evento.
+- El click del evento no se propaga accidentalmente a la celda del dia.
+
+### Accesibilidad
+
+- Se agrego soporte de teclado y semantica para las celdas interactivas.
+- Se agrego `aria-label` para identificar los dias.
+- No se documento accesibilidad completa de la aplicacion.
+
+### Responsive
+
+- La implementacion mantuvo el comportamiento responsive existente del frontend.
+- La prueba manual fue satisfactoria.
+
+### Prueba manual
+
+- Click en dia: OK.
+- Popup diario: OK.
+- Dia con evento: OK.
+- Dia con varios eventos: OK.
+- Dia vacio: OK.
+- Click directo en evento conserva detalle: OK.
+- Comportamiento general correcto: OK.
+
+### Tests
+
+- `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`
+- Resultado: OK
+- La suite paso.
+- Vitest continua mostrando warnings preexistentes de `act(...)`, pero no provocan fallos.
+
+### Build
+
+- `npm.cmd run build`
+- Resultado: OK
+
+### No modificado
+
+- backend
+- DB
+- migraciones
+- `EventoService`
+- `EventoRepository`
+- disponibilidad
+- regla de 30 minutos
+- `Nuevo Evento` funcionalmente
+- creacion de Clientes
+- familiares
+- telefonos
+- WhatsApp
+- Llamar
+- Caja
+- Pagos
+- Mercado Pago
+- QR
+- JWT
+- `sucursalId`
+
+### Proxima fase
+
+## Fase 1D.1B - Anadir Evento desde popup diario
+
+Objetivo previsto:
+
+- click dia
+- popup diario
+- Anadir evento
+- reutilizar modal `Nuevo Evento`
+- fecha seleccionada precargada
+
+Esta fase no se implementa ahora.
 - MySQL real no fue tocado.
 
 ### Nota tecnica MySQL

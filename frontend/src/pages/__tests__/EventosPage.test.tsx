@@ -440,6 +440,96 @@ describe('EventosPage', () => {
     expect(within(editDialog).queryByRole('button', { name: 'Crear cliente nuevo' })).not.toBeInTheDocument()
   })
 
+  it('opens the daily dialog when clicking a day', async () => {
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+      {
+        id: 2,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Brunch',
+        cantidadInvitados: 20,
+        montoTotal: 150000,
+        observaciones: '',
+        estado: 'Pagado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByText(/2 eventos?/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '10:00 Brunch' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '18:00 Cumpleaños' })).toBeInTheDocument()
+    expect(within(dialog).getAllByText('18:00 - 22:00')[0]).toBeInTheDocument()
+    expect(within(dialog).getAllByText('10:00 - 12:00')[0]).toBeInTheDocument()
+  })
+
+  it('shows the empty day message when clicking a day without events', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+
+    await renderPage()
+    await screen.findByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByText('No hay eventos para este día.')).toBeInTheDocument()
+  })
+
+  it('keeps event clicks opening the detail dialog', async () => {
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: '18:00 Cumpleaños' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Detalle del evento' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Eventos del día' })).not.toBeInTheDocument()
+  })
+
   it('sets today as the minimum date in create mode', async () => {
     const { dialog } = await abrirAlta()
 
