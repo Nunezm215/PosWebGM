@@ -5,6 +5,6 @@ import { HomePage } from './App'
 describe('HomePage', () => {
   it('renders a safe landing page for the temporary start route', () => {
     render(<HomePage />)
-    expect(screen.getByText('PosWeb')).toBeInTheDocument()
+    expect(screen.getByText('Gestor de Eventos')).toBeInTheDocument()
   })
 })

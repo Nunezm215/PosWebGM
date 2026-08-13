@@ -46,7 +46,7 @@ export default function TicketResultado({ resultado, ultimosItems, user, onNueva
 
       <div className="receipt bg-white py-6 px-4 max-w-[80mm] mx-auto font-mono text-[11px] leading-[1.45] text-gray-900"
         style={{ fontFamily: "'Courier New', Courier, monospace" }}>
-        <div className="text-center font-bold text-[13px]">{resultado.empresaNombre ?? 'PosWeb'}</div>
+        <div className="text-center font-bold text-[13px]">{resultado.empresaNombre ?? 'Gestor de Eventos'}</div>
         <div className="text-center font-bold text-[12px] mt-2 mb-3">TICKET DE COMPRA</div>
 
         <div>Fecha: {f(resultado.fecha)}</div>

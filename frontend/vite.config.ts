@@ -24,8 +24,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: {
-        name: 'PosWeb — Punto de Venta',
-        short_name: 'PosWeb',
+        name: 'Gestor de Eventos',
+        short_name: 'Gestor Eventos',
         description: 'Sistema de punto de venta para kioscos',
         theme_color: '#1e293b',
         background_color: '#1e293b',

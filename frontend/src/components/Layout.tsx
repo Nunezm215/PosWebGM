@@ -1,9 +1,9 @@
 import { useState, useEffect, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { SucursalDto } from '../types'
 import { useAuth } from '../context/AuthContext'
 import ProductLookupModal from './ProductLookupModal'
-import { CalendarDays, Menu, MapPin, LogOut } from 'lucide-react'
+import { CalendarDays, Menu, LogOut } from 'lucide-react'
 import { getCurrentVersion } from '../versionCheck'
 
 declare const __APP_VERSION__: string
@@ -53,7 +53,6 @@ function useSucursalActiva() {
 export { useSucursalActiva }
 
 export default function Layout() {
-  const location = useLocation()
   const navigate = useNavigate()
   const { sucursal, limpiar } = useSucursalActiva()
   const { user, logout } = useAuth()
@@ -98,10 +97,10 @@ export default function Layout() {
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[oklch(0.52_0.255_278)] text-white font-bold text-[12px] tracking-tight select-none"
           style={{ boxShadow: '0 1px 4px oklch(0.52 0.255 278 / 0.35)' }}
         >
-          PW
+          GE
         </div>
         <div className="flex flex-col leading-none">
-          <span className="text-[13.5px] font-bold text-white tracking-tight">PosWeb</span>
+          <span className="text-[13.5px] font-bold text-white tracking-tight">Gestor de Eventos</span>
           <span className="text-[9.5px] text-white/25 font-medium mt-[3px] tracking-wide uppercase">
             v{getCurrentVersion() || (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?')}
           </span>
@@ -176,25 +175,10 @@ export default function Layout() {
               <Menu size={16} />
             </button>
 
-            <h1 className="text-[14.5px] font-bold text-gray-900 tracking-tight truncate">Punto de Venta</h1>
-            {sucursal && (
-              <span className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.52_0.255_278)] bg-[oklch(0.52_0.255_278_/_0.06)] px-2.5 py-1 rounded-lg shrink-0">
-                <MapPin size={12} strokeWidth={2.5} />
-                {sucursal.nombre}
-              </span>
-            )}
+            <h1 className="text-[14.5px] font-bold text-gray-900 tracking-tight truncate">Gestor de Eventos</h1>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {sucursal && location.pathname !== '/sucursales' && (
-              <button
-                onClick={() => { limpiar(); window.location.reload() }}
-                className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors font-medium"
-              >
-                Cambiar sucursal
-              </button>
-            )}
-
             {user && (
               <div className="flex items-center gap-3">
                 <div className="hidden sm:flex items-center gap-2">

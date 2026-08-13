@@ -64,6 +64,8 @@ describe('Layout navigation', () => {
   it('shows only the salon-visible modules for admin roles', () => {
     renderLayout()
 
+    expect(screen.getByText('GE')).toBeInTheDocument()
+    expect(screen.getAllByText('Gestor de Eventos')).toHaveLength(2)
     expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Clientes')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
@@ -79,6 +81,16 @@ describe('Layout navigation', () => {
     expect(screen.queryByText('Deudas')).not.toBeInTheDocument()
     expect(screen.queryByText('Pedidos')).not.toBeInTheDocument()
     expect(screen.queryByText('Ofertas')).not.toBeInTheDocument()
+    expect(screen.queryByText('PW')).not.toBeInTheDocument()
+    expect(screen.queryByText('Punto de Venta')).not.toBeInTheDocument()
+  })
+
+  it('does not show the active branch name or switch action in the header', () => {
+    localStorage.setItem('sucursalActiva', JSON.stringify({ id: 1, nombre: 'Sucursal Central' }))
+    renderLayout()
+
+    expect(screen.queryByText('Sucursal Central')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Cambiar sucursal/i })).not.toBeInTheDocument()
   })
 
   it('keeps the user-comun menu reduced', () => {
@@ -99,5 +111,11 @@ describe('Layout navigation', () => {
 
     expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
+  })
+
+  it('keeps logout available', () => {
+    renderLayout()
+
+    expect(screen.getAllByRole('button', { name: /Salir/i })).toHaveLength(2)
   })
 })

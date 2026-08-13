@@ -2223,6 +2223,193 @@ Continuar con mejoras menores de Clientes/Eventos si se consideran necesarias, o
 - Siguiente mejora visual sugerida: ocultar el nombre de sucursal actual y la opcion `Cambiar sucursal` porque el sistema usa una unica sucursal.
 - Solo ocultar UI, sin eliminar logica de sucursal, claims ni `sucursalId`.
 
+## Fase 1C.3B - Simplificacion de sucursal y branding Gestor de Eventos
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1c3b-branding-gestor-eventos-ok`
+
+### Alcance
+
+- Esta fase realizo dos mejoras exclusivamente visuales:
+  - simplificacion de la interfaz para una unica sucursal
+  - cambio del branding visible de `PosWeb` / `Punto de Venta` a `Gestor de Eventos`
+- No se modifico la arquitectura interna de sucursales.
+
+### Sucursal
+
+- En `Layout` se ocultaron visualmente:
+  - el nombre de la sucursal actual, por ejemplo `Sucursal Central`
+  - la accion/opcion `Cambiar sucursal`
+- Esto aplica para:
+  - `SuperAdmin`
+  - `Admin`
+  - `UsuarioComun`
+- Solo dejaron de renderizarse visualmente.
+- Continuan intactos:
+  - `sucursal`
+  - `sucursalId`
+  - `useSucursalActiva`
+  - `cambiar`
+  - `limpiar`
+  - `Outlet context`
+  - filtrado interno por sucursal
+  - claims
+  - JWT
+- El sistema sigue soportando tecnicamente su arquitectura de sucursales.
+
+### Branding visible
+
+- El nombre visible de la aplicacion paso a ser `Gestor de Eventos`.
+- El nombre tecnico interno sigue siendo `PosWeb`.
+- No se renombraron:
+  - solucion
+  - proyectos .NET
+  - namespaces `PosWeb.*`
+  - carpetas
+  - rutas API
+  - DB
+  - migraciones
+  - identificadores internos
+
+### Layout
+
+- Antes:
+  - `PW`
+  - `PosWeb`
+  - `Punto de Venta`
+- Ahora:
+  - `GE`
+  - `Gestor de Eventos`
+  - `Gestor de Eventos`
+- Especificamente:
+  - recuadro/logo textual: `PW -> GE`
+  - branding lateral: `PosWeb -> Gestor de Eventos`
+  - `h1` principal: `Punto de Venta -> Gestor de Eventos`
+- Ademas:
+  - `Sucursal Central` ya no se muestra
+  - `Cambiar sucursal` ya no se muestra
+- No se modifico la navegacion ni el comportamiento funcional del Layout.
+
+### Navegador
+
+- `frontend/index.html` actualizo el `title` visible de `PosWeb` a `Gestor de Eventos`.
+- Resultado:
+  - `<title>Gestor de Eventos</title>`
+
+### App e Inicio
+
+- Se actualizaron referencias visibles al branding viejo en:
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/InicioPage.tsx`
+- Incluye el texto visible de inicio/carga correspondiente.
+- No se modifico la logica funcional de `App` ni de `Inicio`.
+
+### Ticket
+
+- `frontend/src/pages/venta/TicketResultado.tsx` tenia un fallback visible con el branding anterior.
+- Se actualizo unicamente ese branding visible a `Gestor de Eventos`.
+- No se modifico la logica de ventas ni la generacion funcional del ticket.
+
+### PWA
+
+- `frontend/vite.config.ts` quedo con el manifest PWA:
+  - `name: Gestor de Eventos`
+  - `short_name: Gestor Eventos`
+- No se creo una PWA nueva.
+- No se agregaron dependencias.
+
+### Tauri
+
+- `frontend/src-tauri/tauri.conf.json` actualizo unicamente branding visible:
+  - `productName: Gestor de Eventos`
+  - `title: Gestor de Eventos`
+- Se mantiene intacto el identificador tecnico `com.posweb.app`.
+
+### Login
+
+- Login fue auditado.
+- No contenia branding `PosWeb` visible que requiriera modificacion.
+- Autenticacion quedo intacta.
+
+### Tests
+
+- Verificacion relevante:
+  - `npx.cmd vitest run src/components/__tests__/Layout.test.tsx src/App.test.tsx`
+- Resultado:
+  - `2` test files passed
+  - `6` tests passed
+  - `0` failed
+- Cobertura relevante:
+  - `Gestor de Eventos` visible
+  - `GE` visible
+  - branding anterior eliminado de las ubicaciones modificadas
+  - nombre de sucursal no visible
+  - `Cambiar sucursal` no visible
+  - modulos por rol continúan visibles segun reglas existentes
+  - `Salir` continua funcionando
+
+### Build final
+
+- `npm.cmd run build`
+- Resultado: `OK`
+- Datos relevantes:
+  - TypeScript build OK
+  - Vite build OK
+  - 1860 modulos transformados
+  - PWA `generateSW` OK
+  - `dist/sw.js` generado
+  - `dist/workbox` generado
+- Warning no bloqueante:
+  - chunk principal mayor a 500 kB despues de minificacion
+- Queda como optimizacion futura y no como error de esta fase.
+
+### Prueba visual
+
+- Se verifico visualmente la interfaz.
+- Resultado esperado/final:
+  - `GE` visible en lugar de `PW`
+  - `Gestor de Eventos` visible en lugar de `PosWeb`
+  - `Gestor de Eventos` visible en lugar de `Punto de Venta`
+  - `Sucursal Central` oculta
+  - `Cambiar sucursal` oculto
+  - Layout/header sin cambios funcionales
+
+### No modificado
+
+- backend
+- DB
+- migraciones
+- `ClienteService`
+- `ClientesController`
+- `EventoService`
+- disponibilidad
+- regla de 30 minutos
+- familiares
+- telefonos
+- WhatsApp
+- Llamar
+- contrato PDF funcionalmente
+- autenticacion
+- JWT
+- claims
+- `sucursalId`
+- `Caja`
+- `PagoEvento`
+- `GastoEvento`
+- `Mercado Pago`
+- `QR`
+
+### Nombre tecnico
+
+- El producto visible ahora se llama `Gestor de Eventos`.
+- El nombre tecnico interno continua siendo `PosWeb`.
+- Esto es intencional para evitar un refactor innecesario y riesgoso.
+
+### Optimizacion futura
+
+- Revisar code splitting del frontend porque Vite informa que el chunk principal supera 500 kB minificado.
+- No implementar esa optimizacion en esta tarea.
+
 ## Fase 1B.4D - Contacto rapido del Cliente
 
 **Estado:** COMPLETADA

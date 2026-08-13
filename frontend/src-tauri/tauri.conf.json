@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "PosWeb",
+   "productName": "Gestor de Eventos",
   "version": "1.1.2",
   "identifier": "com.posweb.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PosWeb — Punto de Venta",
+        "title": "Gestor de Eventos",
         "width": 1024,
         "height": 768,
         "minWidth": 800,
