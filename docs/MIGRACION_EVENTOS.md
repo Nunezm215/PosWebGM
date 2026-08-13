@@ -1914,11 +1914,6 @@ Incluiria:
 - familiares se conservan: OK
 - funcionamiento general: OK
 
-### No incluido todavia
-
-- familiares en `Nuevo Evento -> Crear cliente nuevo`
-- Eso queda para `Fase 1C.2C`
-
 ### No modificado
 
 - DB schema
@@ -1933,17 +1928,145 @@ Incluiria:
 - `Mercado Pago`
 - `QR`
 
+## Fase 1C.2C - Familiares al crear Cliente desde Nuevo Evento
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1c2c-familiares-desde-evento-ok`
+
+### Alcance
+
+- Se documento el cierre del subflujo `Eventos -> Nuevo Evento -> Crear cliente nuevo`.
+- El modal `Nuevo Cliente` ahora permite cargar `Familiares (opcional)`.
+- Se mantienen 0, 1 o varios familiares.
+
+### Flujo conservado
+
+- Se abre el modal `Crear cliente nuevo` desde `Nuevo Evento`.
+- Se cargan los datos del Cliente.
+- Se puede cancelar sin perder los datos del Evento.
+- Al crear el Cliente:
+  - se guarda como Cliente real/global
+  - vuelve al Evento
+  - queda seleccionado automaticamente
+  - los datos ya cargados del Evento se conservan
+- Agregar familiares no altera ese flujo.
+
+### Familiares en el modal
+
+- Se agrego la seccion `Familiares (opcional)`.
+- Accion disponible: `Agregar familiar`.
+- Cada fila permite:
+  - `Nombre`
+  - `Fecha de nacimiento`
+  - `Eliminar`
+
+### Validaciones
+
+- Nombre familiar:
+  - obligatorio si existe la fila
+  - `trim`
+  - no vacio
+- Fecha nacimiento familiar:
+  - obligatoria
+  - no futura
+- Input:
+  - `type=date`
+  - `max=hoy local`
+- No se agregaron:
+  - DNI
+  - telefono
+  - mail
+  - parentesco
+  - domicilio
+  - observaciones
+
+### Payload
+
+- `api.clientes.crear(...)` recibe los datos normales del Cliente y la coleccion `familiares`.
+- Ejemplo conceptual:
+  - `familiares: [{ id: 0, nombre: "Juan", fechaNacimiento: "2015-05-10" }]`
+- Sin familiares, el Cliente sigue pudiendo crearse normalmente.
+
+### Bug encontrado y corregido
+
+- Durante la prueba manual, la fecha de nacimiento del Cliente principal se veia cargada, pero al crear desde Eventos aparecia un error indicando que faltaba.
+- Causa exacta: `guardarNuevoCliente()` usaba `clienteCreateForm.fechaNacimiento` sin normalizar antes de validar y enviar.
+- Solucion: normalizacion con `toDateInputValue(...)` antes de la validacion, la construccion del payload y el POST.
+- Resultado: la fecha enviada queda en formato `YYYY-MM-DD`.
+
+### Cliente vs familiares
+
+- El bug de fecha correspondia al Cliente principal.
+- No fue causado por la fecha del familiar.
+- Adicionalmente se corrigio un problema secundario de React con keys de familiares usando `id: 0` fijo.
+
+### Preservacion de datos
+
+- Al agregar o eliminar familiares:
+  - no se pierde `fechaNacimiento` del Cliente
+  - no se pierden datos del Evento
+- Al cancelar la creacion del Cliente:
+  - el Evento conserva sus datos
+  - los familiares temporales se descartan
+- Si backend rechaza el Cliente:
+  - el modal permanece abierto
+  - se conservan los datos del Cliente
+  - se conservan los familiares
+  - se conserva el Evento de fondo
+
+### Doble click
+
+- Se mantiene la proteccion existente contra doble creacion.
+- Durante el POST del Cliente:
+  - el boton queda bloqueado
+  - no se crean duplicados
+
+### Responsive
+
+- PC: la seccion Familiares es usable dentro del modal.
+- Celular: Nombre y Fecha se apilan, Eliminar sigue accesible, el modal mantiene scroll interno y no se agrego scroll horizontal.
+
+### Tests
+
+- `EventosPage.test.tsx`: `29 passed`
+- Cobertura: seccion Familiares visible, Agregar familiar, Cliente sin familiares, Cliente con familiar, varios familiares, eliminar familiar, nombre vacio, fecha vacia, fecha futura, `max=hoy`, payload con familiares, fechaNacimiento real del Cliente en payload, datos del Evento conservados, Cliente auto-seleccionado, cancelar conserva Evento, error backend conserva formulario/familiares, doble click, no se crea Evento automaticamente.
+
+### Build
+
+- `npm run build`
+- `OK`
+
+### Verificacion manual
+
+- Nuevo Evento -> cargar datos Evento -> Crear cliente nuevo -> cargar fecha de nacimiento -> agregar familiar -> Crear Cliente.
+- Resultado:
+  - Cliente creado correctamente
+  - familiar guardado
+  - no aparece error falso de fecha faltante
+  - Cliente queda seleccionado automaticamente
+  - datos del Evento se conservan
+  - flujo funciona correctamente
+
+### No modificado
+
+- backend
+- DB
+- migraciones
+- `ClienteService`
+- `ClientesController`
+- `EventoService`
+- disponibilidad
+- regla de 30 minutos
+- contrato PDF
+- `PagoEvento`
+- `GastoEvento`
+- `Caja`
+- `Mercado Pago`
+- `QR`
+
 ### Proximo paso
 
-Proxima fase prevista: `Fase 1C.2C - Familiares desde Nuevo Evento`.
-
-Objetivo futuro:
-
-- Nuevo Evento
-- Crear cliente nuevo
-- Familiares opcionales
-
-Reutilizando las mismas reglas ya implementadas en `ClientesPage`.
+Continuar con mejoras menores de Clientes/Eventos si se consideran necesarias, o comenzar fase financiera.
 
 ## Fase 1B.4D - Contacto rapido del Cliente
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
-import type { ClienteDto, CrearEventoRequestDto, EventoDto } from '../types'
+import type { ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
@@ -70,6 +70,7 @@ interface ClienteAltaFormState {
   telefono: string
   domicilio: string
   mail: string
+  familiares: FamiliarClienteDto[]
 }
 
 function createEmptyClienteForm(nombre = ''): ClienteAltaFormState {
@@ -82,6 +83,19 @@ function createEmptyClienteForm(nombre = ''): ClienteAltaFormState {
     telefono: '',
     domicilio: '',
     mail: '',
+    familiares: [],
+  }
+}
+
+function toDateInputValue(value?: string | null) {
+  return value ? value.slice(0, 10) : ''
+}
+
+function createEmptyFamiliar(): FamiliarClienteDto {
+  return {
+    id: 0,
+    nombre: '',
+    fechaNacimiento: '',
   }
 }
 
@@ -300,6 +314,7 @@ export default function EventosPage() {
   const [clienteCreateForm, setClienteCreateForm] = useState<ClienteAltaFormState>(() => createEmptyClienteForm())
   const [clienteCreateError, setClienteCreateError] = useState('')
   const [clienteCreateSaving, setClienteCreateSaving] = useState(false)
+  const [clienteCreateFamiliarErrors, setClienteCreateFamiliarErrors] = useState<Record<number, { nombre?: string; fechaNacimiento?: string }>>({})
 
   const [disponibilidad, setDisponibilidad] = useState<{ estado: DisponibilidadEstado; mensaje: string }>({
     estado: 'idle',
@@ -642,6 +657,7 @@ export default function EventosPage() {
     setClienteCreateForm(createEmptyClienteForm(clienteBusqueda.trim()))
     setClienteCreateError('')
     setClienteCreateSaving(false)
+    setClienteCreateFamiliarErrors({})
     setClienteCreateOpen(true)
   }
 
@@ -650,20 +666,85 @@ export default function EventosPage() {
     setClienteCreateOpen(false)
     setClienteCreateError('')
     setClienteCreateSaving(false)
+    setClienteCreateFamiliarErrors({})
+  }
+
+  function todayLocalDateInputValue() {
+    const now = new Date()
+    const tzOffset = now.getTimezoneOffset() * 60000
+    return new Date(now.getTime() - tzOffset).toISOString().slice(0, 10)
+  }
+
+  function normalizeClienteFamiliares(familiares?: FamiliarClienteDto[] | null): FamiliarClienteDto[] {
+    return (familiares ?? []).map((familiar, index) => ({
+      id: familiar.id ?? index,
+      nombre: familiar.nombre ?? '',
+      fechaNacimiento: familiar.fechaNacimiento ?? '',
+    }))
+  }
+
+  function validateClienteFamiliares(familiares: FamiliarClienteDto[]) {
+    const today = todayLocalDateInputValue()
+    const nextErrors: Record<number, { nombre?: string; fechaNacimiento?: string }> = {}
+
+    familiares.forEach((familiar, index) => {
+      const errors: { nombre?: string; fechaNacimiento?: string } = {}
+      const nombre = familiar.nombre?.trim() || ''
+      const fechaNacimiento = toDateInputValue(familiar.fechaNacimiento)
+
+      if (!nombre) errors.nombre = 'El nombre del familiar es obligatorio'
+      if (!fechaNacimiento) errors.fechaNacimiento = 'La fecha de nacimiento del familiar es obligatoria'
+      else if (fechaNacimiento > today) errors.fechaNacimiento = 'La fecha de nacimiento del familiar no puede ser futura'
+
+      if (Object.keys(errors).length > 0) nextErrors[index] = errors
+    })
+
+    setClienteCreateFamiliarErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  function actualizarClienteFamiliares(nextFamiliares: FamiliarClienteDto[]) {
+    setClienteCreateForm(prev => ({ ...prev, familiares: nextFamiliares }))
+  }
+
+  function agregarClienteFamiliar() {
+    actualizarClienteFamiliares([...(clienteCreateForm.familiares ?? []), createEmptyFamiliar()])
+  }
+
+  function eliminarClienteFamiliar(index: number) {
+    const next = (clienteCreateForm.familiares ?? []).filter((_, current) => current !== index)
+    actualizarClienteFamiliares(next)
+    setClienteCreateFamiliarErrors(prev => {
+      const nextErrors: Record<number, { nombre?: string; fechaNacimiento?: string }> = {}
+      next.forEach((_, idx) => {
+        const sourceIndex = idx >= index ? idx + 1 : idx
+        if (prev[sourceIndex]) nextErrors[idx] = prev[sourceIndex]
+      })
+      return nextErrors
+    })
+  }
+
+  function cambiarClienteFamiliar(index: number, field: 'nombre' | 'fechaNacimiento', value: string) {
+    const next = [...(clienteCreateForm.familiares ?? [])]
+    next[index] = { ...next[index], [field]: value }
+    actualizarClienteFamiliares(next)
   }
 
   async function guardarNuevoCliente() {
-    if (!clienteCreateForm.nombre.trim()) {
+    const nombre = clienteCreateForm.nombre.trim()
+    const fechaNacimiento = toDateInputValue(clienteCreateForm.fechaNacimiento)
+
+    if (!nombre) {
       setClienteCreateError('Completá el nombre del cliente')
       return
     }
 
-    if (!clienteCreateForm.fechaNacimiento) {
+    if (!fechaNacimiento) {
       setClienteCreateError('Completá la fecha de nacimiento')
       return
     }
 
-    if (clienteCreateForm.fechaNacimiento > formatDateInput(new Date())) {
+    if (fechaNacimiento > formatDateInput(new Date())) {
       setClienteCreateError('La fecha de nacimiento no puede ser futura')
       return
     }
@@ -683,15 +764,22 @@ export default function EventosPage() {
       return
     }
 
+    const familiares = normalizeClienteFamiliares(clienteCreateForm.familiares)
+    if (!validateClienteFamiliares(familiares)) {
+      setClienteCreateError('Revisá los familiares')
+      return
+    }
+
     const payload: ClienteDto = {
-      nombre: clienteCreateForm.nombre.trim(),
-      fechaNacimiento: clienteCreateForm.fechaNacimiento,
+      nombre,
+      fechaNacimiento,
       tipoDocumento: clienteCreateForm.tipoDocumento,
       numeroDocumento: clienteCreateForm.numeroDocumento.trim() || null,
       ivaCondicion: clienteCreateForm.ivaCondicion,
       telefono: clienteCreateForm.telefono.trim(),
       domicilio: clienteCreateForm.domicilio.trim() || null,
       mail: clienteCreateForm.mail.trim(),
+      familiares,
     }
 
     setClienteCreateSaving(true)
@@ -705,6 +793,7 @@ export default function EventosPage() {
       setClienteError('')
       setClienteCreateOpen(false)
       setClienteCreateForm(createEmptyClienteForm())
+      setClienteCreateFamiliarErrors({})
       notifySuccess('Cliente creado correctamente')
     } catch (err) {
       setClienteCreateError(err instanceof Error ? err.message : 'Error al crear cliente')
@@ -1422,6 +1511,57 @@ export default function EventosPage() {
               onChange={e => setClienteCreateForm(prev => ({ ...prev, domicilio: e.target.value }))}
               className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             />
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-gray-800">Familiares (opcional)</p>
+              <Button type="button" variant="secondary" size="sm" onClick={agregarClienteFamiliar}>Agregar familiar</Button>
+            </div>
+
+            {(clienteCreateForm.familiares ?? []).length === 0 ? (
+              <p className="text-sm text-gray-500">Sin familiares cargados.</p>
+            ) : (
+              <div className="space-y-3">
+                {(clienteCreateForm.familiares ?? []).map((familiar, index) => {
+                  const errors = clienteCreateFamiliarErrors[index] ?? {}
+                  const idBase = `evento-cliente-familiar-${index}`
+                  return (
+                    <div key={index} className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-gray-700">Familiar {index + 1}</p>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => eliminarClienteFamiliar(index)}>Eliminar</Button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label htmlFor={`${idBase}-nombre`} className="text-xs font-semibold text-gray-700">Nombre</label>
+                          <input
+                            id={`${idBase}-nombre`}
+                            type="text"
+                            value={familiar.nombre}
+                            onChange={e => cambiarClienteFamiliar(index, 'nombre', e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                          {errors.nombre && <p className="mt-1 text-xs text-red-600">{errors.nombre}</p>}
+                        </div>
+                        <div>
+                          <label htmlFor={`${idBase}-fecha`} className="text-xs font-semibold text-gray-700">Fecha nacimiento</label>
+                          <input
+                            id={`${idBase}-fecha`}
+                            type="date"
+                            max={todayLocalDateInputValue()}
+                            value={familiar.fechaNacimiento?.slice(0, 10) || ''}
+                            onChange={e => cambiarClienteFamiliar(index, 'fechaNacimiento', e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                          {errors.fechaNacimiento && <p className="mt-1 text-xs text-red-600">{errors.fechaNacimiento}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
