@@ -609,6 +609,81 @@ describe('EventosPage', () => {
     expect(within(dialog).getByText('Reservado por: María Gómez')).toBeInTheDocument()
   })
 
+  it('marks days with active reservations and ignores cancelados alone', async () => {
+    const keyWithActive = '2026-08-15'
+    const keyOnlyCancelled = '2026-08-16'
+    const keyMixed = '2026-08-17'
+
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: keyWithActive,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+      {
+        id: 2,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: keyOnlyCancelled,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Cancelado Solo',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Cancelado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+      {
+        id: 3,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: keyMixed,
+        horaInicio: '11:00:00',
+        horaFin: '13:00:00',
+        tipoEvento: 'Activo',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Señado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+      {
+        id: 4,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: keyMixed,
+        horaInicio: '14:00:00',
+        horaFin: '16:00:00',
+        tipoEvento: 'Cancelado Mixto',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Cancelado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+
+    expect(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'true')
+    expect(screen.getByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'false')
+    expect(screen.getByRole('button', { name: /Eventos del día .*17 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'true')
+  })
+
   it('shows a fallback reserved-by label when the client is not in cache', async () => {
     apiState.listarClientes.mockResolvedValueOnce({
       items: [{
@@ -871,6 +946,18 @@ describe('EventosPage', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Detalle del evento' })).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Eventos del día' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the month selector working while highlighting days with active events', async () => {
+    apiState.listarRango.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    await renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
+    await user.click(await screen.findByRole('option', { name: /Septiembre de 2026/ }))
+
+    expect(await screen.findByRole('button', { name: /Septiembre de 2026/ })).toBeInTheDocument()
   })
 
   it('sets today as the minimum date in create mode', async () => {

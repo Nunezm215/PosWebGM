@@ -1148,7 +1148,19 @@ export default function EventosPage() {
               {range.days.map(day => {
                 const key = toDateKey(day)
                 const eventosDia = eventosPorDia.get(key) ?? []
+                const tieneReservas = eventosDia.some(evento => evento.estado !== 'Cancelado')
                 const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
+                const dayCellClassName = [
+                  'min-h-[100px] p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 sm:min-h-[122px] sm:p-3',
+                  isCurrentMonth ? 'text-gray-900' : 'text-gray-400',
+                  tieneReservas
+                    ? isCurrentMonth
+                      ? 'bg-emerald-100 hover:bg-emerald-200'
+                      : 'bg-emerald-50 hover:bg-emerald-100'
+                    : isCurrentMonth
+                      ? 'bg-white hover:bg-indigo-50/40'
+                      : 'bg-gray-50 hover:bg-indigo-50/40',
+                ].join(' ')
 
                 return (
                   <div
@@ -1156,6 +1168,7 @@ export default function EventosPage() {
                     role="button"
                     aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
                     tabIndex={0}
+                    data-has-events={tieneReservas}
                     onClick={() => openDay(key)}
                     onKeyDown={event => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -1163,7 +1176,7 @@ export default function EventosPage() {
                         openDay(key)
                       }
                     }}
-                    className={`min-h-[100px] bg-white p-2 text-sm transition hover:bg-indigo-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 sm:min-h-[122px] sm:p-3 ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400 bg-gray-50'}`}
+                    className={dayCellClassName}
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isCurrentMonth ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
