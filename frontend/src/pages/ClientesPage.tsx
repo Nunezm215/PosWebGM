@@ -11,6 +11,7 @@ import { useEntityList } from '../hooks/useEntityList'
 import { useEntitySearch } from '../hooks/useEntitySearch'
 import { useEntityForm } from '../hooks/useEntityForm'
 import { useEntityPagination } from '../hooks/useEntityPagination'
+import { DEFAULT_PHONE_CODE, PHONE_CODE_OPTIONS, buildArgentinaPhone, getArgentinaPhoneLocalDigits, getArgentinaPhoneLocalError, getArgentinaPhoneLocalLabel, getArgentinaPhoneLocalPlaceholder, limitArgentinaPhoneLocalDigits, parseArgentinaPhone, sanitizePhoneDigits } from '../utils/phone'
 
 const TIPOS_DOCUMENTO = ['DNI', 'CUIT', 'CUIL', 'ConsumidorFinal']
 const createEmptyFamiliar = (): FamiliarClienteDto => ({
@@ -29,6 +30,13 @@ const emptyForm: ClienteDto = {
   mail: '',
   domicilio: '',
   familiares: [],
+}
+
+type ClientePhoneForm = {
+  code: string
+  local: string
+  raw: string
+  custom: boolean
 }
 
 function toDateInputValue(value?: string | null) {
@@ -68,13 +76,24 @@ export default function ClientesPage() {
   const form = useEntityForm<ClienteDto, ClienteDto>({ emptyForm })
   const [formError, setFormError] = useState('')
   const [familiarErrors, setFamiliarErrors] = useState<Record<number, { nombre?: string; fechaNacimiento?: string }>>({})
+  const [telefonoForm, setTelefonoForm] = useState<ClientePhoneForm>({ code: DEFAULT_PHONE_CODE, local: '', raw: '', custom: false })
 
   useEffect(() => {
     if (!form.showForm) {
       setFormError('')
       setFamiliarErrors({})
+      setTelefonoForm({ code: DEFAULT_PHONE_CODE, local: '', raw: '', custom: false })
     }
   }, [form.showForm])
+
+  useEffect(() => {
+    if (!form.showForm) return
+    const parsed = parseArgentinaPhone(form.form.telefono)
+    setTelefonoForm(parsed.recognized
+      ? { code: parsed.code, local: parsed.local, raw: '', custom: false }
+      : { code: DEFAULT_PHONE_CODE, local: parsed.local, raw: sanitizePhoneDigits(form.form.telefono || ''), custom: true }
+    )
+  }, [form.showForm, form.form.telefono])
 
   const updateFamiliares = useCallback((nextFamiliares: FamiliarClienteDto[]) => {
     form.setForm({ ...form.form, familiares: nextFamiliares })
@@ -112,7 +131,10 @@ export default function ClientesPage() {
     e.preventDefault()
     const nombre = form.form.nombre.trim()
     const fechaNacimiento = form.form.fechaNacimiento?.slice(0, 10) || ''
-    const telefono = form.form.telefono?.trim() || ''
+    const telefono = telefonoForm.custom
+      ? telefonoForm.raw || telefonoForm.local
+      : buildArgentinaPhone(telefonoForm.code, telefonoForm.local)
+    const expectedTelefonoDigits = getArgentinaPhoneLocalDigits(telefonoForm.code)
     const mail = form.form.mail?.trim() || ''
     const familiares = normalizeFamiliars(form.form.familiares)
     const hoyDate = new Date()
@@ -122,6 +144,7 @@ export default function ClientesPage() {
     if (!fechaNacimiento) { setFormError('La fecha de nacimiento es obligatoria'); return }
     if (fechaNacimiento > hoy) { setFormError('La fecha de nacimiento no puede ser futura'); return }
     if (!telefono) { setFormError('El celular/teléfono es obligatorio'); return }
+    if (!telefonoForm.custom && telefonoForm.local.length !== expectedTelefonoDigits) { setFormError(getArgentinaPhoneLocalError(telefonoForm.code)); return }
     if (!mail) { setFormError('El email es obligatorio'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { setFormError('El email no es válido'); return }
     if (!validateFamiliares(familiares)) { setFormError('Revisá los familiares'); return }
@@ -154,7 +177,7 @@ export default function ClientesPage() {
     } finally {
       form.setSaving(false)
     }
-  }, [form, list, search.debouncedSearch, pagination.page, notifyError, validateFamiliares])
+  }, [form, list, search.debouncedSearch, pagination.page, notifyError, validateFamiliares, telefonoForm.code, telefonoForm.local])
 
   const handleAddFamiliar = () => {
     updateFamiliares([...(form.form.familiares ?? []), createEmptyFamiliar()])
@@ -177,6 +200,14 @@ export default function ClientesPage() {
     const next = [...(form.form.familiares ?? [])]
     next[index] = { ...next[index], [field]: value }
     updateFamiliares(next)
+  }
+
+  const handleTelefonoCodeChange = (code: string) => {
+    setTelefonoForm(prev => ({ ...prev, code, local: limitArgentinaPhoneLocalDigits(code, prev.local), custom: false }))
+  }
+
+  const handleTelefonoLocalChange = (value: string) => {
+    setTelefonoForm(prev => ({ ...prev, local: limitArgentinaPhoneLocalDigits(prev.code, value), custom: false }))
   }
 
   // ── Render ────────────────────────────────────────────────────────
@@ -301,12 +332,34 @@ export default function ClientesPage() {
             <input id="cliente-fecha-nacimiento" type="date" value={form.form.fechaNacimiento || ''} onChange={e => form.setForm({ ...form.form, fechaNacimiento: e.target.value })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+            <div>
+              <label htmlFor="cliente-telefono-codigo" className="text-xs font-semibold text-gray-700">Código</label>
+              <select
+                id="cliente-telefono-codigo"
+                value={telefonoForm.code}
+                onChange={e => handleTelefonoCodeChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+              >
+                {PHONE_CODE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
             <div>
               <label htmlFor="cliente-telefono" className="text-xs font-semibold text-gray-700">Celular / Teléfono *</label>
-              <input id="cliente-telefono" type="text" value={form.form.telefono || ''} onChange={e => form.setForm({ ...form.form, telefono: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" required />
+              <p className="mt-1 text-[11px] text-gray-500">{getArgentinaPhoneLocalLabel(telefonoForm.code)}</p>
+              <input
+                id="cliente-telefono"
+                type="tel"
+                inputMode="numeric"
+                value={telefonoForm.local}
+                onChange={e => handleTelefonoLocalChange(e.target.value)}
+                placeholder={getArgentinaPhoneLocalPlaceholder(telefonoForm.code)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                required
+              />
             </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="cliente-mail" className="text-xs font-semibold text-gray-700">Email *</label>
               <input id="cliente-mail" type="email" value={form.form.mail || ''} onChange={e => form.setForm({ ...form.form, mail: e.target.value })}

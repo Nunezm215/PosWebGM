@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { buildArgentinaPhone, buildTelHref, buildWhatsAppHref } from '../../utils/phone'
 
 const apiState = vi.hoisted(() => ({
   listar: vi.fn(),
@@ -81,9 +82,85 @@ describe('ClientesPage', () => {
   function completarClienteBase(dialog: HTMLElement) {
     fireEvent.change(within(dialog).getByLabelText(/Nombre \*/), { target: { value: 'Cliente' } })
     fireEvent.change(within(dialog).getByLabelText(/Fecha de nacimiento \*/), { target: { value: '1990-01-01' } })
-    fireEvent.change(within(dialog).getByLabelText(/Celular \/ Teléfono \*/), { target: { value: '11111111' } })
+    fireEvent.change(within(dialog).getByLabelText('Código'), { target: { value: '54911' } })
+    fireEvent.change(within(dialog).getByLabelText(/Celular \/ Teléfono \*/), { target: { value: '12345678' } })
     fireEvent.change(within(dialog).getByLabelText(/Email \*/), { target: { value: 'cliente@correo.com' } })
   }
+
+  it('muestra el codigo +54 9 11 por defecto', async () => {
+    const { dialog } = await abrirFormulario()
+
+    expect(within(dialog).getByLabelText('Código')).toHaveValue('54911')
+    expect(within(dialog).getByText('Número (8 dígitos)')).toBeInTheDocument()
+    expect(within(dialog).getByPlaceholderText('12345678')).toBeInTheDocument()
+  })
+
+  it('muestra 7 digitos para +54 9 221 y +54 9 351', async () => {
+    const { dialog } = await abrirFormulario()
+
+    fireEvent.change(within(dialog).getByLabelText('Código'), { target: { value: '549221' } })
+    expect(within(dialog).getByText('Número (7 dígitos)')).toBeInTheDocument()
+    expect(within(dialog).getByPlaceholderText('1234567')).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText('Código'), { target: { value: '549351' } })
+    expect(within(dialog).getByText('Número (7 dígitos)')).toBeInTheDocument()
+  })
+
+  it('guarda el telefono normalizado con el codigo predeterminado', async () => {
+    const { user, dialog } = await abrirFormulario()
+
+    completarClienteBase(dialog)
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
+      telefono: '5491112345678',
+    })))
+  })
+
+  it('permite cambiar el codigo y normaliza el telefono', async () => {
+    const { user, dialog } = await abrirFormulario()
+
+    fireEvent.change(within(dialog).getByLabelText(/Nombre \*/), { target: { value: 'Cliente' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha de nacimiento \*/), { target: { value: '1990-01-01' } })
+    fireEvent.change(within(dialog).getByLabelText('Código'), { target: { value: '549261' } })
+    fireEvent.change(within(dialog).getByLabelText(/Celular \/ Teléfono \*/), { target: { value: '12345678' } })
+    fireEvent.change(within(dialog).getByLabelText(/Email \*/), { target: { value: 'cliente@correo.com' } })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
+      telefono: '5492611234567',
+    })))
+  })
+
+  it('bloquea guardar si el numero tiene menos digitos de los esperados', async () => {
+    const { user, dialog } = await abrirFormulario()
+
+    fireEvent.change(within(dialog).getByLabelText(/Nombre \*/), { target: { value: 'Cliente' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha de nacimiento \*/), { target: { value: '1990-01-01' } })
+    fireEvent.change(within(dialog).getByLabelText(/Celular \/ Teléfono \*/), { target: { value: '1234567' } })
+    fireEvent.change(within(dialog).getByLabelText(/Email \*/), { target: { value: 'cliente@correo.com' } })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    expect(await within(dialog).findByText('El número debe tener 8 dígitos')).toBeInTheDocument()
+    expect(apiState.crear).not.toHaveBeenCalled()
+  })
+
+  it('limita o valida correctamente cuando se pegan mas digitos', async () => {
+    const { user, dialog } = await abrirFormulario()
+
+    completarClienteBase(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/Celular \/ Teléfono \*/), { target: { value: '12 34-567890' } })
+
+    expect(within(dialog).getByLabelText(/Celular \/ Teléfono \*/)).toHaveValue('12345678')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
+      telefono: '5491112345678',
+    })))
+  })
 
   it('muestra la seccion Familiares y el boton Agregar familiar', async () => {
     const { dialog } = await abrirFormulario()
@@ -349,10 +426,64 @@ describe('ClientesPage', () => {
     await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
       nombre: 'Cliente',
       fechaNacimiento: '1990-01-01',
-      telefono: '11111111',
+      telefono: '5491112345678',
       mail: 'cliente@correo.com',
       familiares: [],
     })))
+  })
+
+  it('convierte telefono existente en selector y numero local al editar', async () => {
+    const cliente = {
+      id: 1,
+      nombre: 'Cliente',
+      fechaNacimiento: '1990-01-01',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '5491112345678',
+      domicilio: 'Calle 123',
+      mail: 'cliente@correo.com',
+      familiares: [],
+      activo: true,
+    }
+
+    const { dialog } = await cargarFormularioConClienteEditado(cliente)
+
+    expect(within(dialog).getByLabelText('Código')).toHaveValue('54911')
+    expect(within(dialog).getByLabelText(/Celular \/ Teléfono \*/) ).toHaveValue('12345678')
+  })
+
+  it('preserva un telefono historico no reconocido al editar y guardar sin cambios', async () => {
+    const cliente = {
+      id: 1,
+      nombre: 'Cliente',
+      fechaNacimiento: '1990-01-01',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '541234567890',
+      domicilio: 'Calle 123',
+      mail: 'cliente@correo.com',
+      familiares: [],
+      activo: true,
+    }
+
+    const { dialog } = await cargarFormularioConClienteEditado(cliente)
+
+    expect(within(dialog).getByLabelText('Código')).toHaveValue('54911')
+    expect(within(dialog).getByLabelText(/Celular \/ Teléfono \*/)).toHaveValue('541234567890')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(apiState.actualizar).toHaveBeenCalledWith(1, expect.objectContaining({
+      telefono: '541234567890',
+    })))
+  })
+
+  it('envia enlaces de contacto compatibles con WhatsApp y Llamar', async () => {
+    expect(buildWhatsAppHref('5491112345678')).toBe('https://wa.me/5491112345678')
+    expect(buildTelHref('5491112345678')).toBe('tel:+5491112345678')
+    expect(buildArgentinaPhone('54911', '12345678')).toBe('5491112345678')
   })
 
   it('permite agregar un familiar', async () => {

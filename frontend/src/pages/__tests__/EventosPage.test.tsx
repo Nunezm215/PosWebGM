@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { buildTelHref, buildWhatsAppHref } from '../../utils/phone'
 
 const apiState = vi.hoisted(() => ({
   listarRango: vi.fn(),
@@ -168,13 +169,27 @@ describe('EventosPage', () => {
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
     expect(within(clientDialog).getByLabelText('Nombre *')).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText('Fecha de nacimiento *')).toBeInTheDocument()
+    expect(within(clientDialog).getByLabelText('Código')).toHaveValue('54911')
     expect(within(clientDialog).getByLabelText('Celular / Teléfono *')).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText('Email *')).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText('Tipo documento')).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText('DNI / número de documento')).toBeInTheDocument()
     expect(within(clientDialog).getByLabelText('Domicilio')).toBeInTheDocument()
+    expect(within(clientDialog).getByText('Número (8 dígitos)')).toBeInTheDocument()
     expect(within(clientDialog).getByText(/Familiares \(opcional\)/)).toBeInTheDocument()
     expect(within(clientDialog).queryByLabelText(/Condición IVA/)).not.toBeInTheDocument()
+  })
+
+  it('muestra 7 digitos cuando cambia el codigo en el alta de cliente del evento', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+
+    fireEvent.change(within(clientDialog).getByLabelText('Código'), { target: { value: '549221' } })
+
+    expect(within(clientDialog).getByText('Número (7 dígitos)')).toBeInTheDocument()
+    expect(within(clientDialog).getByPlaceholderText('1234567')).toBeInTheDocument()
   })
 
   it('keeps Evento data while creating a Cliente and auto-selects the new Cliente', async () => {
@@ -215,10 +230,10 @@ describe('EventosPage', () => {
     await user.click(within(clientDialog).getByRole('button', { name: 'Agregar familiar' }))
     fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '11111111' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
     fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Nombre'), { target: { value: 'Familiar Uno' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Fecha nacimiento'), { target: { value: '2015-02-03' } })
+    fireEvent.change(clientDialog.querySelector('#evento-cliente-familiar-0-nombre') as HTMLInputElement, { target: { value: 'Familiar Uno' } })
+    fireEvent.change(within(clientDialog).getAllByLabelText('Fecha nacimiento')[0], { target: { value: '2015-02-03' } })
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
     await waitFor(() => expect(apiState.crearCliente).toHaveBeenCalledWith({
@@ -227,7 +242,7 @@ describe('EventosPage', () => {
       tipoDocumento: 'DNI',
       numeroDocumento: null,
       ivaCondicion: 'ConsumidorFinal',
-      telefono: '11111111',
+      telefono: '5491112345678',
       domicilio: null,
       mail: 'cliente@correo.com',
       familiares: [
@@ -251,7 +266,7 @@ describe('EventosPage', () => {
       tipoDocumento: 'DNI',
       numeroDocumento: null,
       ivaCondicion: 'ConsumidorFinal',
-      telefono: '11111111',
+      telefono: '5491112345678',
       domicilio: null,
       mail: 'sin-familia@correo.com',
       familiares: [],
@@ -265,7 +280,7 @@ describe('EventosPage', () => {
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
     fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Sin Familia' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '11111111' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
     fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'sin-familia@correo.com' } })
 
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
@@ -277,6 +292,23 @@ describe('EventosPage', () => {
     })))
   })
 
+  it('bloquea crear cliente si el numero tiene menos digitos de los esperados', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
+
+    fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '1234567' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
+
+    await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
+
+    expect(await within(clientDialog).findByText('El número debe tener 8 dígitos')).toBeInTheDocument()
+    expect(apiState.crearCliente).not.toHaveBeenCalled()
+  })
+
   it('bloquea guardar si un familiar tiene fecha vacia', async () => {
     const { user, dialog } = await abrirAlta()
     await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
@@ -285,7 +317,7 @@ describe('EventosPage', () => {
 
     fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '11111111' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
     fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
     fireEvent.change(within(clientDialog).getByLabelText('Nombre'), { target: { value: 'Familiar Uno' } })
 
@@ -307,7 +339,7 @@ describe('EventosPage', () => {
 
     fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
-    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '11111111' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
     fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
     fireEvent.change(within(clientDialog).getByLabelText('Nombre'), { target: { value: 'Familiar Uno' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha nacimiento'), { target: { value: futureDate } })
@@ -358,10 +390,13 @@ describe('EventosPage', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
-    await user.type(within(clientDialog).getByLabelText(/Nombre/), 'Cliente Nuevo')
+    fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
+    fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
     await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
-    expect(await screen.findByText('Completá la fecha de nacimiento')).toBeInTheDocument()
+    expect(await screen.findByText('Documento duplicado')).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Nuevo Cliente' })).toBeInTheDocument()
   })
 
@@ -943,6 +978,11 @@ describe('EventosPage', () => {
     expect(await within(dialog).findByText('Cliente sin teléfono registrado.')).toBeInTheDocument()
     expect(within(dialog).queryByRole('link', { name: 'Llamar' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument()
+  })
+
+  it('builds WhatsApp and tel links correctly', async () => {
+    expect(buildWhatsAppHref('5491112345678')).toBe('https://wa.me/5491112345678')
+    expect(buildTelHref('5491112345678')).toBe('tel:+5491112345678')
   })
 
   it('shows contact fallback when client loading fails', async () => {

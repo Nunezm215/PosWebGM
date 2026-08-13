@@ -2068,6 +2068,161 @@ Incluiria:
 
 Continuar con mejoras menores de Clientes/Eventos si se consideran necesarias, o comenzar fase financiera.
 
+## Fase 1C.3A - Celular normalizado para Clientes y WhatsApp
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1c3a-telefono-normalizado-ok`
+
+### Alcance
+
+- Se actualizo la carga del celular de Cliente para usar un selector de codigo de area argentino y un campo de numero local.
+- El codigo predeterminado para nuevos Clientes es `+54 9 11`.
+- El telefono sigue guardandose normalizado como un unico string en el payload.
+
+### Codigos soportados
+
+- `+54 9 11`
+- `+54 9 221`
+- `+54 9 223`
+- `+54 9 261`
+- `+54 9 264`
+- `+54 9 299`
+- `+54 9 341`
+- `+54 9 342`
+- `+54 9 343`
+- `+54 9 351`
+- `+54 9 362`
+- `+54 9 376`
+- `+54 9 379`
+- `+54 9 381`
+- `+54 9 387`
+- `+54 9 388`
+
+### Helper centralizado
+
+- La normalizacion y parseo quedaron centralizados en `frontend/src/utils/phone.ts`.
+- Funciones relevantes:
+  - `sanitizePhoneDigits`
+  - `parseArgentinaPhone`
+  - `buildArgentinaPhone`
+  - `buildWhatsAppHref`
+  - `buildTelHref`
+  - `getArgentinaPhoneLocalDigits`
+  - `limitArgentinaPhoneLocalDigits`
+
+### Cantidad de digitos
+
+- Area `11`: `8` digitos locales.
+- Otros codigos soportados: `7` digitos locales.
+- El texto de ayuda y el placeholder cambian segun el codigo seleccionado.
+
+### Validacion
+
+- El celular sigue siendo obligatorio.
+- El codigo de area sigue siendo obligatorio.
+- El numero local sigue siendo obligatorio.
+- Se normalizan espacios y guiones al escribir.
+- Se cuenta la cantidad real de digitos.
+- Si la cantidad no coincide, se muestra `El número debe tener X dígitos`.
+- No permite guardar mientras el valor sea invalido.
+
+### Clientes nuevos
+
+- `Clientes -> Nuevo Cliente` muestra por defecto `+54 9 11`.
+- El usuario ingresa solo el numero local.
+- El payload final guarda el telefono completo y normalizado.
+
+### Edicion
+
+- Los Clientes existentes reconocidos se parsean automaticamente.
+- Ejemplo: `5491112345678` se muestra como `+54 9 11` + `12345678`.
+- Otros codigos conocidos se seleccionan automaticamente.
+
+### Telefonos historicos
+
+- Se corrigio un bug donde un telefono historico no reconocido podia ser prefijado de forma incorrecta al reabrir Editar y Guardar.
+- `parseArgentinaPhone` ahora informa `recognized`.
+- `ClientesPage` mantiene estado `raw` y `custom` para preservar telefonos historicos no reconocidos.
+- Si el usuario no modifica un telefono historico no reconocido, se vuelve a guardar exactamente igual.
+- Si el usuario modifica el telefono, se pasa a modo custom y se normaliza con el codigo seleccionado.
+
+### WhatsApp
+
+- Un telefono normalizado como `5491112345678` genera `https://wa.me/5491112345678`.
+- No se uso WhatsApp Business API.
+- No se agrego mensaje automatico.
+- No se agrego verificacion previa de cuenta.
+
+### Llamar
+
+- Un telefono normalizado como `5491112345678` genera `tel:+5491112345678`.
+- Se mantiene el flujo de Llamar existente.
+
+### Eventos
+
+- La misma carga de celular se aplica en `Nuevo Evento -> Crear cliente nuevo`.
+- Se mantienen familiares, fecha de nacimiento, auto-seleccion del Cliente y datos del Evento.
+
+### Familiares
+
+- Los familiares no fueron modificados funcionalmente.
+- Siguen teniendo solo `nombre` y `fecha de nacimiento`.
+- No tienen telefono.
+
+### Tests
+
+- Corrida final: `3` test files, `71` tests passed, `0` failed.
+- Cobertura relevante:
+  - default `+54 9 11`
+  - normalizacion
+  - cambio de codigo
+  - cantidad dinamica de digitos
+  - numero corto/largo
+  - edicion
+  - telefonos historicos
+  - WhatsApp
+  - Llamar
+  - creacion desde Evento
+
+### Build
+
+- `npm run build`: `OK`
+- Solo hubo warning no bloqueante de chunk grande de Vite.
+
+### Verificacion manual
+
+- `+54 9 11`: OK
+- Otro codigo de area: OK
+- Cantidad dinamica de digitos: OK
+- Validacion: OK
+- WhatsApp: OK
+- Llamar: OK
+- Creacion Cliente: OK
+- Creacion Cliente desde Evento: OK
+- Funcionamiento general: OK
+
+### No modificado
+
+- backend
+- DB
+- migraciones
+- `ClienteService`
+- `ClientesController`
+- `EventoService`
+- disponibilidad
+- regla de 30 minutos
+- contrato PDF
+- `Caja`
+- `PagoEvento`
+- `GastoEvento`
+- `Mercado Pago`
+- `QR`
+
+### Proximo paso
+
+- Siguiente mejora visual sugerida: ocultar el nombre de sucursal actual y la opcion `Cambiar sucursal` porque el sistema usa una unica sucursal.
+- Solo ocultar UI, sin eliminar logica de sucursal, claims ni `sucursalId`.
+
 ## Fase 1B.4D - Contacto rapido del Cliente
 
 **Estado:** COMPLETADA

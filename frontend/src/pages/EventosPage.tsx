@@ -7,6 +7,7 @@ import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
+import { DEFAULT_PHONE_CODE, PHONE_CODE_OPTIONS, buildArgentinaPhone, buildTelHref, buildWhatsAppHref, getArgentinaPhoneLocalDigits, getArgentinaPhoneLocalError, getArgentinaPhoneLocalLabel, getArgentinaPhoneLocalPlaceholder, limitArgentinaPhoneLocalDigits } from '../utils/phone'
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
@@ -73,6 +74,11 @@ interface ClienteAltaFormState {
   familiares: FamiliarClienteDto[]
 }
 
+type ClientePhoneForm = {
+  code: string
+  local: string
+}
+
 function createEmptyClienteForm(nombre = ''): ClienteAltaFormState {
   return {
     nombre,
@@ -135,44 +141,6 @@ function formatMonthTitle(date: Date) {
 
 function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function sanitizePhoneInput(phone: string) {
-  return phone.trim().replace(/[^\d+]/g, '')
-}
-
-function normalizePhoneForDial(phone: string) {
-  const sanitized = sanitizePhoneInput(phone)
-  if (!sanitized) return ''
-  if (sanitized.startsWith('+')) return sanitized
-  return sanitized.replace(/\D/g, '')
-}
-
-function normalizePhoneForWhatsApp(phone: string) {
-  const sanitized = sanitizePhoneInput(phone)
-  if (!sanitized) return ''
-
-  const digits = sanitized.replace(/\D/g, '')
-  if (!digits) return ''
-
-  if (digits.startsWith('54')) return digits
-  if (sanitized.startsWith('+')) return digits
-  if (digits.startsWith('00')) return digits.slice(2)
-
-  // Estrategia mínima: solo asumir Argentina si el número ya luce local.
-  if (digits.length >= 10 && digits.length <= 11) return `54${digits}`
-
-  return digits
-}
-
-function buildTelHref(phone: string) {
-  const normalized = normalizePhoneForDial(phone)
-  return normalized ? `tel:${normalized}` : ''
-}
-
-function buildWhatsAppHref(phone: string) {
-  const normalized = normalizePhoneForWhatsApp(phone)
-  return normalized ? `https://wa.me/${normalized}` : ''
 }
 
 function addMonths(date: Date, months: number) {
@@ -315,6 +283,7 @@ export default function EventosPage() {
   const [clienteCreateError, setClienteCreateError] = useState('')
   const [clienteCreateSaving, setClienteCreateSaving] = useState(false)
   const [clienteCreateFamiliarErrors, setClienteCreateFamiliarErrors] = useState<Record<number, { nombre?: string; fechaNacimiento?: string }>>({})
+  const [clienteCreateTelefono, setClienteCreateTelefono] = useState<ClientePhoneForm>({ code: DEFAULT_PHONE_CODE, local: '' })
 
   const [disponibilidad, setDisponibilidad] = useState<{ estado: DisponibilidadEstado; mensaje: string }>({
     estado: 'idle',
@@ -658,6 +627,7 @@ export default function EventosPage() {
     setClienteCreateError('')
     setClienteCreateSaving(false)
     setClienteCreateFamiliarErrors({})
+    setClienteCreateTelefono({ code: DEFAULT_PHONE_CODE, local: '' })
     setClienteCreateOpen(true)
   }
 
@@ -667,6 +637,7 @@ export default function EventosPage() {
     setClienteCreateError('')
     setClienteCreateSaving(false)
     setClienteCreateFamiliarErrors({})
+    setClienteCreateTelefono({ code: DEFAULT_PHONE_CODE, local: '' })
   }
 
   function todayLocalDateInputValue() {
@@ -730,9 +701,19 @@ export default function EventosPage() {
     actualizarClienteFamiliares(next)
   }
 
+  function actualizarClienteTelefonoCode(code: string) {
+    setClienteCreateTelefono(prev => ({ ...prev, code, local: limitArgentinaPhoneLocalDigits(code, prev.local) }))
+  }
+
+  function actualizarClienteTelefonoLocal(value: string) {
+    setClienteCreateTelefono(prev => ({ ...prev, local: limitArgentinaPhoneLocalDigits(prev.code, value) }))
+  }
+
   async function guardarNuevoCliente() {
     const nombre = clienteCreateForm.nombre.trim()
     const fechaNacimiento = toDateInputValue(clienteCreateForm.fechaNacimiento)
+    const telefono = buildArgentinaPhone(clienteCreateTelefono.code, clienteCreateTelefono.local)
+    const expectedTelefonoDigits = getArgentinaPhoneLocalDigits(clienteCreateTelefono.code)
 
     if (!nombre) {
       setClienteCreateError('Completá el nombre del cliente')
@@ -749,8 +730,13 @@ export default function EventosPage() {
       return
     }
 
-    if (!clienteCreateForm.telefono.trim()) {
+    if (!telefono) {
       setClienteCreateError('Completá el celular o teléfono')
+      return
+    }
+
+    if (clienteCreateTelefono.local.length !== expectedTelefonoDigits) {
+      setClienteCreateError(getArgentinaPhoneLocalError(clienteCreateTelefono.code))
       return
     }
 
@@ -776,7 +762,7 @@ export default function EventosPage() {
       tipoDocumento: clienteCreateForm.tipoDocumento,
       numeroDocumento: clienteCreateForm.numeroDocumento.trim() || null,
       ivaCondicion: clienteCreateForm.ivaCondicion,
-      telefono: clienteCreateForm.telefono.trim(),
+      telefono,
       domicilio: clienteCreateForm.domicilio.trim() || null,
       mail: clienteCreateForm.mail.trim(),
       familiares,
@@ -794,6 +780,7 @@ export default function EventosPage() {
       setClienteCreateOpen(false)
       setClienteCreateForm(createEmptyClienteForm())
       setClienteCreateFamiliarErrors({})
+      setClienteCreateTelefono({ code: DEFAULT_PHONE_CODE, local: '' })
       notifySuccess('Cliente creado correctamente')
     } catch (err) {
       setClienteCreateError(err instanceof Error ? err.message : 'Error al crear cliente')
@@ -1455,17 +1442,33 @@ export default function EventosPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+            <div>
+              <label htmlFor="evento-cliente-telefono-codigo" className="text-xs font-semibold text-gray-700">Código</label>
+              <select
+                id="evento-cliente-telefono-codigo"
+                value={clienteCreateTelefono.code}
+                onChange={e => actualizarClienteTelefonoCode(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              >
+                {PHONE_CODE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
             <div>
               <label htmlFor="evento-cliente-telefono" className="text-xs font-semibold text-gray-700">Celular / Teléfono *</label>
+              <p className="mt-1 text-[11px] text-gray-500">{getArgentinaPhoneLocalLabel(clienteCreateTelefono.code)}</p>
               <input
                 id="evento-cliente-telefono"
-                type="text"
-                value={clienteCreateForm.telefono}
-                onChange={e => setClienteCreateForm(prev => ({ ...prev, telefono: e.target.value }))}
+                type="tel"
+                inputMode="numeric"
+                value={clienteCreateTelefono.local}
+                onChange={e => actualizarClienteTelefonoLocal(e.target.value)}
+                placeholder={getArgentinaPhoneLocalPlaceholder(clienteCreateTelefono.code)}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="evento-cliente-mail" className="text-xs font-semibold text-gray-700">Email *</label>
               <input
