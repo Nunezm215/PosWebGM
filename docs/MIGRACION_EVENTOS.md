@@ -1758,6 +1758,169 @@ Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar
 
 No se implementa ninguna de esas cosas en esta tarea.
 
+## Fase 1D.3A - Navegacion rapida por meses y limpieza de cabecera
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1d3a-navegacion-meses-ok`
+
+### Objetivo de la fase
+
+- Simplificar y mejorar la navegacion mensual del calendario de Eventos.
+- Convertir el titulo del mes en un selector interactivo.
+- Mantener intacta la carga de Eventos por rango y la funcionalidad existente.
+
+### Selector de mes
+
+- El mes visible ahora se muestra como un selector desplegable, por ejemplo: `Agosto de 2026 ▼`.
+- Al hacer click o tap se abre un dropdown con meses disponibles para navegar rapidamente.
+- Al seleccionar otro mes:
+  - se actualiza `monthAnchor`
+  - se recalcula el rango visible
+  - se vuelve a consultar `listarPorRango`
+  - se actualiza el calendario
+  - se cierra el selector
+- No se creo un segundo sistema de carga de Eventos.
+
+### Meses anteriores y futuros
+
+- El selector permite navegar hacia atras con un limite visual de 6 meses anteriores.
+- No se muestran meses mas antiguos dentro del selector.
+- Esto es solo una restriccion de navegacion de la UI.
+- No se eliminaron Eventos historicos.
+- No se modifico la DB.
+- No se modifico backend.
+- El selector genera una cantidad controlada de meses futuros, hasta 36 meses.
+- El dropdown utiliza scroll vertical para navegar comodamente sin ocupar demasiada altura.
+- No existe generacion infinita de meses.
+
+### Mes seleccionado
+
+- El mes actualmente visible aparece resaltado.
+- Utiliza `aria-selected="true"`.
+- Tiene indicacion visual de seleccion.
+- No se afirma accesibilidad completa de toda la aplicacion.
+
+### Limpieza de cabecera
+
+- Tras implementar el selector se eliminaron de la interfaz los controles anteriores redundantes:
+  - `Anterior`
+  - `Hoy`
+  - `Siguiente`
+- La navegacion mensual quedo centralizada visualmente en el nuevo selector de mes.
+- Tambien se dejo de mostrar visualmente el rango tecnico del calendario, por ejemplo `2026-07-27 - 2026-09-06`.
+- El rango sigue existiendo internamente y se usa para:
+  - determinar el rango visible
+  - consultar Eventos
+  - `listarPorRango`
+  - renderizar correctamente el calendario
+
+### Codigo muerto eliminado
+
+- Al eliminar la navegacion vieja quedaron dos elementos sin uso:
+  - `ChevronLeft`
+  - `shiftMonth(...)`
+- El build de TypeScript los detecto como `TS6133`.
+- Se hizo una limpieza minima:
+  - se quito `ChevronLeft` del import
+  - se elimino `shiftMonth`
+- No se modifico la logica del selector nuevo.
+
+### Funcionalidad intacta
+
+- El popup diario sigue intacto:
+  - click o tap en dia -> Eventos del dia
+  - click directo en Evento -> detalle del Evento
+  - `Reservado por` sigue funcionando
+- `Agregar evento` desde un dia sigue intacto:
+  - Calendario -> seleccionar dia -> Eventos del dia -> Agregar evento -> fecha seleccionada precargada
+- La disponibilidad sigue intacta:
+  - consulta automatica
+  - `Horario disponible`
+  - `Horario no disponible`
+  - `Proximo horario disponible`
+  - calculo backend
+  - `eventoIdExcluir`
+  - regla exacta de 30 minutos
+- No se modificaron 1D.1A, 1D.1B, 1D.2A ni 1D.2B.
+
+### Responsive
+
+- El selector se implemento de forma compacta.
+- El dropdown tiene ancho controlado.
+- Utiliza scroll vertical.
+- Evita scroll horizontal innecesario.
+- Mantiene una interaccion apta para click y tap.
+- No se afirman pruebas especificas en dispositivos que no se hayan realizado.
+
+### Tests y build
+
+- Corrida final de frontend:
+  - `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`
+  - resultado: `56 passed`, `0 failed`
+- El package frontend no posee un script npm `vitest`, por lo que la ejecucion correcta utilizada fue `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`.
+- Cobertura ajustada o agregada para:
+  - selector de mes
+  - apertura del dropdown
+  - meses anteriores
+  - limite de 6 meses anteriores
+  - meses futuros
+  - mes seleccionado
+  - cambio de mes
+  - actualizacion de rango
+  - nueva consulta `listarPorRango`
+  - ausencia de `Anterior`
+  - ausencia de `Hoy`
+  - ausencia de `Siguiente`
+  - ausencia del rango tecnico visible
+  - preservacion de funcionalidades existentes relevantes
+- Build final:
+  - `npm.cmd run build`
+  - resultado: `OK`
+- Durante la primera corrida de build se detectaron restos de codigo muerto:
+  - `ChevronLeft` sin uso
+  - `shiftMonth` sin uso
+- Ambos fueron limpiados como parte minima de la fase.
+
+### No modificado
+
+- backend
+- DB
+- migraciones
+- `EventoService`
+- `EventoRepository`
+- endpoint de disponibilidad
+- regla de 30 minutos
+- Clientes
+- familiares
+- telefonos
+- WhatsApp
+- Llamar
+- contrato PDF
+- Caja
+- Pagos
+- Mercado Pago
+- QR
+- JWT
+- claims
+- `sucursalId`
+
+### Estado funcional final
+
+- Flujo final de navegacion:
+  - `Eventos` -> selector `Mes de Año ▼` -> abrir dropdown -> elegir mes -> actualizar `monthAnchor` -> recalcular rango -> consultar `listarPorRango` -> mostrar calendario del mes seleccionado
+- La cabecera ya no muestra:
+  - `Anterior`
+  - `Hoy`
+  - `Siguiente`
+  - rango tecnico `YYYY-MM-DD - YYYY-MM-DD`
+
+### Verificacion
+
+- Se verifico lo documentado en esta fase.
+- Backend y DB permanecen intactos.
+- Selector de meses conservado tras la limpieza.
+- Controles viejos eliminados.
+
 ## Fase 1D.2B - Proximo horario disponible
 
 **Estado:** COMPLETADA

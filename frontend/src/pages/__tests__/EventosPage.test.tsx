@@ -128,6 +128,87 @@ describe('EventosPage', () => {
 
     expect(await screen.findByText('Eventos')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nuevo Evento' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mes anterior' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mes siguiente' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Hoy')).not.toBeInTheDocument()
+    expect(screen.queryByText(/2026-\d{2}-\d{2} - 2026-\d{2}-\d{2}/)).not.toBeInTheDocument()
+  })
+
+  it('shows selector with current month and opens the month list', async () => {
+    await renderPage()
+
+    const monthButton = await screen.findByRole('button', { name: /Agosto de 2026/ })
+    expect(monthButton).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(monthButton).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.setup().click(monthButton)
+
+    const listbox = await screen.findByRole('listbox', { name: 'Selector de mes' })
+    expect(listbox).toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: /Agosto de 2026/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('shows 6 months before and future months in the selector', async () => {
+    await renderPage()
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
+
+    const listbox = await screen.findByRole('listbox', { name: 'Selector de mes' })
+    expect(within(listbox).getByRole('option', { name: /Febrero de 2026/ })).toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: /Julio de 2026/ })).toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: /Septiembre de 2026/ })).toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: /Febrero de 2027/ })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: /Enero de 2026/ })).not.toBeInTheDocument()
+  })
+
+  it('changes month when selecting previous or next month', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
+    await user.click(await screen.findByRole('option', { name: /Julio de 2026/ }))
+    expect(await screen.findByRole('button', { name: /Julio de 2026/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Julio de 2026/ }))
+    await user.click(await screen.findByRole('option', { name: /Agosto de 2026/ }))
+    expect(await screen.findByRole('button', { name: /Agosto de 2026/ })).toBeInTheDocument()
+  })
+
+  it('reconsults the visible range when the month changes', async () => {
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalled())
+    const initialCalls = apiState.listarRango.mock.calls.length
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
+    await user.click(await screen.findByRole('option', { name: /Septiembre de 2026/ }))
+
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(initialCalls + 1))
+  })
+
+  it('keeps the day popup and availability flows intact', async () => {
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    await user.click(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+    const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dayDialog).getByRole('button', { name: 'Añadir evento' })).toBeInTheDocument()
   })
 
   it('opens the create form and shows the expected fields', async () => {

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CalendarDays, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
 import type { ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
@@ -147,6 +147,37 @@ function addMonths(date: Date, months: number) {
   return new Date(date.getFullYear(), date.getMonth() + months, date.getDate())
 }
 
+function startOfMonthCopy(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`
+}
+
+function addMonthsToMonthStart(date: Date, months: number) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1)
+}
+
+function buildMonthOptions(anchor: Date) {
+  const nowMonth = startOfMonthCopy(new Date())
+  const minMonth = addMonthsToMonthStart(nowMonth, -6)
+  const options: Array<{ key: string; label: string; date: Date; selected: boolean; pastLimit: boolean }> = []
+
+  for (let offset = -6; offset <= 36; offset += 1) {
+    const date = addMonthsToMonthStart(anchor, offset)
+    options.push({
+      key: monthKey(date),
+      label: formatMonthTitle(date),
+      date,
+      selected: monthKey(date) === monthKey(anchor),
+      pastLimit: date < minMonth,
+    })
+  }
+
+  return options.filter(option => !option.pastLimit)
+}
+
 function parseEventDateTime(fecha: string, hora: string) {
   const [year, month, day] = fecha.slice(0, 10).split('-').map(Number)
   const [hours, minutes] = hora.slice(0, 5).split(':').map(Number)
@@ -224,10 +255,6 @@ function buildVisibleDays(anchor: Date) {
     current.setDate(current.getDate() + 1)
   }
   return { days, desde: toDateKey(start), hasta: toDateKey(end) }
-}
-
-function shiftMonth(date: Date, delta: number) {
-  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
 }
 
 function statusStyles(estado: string) {
@@ -324,8 +351,11 @@ export default function EventosPage() {
   const [proximosEventos, setProximosEventos] = useState<EventoDto[]>([])
   const [proximosLoading, setProximosLoading] = useState(true)
   const [proximosError, setProximosError] = useState<string | null>(null)
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false)
+  const monthPickerRef = useRef<HTMLDivElement | null>(null)
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
+  const monthOptions = useMemo(() => buildMonthOptions(monthAnchor), [monthAnchor])
 
   useEffect(() => {
     let active = true
@@ -382,6 +412,18 @@ export default function EventosPage() {
       active = false
     }
   }, [reloadKey])
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!monthPickerOpen) return
+      if (monthPickerRef.current && !monthPickerRef.current.contains(event.target as Node)) {
+        setMonthPickerOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [monthPickerOpen])
 
   useEffect(() => {
     if (!selectedEvento) {
@@ -464,6 +506,11 @@ export default function EventosPage() {
   }, [proximosEventos, reloadKey])
 
   const monthTitle = formatMonthTitle(monthAnchor)
+
+  function changeMonth(nextMonth: Date) {
+    setMonthAnchor(startOfMonthCopy(nextMonth))
+    setMonthPickerOpen(false)
+  }
 
   const timeError = useMemo(() => {
     if (!createForm.horaInicio || !createForm.horaFin) return ''
@@ -1047,41 +1094,44 @@ export default function EventosPage() {
           <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => abrirAltaEvento()}>
             Nuevo Evento
           </Button>
-          <button
-            type="button"
-            onClick={() => setMonthAnchor(shiftMonth(monthAnchor, -1))}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            aria-label="Mes anterior"
-          >
-            <ChevronLeft size={14} />
-            <span className="hidden sm:inline">Anterior</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMonthAnchor(startOfMonth(new Date()))}
-            className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Hoy
-          </button>
-          <button
-            type="button"
-            onClick={() => setMonthAnchor(shiftMonth(monthAnchor, 1))}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            aria-label="Mes siguiente"
-          >
-            <span className="hidden sm:inline">Siguiente</span>
-            <ChevronRight size={14} />
-          </button>
         </div>
       }
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600" ref={monthPickerRef}>
           <CalendarDays size={16} className="text-indigo-600" />
-          <span className="font-semibold text-gray-900">{monthTitle}</span>
-        </div>
-        <div className="text-xs text-gray-500">
-          {range.desde} - {range.hasta}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMonthPickerOpen(prev => !prev)}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+              aria-haspopup="listbox"
+              aria-expanded={monthPickerOpen}
+            >
+              <span>{monthTitle}</span>
+              <ChevronRight size={14} className={`transition-transform ${monthPickerOpen ? 'rotate-90' : ''}`} />
+            </button>
+
+            {monthPickerOpen && (
+              <div className="absolute left-0 top-full z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
+                <div className="max-h-80 overflow-y-auto py-1" role="listbox" aria-label="Selector de mes">
+                  {monthOptions.map(option => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      role="option"
+                      aria-selected={option.selected}
+                      onClick={() => changeMonth(option.date)}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-indigo-50 ${option.selected ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
+                    >
+                      <span>{option.label}</span>
+                      {option.selected ? <span aria-hidden="true">✓</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
