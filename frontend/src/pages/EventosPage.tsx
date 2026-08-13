@@ -1457,6 +1457,22 @@ export default function EventosPage() {
             <p className="text-xs font-medium text-red-600">{fechaError}</p>
           )}
 
+          <div className={`rounded-xl border px-4 py-3 text-sm ${
+            disponibilidad.estado === 'available'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : disponibilidad.estado === 'unavailable'
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : disponibilidad.estado === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-600'
+          }`}>
+            {disponibilidad.estado === 'idle' && 'Completá fecha y horarios para validar disponibilidad.'}
+            {disponibilidad.estado === 'loading' && 'Consultando disponibilidad...'}
+            {disponibilidad.estado === 'available' && 'Horario disponible'}
+            {disponibilidad.estado === 'unavailable' && 'Horario no disponible'}
+            {disponibilidad.estado === 'error' && disponibilidad.mensaje}
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="evento-invitados" className="text-xs font-semibold text-gray-700">Cantidad de invitados *</label>
@@ -1496,21 +1512,6 @@ export default function EventosPage() {
             />
           </div>
 
-          <div className={`rounded-xl border px-4 py-3 text-sm ${
-            disponibilidad.estado === 'available'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : disponibilidad.estado === 'unavailable'
-                ? 'border-amber-200 bg-amber-50 text-amber-800'
-                : disponibilidad.estado === 'error'
-                  ? 'border-red-200 bg-red-50 text-red-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-600'
-          }`}>
-            {disponibilidad.estado === 'idle' && 'Completá fecha y horarios para validar disponibilidad.'}
-            {disponibilidad.estado === 'loading' && disponibilidad.mensaje}
-            {disponibilidad.estado === 'available' && disponibilidad.mensaje}
-            {disponibilidad.estado === 'unavailable' && disponibilidad.mensaje}
-            {disponibilidad.estado === 'error' && disponibilidad.mensaje}
-          </div>
         </form>
       </Dialog>
 

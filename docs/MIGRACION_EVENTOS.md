@@ -487,6 +487,144 @@ La disponibilidad sigue siendo logica de `EventoService`, no del repository.
 - Eventos de distintos Clientes muestran correctamente su reservador
 - flujo general funciona correctamente
 
+## Fase 1D.2A - Disponibilidad automática debajo del horario
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1d2a-disponibilidad-horario-ok`
+
+### Objetivo
+
+- la disponibilidad del Evento ahora se muestra automaticamente inmediatamente debajo de `Hora inicio` y `Hora fin`
+- estados visibles:
+  - `Horario disponible`
+  - `Horario no disponible`
+- antes el resultado se mostraba en un bloque general al pie del formulario
+
+### Consulta automatica
+
+- la disponibilidad se consulta automaticamente cuando cambia `fecha`, `horaInicio` o `horaFin`
+- siempre que los tres datos sean validos
+- se mantiene el debounce existente
+- no existe boton manual de `Consultar disponibilidad`
+
+### Datos incompletos
+
+- si falta `fecha`, `horaInicio` o `horaFin`, no se consulta el backend
+- el formulario permanece en estado neutral
+- no se muestra falsamente `Horario disponible` ni `Horario no disponible`
+
+### Horario invalido
+
+- si `horaFin <= horaInicio`, no se realiza la consulta de disponibilidad
+- primero se muestra la validacion existente del horario
+
+### Backend como autoridad
+
+- se reutiliza exactamente `GET /api/eventos/disponibilidad`
+- la regla de disponibilidad no se duplico en frontend
+- el backend sigue siendo la autoridad para determinar si el horario esta disponible
+
+### Regla de 30 minutos
+
+- no se modifico ni se duplico la regla existente de 30 minutos de preparacion entre Eventos
+- la regla sigue funcionando exactamente como antes
+
+### Edicion
+
+- la disponibilidad automatica tambien funciona al editar un Evento
+- se continua utilizando `eventoIdExcluir`
+- el Evento editado no colisiona consigo mismo
+
+### Alta desde calendario
+
+- tambien funciona con el flujo agregado en 1D.1B
+- flujo:
+  - Calendario
+  - seleccionar dia
+  - `Eventos del dia`
+  - `Anadir evento`
+  - fecha precargada
+  - elegir `horaInicio` / `horaFin`
+  - disponibilidad automatica debajo del horario
+- no se agrego logica paralela para este flujo
+
+### Prueba manual
+
+- horario libre -> `Horario disponible`
+- horario ocupado -> `Horario no disponible`
+- cambiar horario -> vuelve a consultar automaticamente
+- alta desde `Anadir evento` del calendario
+- edicion de Evento existente
+- Evento editado no colisiona consigo mismo
+- comportamiento general correcto
+
+### Tests
+
+- `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`
+- resultado final: `48 passed`, `0 failed`
+- la cobertura agregada/modificada contempla:
+  - consulta automatica
+  - ubicacion visual del mensaje
+  - datos incompletos
+  - horarios invalidos
+  - cambio de horario
+  - edicion
+  - `eventoIdExcluir`
+  - alta desde dia seleccionado
+  - regla de 30 minutos no replicada en frontend
+- pueden seguir apareciendo warnings preexistentes de `act(...)` sin provocar fallos
+
+### Build
+
+- `npm.cmd run build`
+- `OK`
+
+### No modificado
+
+Esta fase NO modifico:
+
+- backend
+- DB
+- migraciones
+- `EventoService`
+- `EventoRepository`
+- endpoint de disponibilidad
+- regla de 30 minutos
+- `ClienteService`
+- `ClientesController`
+- familiares
+- telefonos
+- WhatsApp
+- Llamar
+- contrato PDF
+- Caja
+- Pagos
+- Mercado Pago
+- QR
+- JWT
+- claims
+- `sucursalId`
+
+### Proxima fase
+
+## Fase 1D.2B - Proximo horario disponible
+
+**Objetivo previsto:**
+
+- si el horario solicitado no esta disponible:
+  - `Horario no disponible`
+  - `Proximo horario disponible: XX:XX`
+
+**Importante:**
+
+- no implementar 1D.2B ahora
+- la proxima hora disponible debera diseñarse manteniendo al backend como autoridad de las reglas de disponibilidad y evitando duplicar en frontend la regla de 30 minutos
+
+### Estado funcional actual
+
+- `Nuevo Evento` -> seleccionar fecha -> seleccionar `horaInicio` -> seleccionar `horaFin` -> consulta automatica -> resultado debajo del horario -> continuar con creacion si esta disponible
+- `Calendario` -> dia -> `Anadir evento` -> fecha precargada -> seleccionar horarios -> disponibilidad automatica
+
 ### Tests
 
 - `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`

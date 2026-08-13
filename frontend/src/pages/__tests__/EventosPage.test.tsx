@@ -740,7 +740,7 @@ describe('EventosPage', () => {
     await user.type(within(createDialog).getByLabelText(/Monto total/), '300000')
 
     await pause(350)
-    await waitFor(() => expect(within(createDialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(createDialog).getByText('Horario disponible')).toBeInTheDocument())
     await user.click(within(createDialog).getByRole('button', { name: 'Guardar Evento' }))
 
     await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
@@ -912,6 +912,78 @@ describe('EventosPage', () => {
     expect(apiState.editar).not.toHaveBeenCalled()
   })
 
+  it('rechecks availability when schedule values change and keeps edit exclusion', async () => {
+    apiState.listarClientes.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+    apiState.consultarDisponibilidad.mockResolvedValue(true)
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Editar' }))
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Editar Evento' })
+    await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith(expect.objectContaining({
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      eventoIdExcluir: 1,
+    })))
+
+    apiState.consultarDisponibilidad.mockClear()
+    fireEvent.change(within(editDialog).getByLabelText(/Hora fin/), { target: { value: '23:00' } })
+    await pause(350)
+    expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith(expect.objectContaining({ eventoIdExcluir: 1, horaFin: '23:00:00' }))
+  })
+
+  it('does not replicate the 30 minute rule in the frontend', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '18:20')
+
+    await pause(350)
+
+    expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith(expect.objectContaining({
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '18:20:00',
+    }))
+  })
+
   it('allows today on create', async () => {
     apiState.listarClientes.mockResolvedValue({
       items: [
@@ -962,7 +1034,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
 
     await pause(350)
-    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(dialog).getByText('Horario disponible')).toBeInTheDocument())
 
     await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
     await waitFor(() => expect(apiState.crear).toHaveBeenCalledTimes(1))
@@ -1019,7 +1091,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
 
     await pause(350)
-    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(dialog).getByText('Horario disponible')).toBeInTheDocument())
 
     await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
     await waitFor(() => expect(apiState.crear).toHaveBeenCalledTimes(1))
@@ -1039,7 +1111,7 @@ describe('EventosPage', () => {
     expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
   })
 
-  it('calls disponibilidad and shows Disponible', async () => {
+  it('calls disponibilidad and shows Horario disponible', async () => {
     const { user, dialog } = await abrirAlta()
 
     fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
@@ -1053,7 +1125,9 @@ describe('EventosPage', () => {
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
     }))
-    expect(within(dialog).getByText('Disponible')).toBeInTheDocument()
+    const availability = within(dialog).getByText('Horario disponible')
+    expect(availability).toBeInTheDocument()
+    expect(availability.previousElementSibling?.textContent).toContain('Hora fin')
   })
 
   it('shows Horario no disponible and blocks save', async () => {
@@ -1068,6 +1142,39 @@ describe('EventosPage', () => {
 
     expect(within(dialog).getByText('Horario no disponible')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Guardar Evento' })).toBeDisabled()
+  })
+
+  it('shows availability below the schedule block', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+
+    const availability = within(dialog).getByText('Horario disponible')
+    const scheduleBlock = within(dialog).getByLabelText(/Hora inicio/).closest('div')?.parentElement
+    expect(scheduleBlock).not.toBeNull()
+    expect(scheduleBlock!.compareDocumentPosition(availability) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('does not query availability without fecha, horaInicio or horaFin', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await pause(350)
+    expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
+
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await pause(350)
+    expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
+
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '17:00')
+    await pause(350)
+    expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
   })
 
   it('creates event with the exact payload and refreshes the calendar', async () => {
@@ -1125,7 +1232,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Observaciones/), 'Sin alcohol')
 
     await pause(350)
-    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(dialog).getByText('Horario disponible')).toBeInTheDocument())
 
     await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
 
@@ -1180,7 +1287,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
 
     await pause(350)
-    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(dialog).getByText('Horario disponible')).toBeInTheDocument())
 
     await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
 
@@ -1223,7 +1330,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Monto total/), '500000')
 
     await pause(350)
-    await waitFor(() => expect(within(dialog).getByText('Disponible')).toBeInTheDocument())
+    await waitFor(() => expect(within(dialog).getByText('Horario disponible')).toBeInTheDocument())
 
     await user.click(within(dialog).getByRole('button', { name: 'Guardar Evento' }))
 
