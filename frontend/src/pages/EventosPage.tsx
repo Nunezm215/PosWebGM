@@ -198,9 +198,9 @@ interface EventoAltaFormState {
 
 type DisponibilidadEstado = 'idle' | 'loading' | 'available' | 'unavailable' | 'error'
 
-function createEmptyForm(): EventoAltaFormState {
+function createEmptyForm(fecha = formatDateInput(new Date())): EventoAltaFormState {
   return {
-    fecha: formatDateInput(new Date()),
+    fecha,
     horaInicio: '',
     horaFin: '',
     tipoEvento: '',
@@ -309,6 +309,7 @@ export default function EventosPage() {
   const [clienteDetalle, setClienteDetalle] = useState<ClienteDto | null>(null)
   const [clienteDetalleLoading, setClienteDetalleLoading] = useState(false)
   const [clienteDetalleError, setClienteDetalleError] = useState('')
+  const [clientesPorId, setClientesPorId] = useState<Record<number, string>>({})
 
   const [cancelarOpen, setCancelarOpen] = useState(false)
   const [cancelarError, setCancelarError] = useState('')
@@ -411,6 +412,27 @@ export default function EventosPage() {
       active = false
     }
   }, [selectedEvento?.clienteId, selectedEvento?.id])
+
+  useEffect(() => {
+    if (!selectedDay) return
+    if (Object.keys(clientesPorId).length > 0) return
+
+    let active = true
+    api.clientes.listar(undefined, 1, 1000, true)
+      .then(result => {
+        if (!active) return
+        const next: Record<number, string> = {}
+        for (const cliente of result.items ?? []) {
+          if (cliente.id) next[cliente.id] = cliente.nombre
+        }
+        setClientesPorId(next)
+      })
+      .catch(() => {})
+
+    return () => {
+      active = false
+    }
+  }, [selectedDay, clientesPorId])
 
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoDto[]>()
@@ -553,16 +575,16 @@ export default function EventosPage() {
     }
   }, [createOpen, formMode, editingEventoId, createForm.fecha, createForm.horaInicio, createForm.horaFin])
 
-  function abrirAltaEvento() {
+  function abrirAltaEvento(fecha?: string) {
     setSelectedEvento(null)
     setFormMode('create')
     setEditingEventoId(null)
     setCreateOpen(true)
-    resetAltaEventoState()
+    resetAltaEventoState(fecha)
   }
 
-  function resetAltaEventoState() {
-    setCreateForm(createEmptyForm())
+  function resetAltaEventoState(fecha?: string) {
+    setCreateForm(createEmptyForm(fecha))
     setCreateError('')
     setFormMode('create')
     setEditingEventoId(null)
@@ -584,6 +606,10 @@ export default function EventosPage() {
     if (saving) return
     setCreateOpen(false)
     resetAltaEventoState()
+  }
+
+  function canAddEventFromDay(dateKey: string) {
+    return dateKey >= todayDateKey
   }
 
   async function abrirEdicionEvento(evento: EventoDto) {
@@ -1010,7 +1036,7 @@ export default function EventosPage() {
       onErrorClose={() => setError(null)}
       actions={
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={abrirAltaEvento}>
+          <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => abrirAltaEvento()}>
             Nuevo Evento
           </Button>
           <button
@@ -1198,6 +1224,22 @@ export default function EventosPage() {
         title="Eventos del día"
         description={selectedDay ? formatLongDayLabel(selectedDay) : undefined}
         width="md"
+        footer={selectedDay ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedDay(null)}>
+              Cerrar
+            </Button>
+            {canAddEventFromDay(selectedDay) && (
+              <Button variant="confirm" size="sm" onClick={() => {
+                const fechaSeleccionada = selectedDay
+                setSelectedDay(null)
+                abrirAltaEvento(fechaSeleccionada)
+              }}>
+                Añadir evento
+              </Button>
+            )}
+          </>
+        ) : undefined}
       >
         {selectedDay && (
           <div className="space-y-3">
@@ -1223,6 +1265,9 @@ export default function EventosPage() {
                         </div>
                         <div className="text-sm font-medium text-gray-900 truncate">
                           {evento.tipoEvento}
+                        </div>
+                        <div className="text-xs text-gray-700 truncate">
+                          Reservado por: {clientesPorId[evento.clienteId]?.trim() || `Cliente #${evento.clienteId}`}
                         </div>
                         <div className="text-xs text-gray-700">
                           {evento.cantidadInvitados} invitados
@@ -1694,7 +1739,10 @@ export default function EventosPage() {
             <DetailRow label="Invitados" value={String(selectedEvento.cantidadInvitados)} />
             <DetailRow label="Monto" value={formatCurrency(selectedEvento.montoTotal)} />
             <DetailRow label="Estado" value={selectedEvento.estado} />
-            <DetailRow label="Cliente" value={`Cliente #${selectedEvento.clienteId}`} />
+            <DetailRow
+              label="Reservado por"
+              value={clienteDetalle?.nombre?.trim() || `Cliente #${selectedEvento.clienteId}`}
+            />
             <DetailRow label="Usuario creador" value={`Usuario #${selectedEvento.usuarioCreadorId}`} />
             <div className="pt-3 mt-2 border-t border-gray-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contacto</p>

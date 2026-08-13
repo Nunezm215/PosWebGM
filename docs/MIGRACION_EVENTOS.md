@@ -356,20 +356,191 @@ La disponibilidad sigue siendo logica de `EventoService`, no del repository.
 - JWT
 - `sucursalId`
 
+### Fase 1D.1B - Anadir Evento desde popup diario
+
+**Estado:** COMPLETADA  
+**Tag Git previsto:** `fase-1d1b-anadir-evento-desde-dia-ok`
+
+### Flujo implementado
+
+- click/tap en dia
+- popup `Eventos del dia`
+- boton `Anadir evento`
+- modal existente `Nuevo Evento`
+- fecha del dia seleccionado precargada
+- no se creo otro formulario ni otro modal de alta
+
+### Boton `Anadir evento`
+
+- aparece cuando corresponde
+- funciona en dias sin Eventos
+- funciona en dias con uno o mas Eventos
+- cierra el popup diario antes de abrir `Nuevo Evento`
+
+### Fechas pasadas, hoy y futuras
+
+- fecha pasada: permite abrir popup y consultar historicos, pero no permite `Anadir evento`
+- hoy: permite `Anadir evento`
+- fecha futura: permite `Anadir evento`
+- la comparacion se realiza por fecha calendario local
+- no se modifico la regla existente que impide crear Eventos en el pasado
+
+### Precarga
+
+- al tocar `Anadir evento`, se abre el modal existente `Nuevo Evento`
+- la fecha seleccionada se precarga automaticamente
+- ejemplo: dia `2026-08-22` -> `Nuevo Evento` con `fecha = 2026-08-22`
+- solo se precarga `fecha`
+- no se precargan automaticamente:
+  - `horaInicio`
+  - `horaFin`
+  - `Cliente`
+  - `tipoEvento`
+  - `cantidadInvitados`
+  - `montoTotal`
+  - `observaciones`
+
+### Nuevo Evento general
+
+- el boton general `Nuevo Evento` sigue funcionando independientemente
+- no hereda accidentalmente la ultima fecha seleccionada del calendario
+
+### Disponibilidad
+
+- no se modifico el endpoint de disponibilidad
+- no se modifico el debounce existente
+- no se modifico la logica de disponibilidad
+- no se modifico la regla de preparacion de 30 minutos
+- el flujo sigue siendo: fecha precargada -> usuario elige horarios -> disponibilidad se valida como antes
+
+### Guardado y refresco
+
+- el alta desde el popup reutiliza el mismo flujo normal de creacion de Evento
+- el payload usa la fecha seleccionada normalmente
+- despues de crear, se cierra `Nuevo Evento`
+- luego se refresca el calendario con el mecanismo existente
+- el Evento nuevo aparece en el calendario
+- no se agrego un mecanismo alternativo de guardado/refresco
+
+### Reservado por - detalle
+
+- el detalle existente de un Evento ahora muestra `Reservado por: Nombre del cliente`
+- el Cliente ya se obtenia mediante `api.clientes.obtener(selectedEvento.clienteId)`
+- ese dato se almacenaba en `clienteDetalle`
+- se reutilizo esa carga existente
+- no se agrego una request adicional para este dato
+- fallback: `Cliente #ID` si el nombre no esta disponible
+
+### Reservado por - popup diario
+
+- cada tarjeta de Evento dentro de `Eventos del dia` tambien muestra `Reservado por: Nombre del cliente`
+- ejemplo visual:
+  - `10:00 - 12:00`
+  - `Reservado`
+  - `Cumple`
+  - `Reservado por: Juan Perez`
+  - `10 invitados`
+
+### Clientes en popup diario
+
+- para evitar N+1 requests se utiliza un cache/mapa local `clientesPorId`
+- el catalogo de Clientes se carga una sola vez con `api.clientes.listar(undefined, 1, 1000, true)`
+- luego las tarjetas resuelven `clienteId -> nombre` desde ese cache
+- no se hace `1 Evento = 1 request` al abrir el popup
+- 5 Eventos no generan 5 requests individuales a Clientes
+
+### Fallback de cliente
+
+- si el nombre no esta disponible, se muestra `Reservado por: Cliente #ID`
+- el Evento continua renderizandose normalmente
+- la ausencia del nombre no rompe el popup diario, el detalle ni el calendario
+
+### Fase 1D.1A intacta
+
+- click en dia
+- popup `Eventos del dia`
+- fecha amigable
+- lista de Eventos
+- orden por hora
+- dia vacio
+- fechas pasadas
+- Cancelados
+- click Evento -> detalle
+- prevencion de propagacion del click
+- soporte de teclado/aria-label
+- cierre del popup
+
+### Prueba manual
+
+- abrir dia con Evento
+- abrir dia con varios Eventos
+- abrir dia vacio
+- `Anadir evento` desde dia permitido
+- fecha seleccionada precargada
+- Cliente y horarios no precargados
+- creacion del Evento
+- Evento aparece en calendario
+- fecha pasada sin `Anadir evento`
+- boton general `Nuevo Evento` sigue independiente
+- `Reservado por` aparece en detalle
+- `Reservado por` aparece en popup diario
+- Eventos de distintos Clientes muestran correctamente su reservador
+- flujo general funciona correctamente
+
+### Tests
+
+- `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`
+- resultado final: `44 passed`, `0 failed`
+- pueden seguir apareciendo warnings preexistentes de `act(...)` sin provocar fallos de la suite
+
+### Build
+
+- `npm.cmd run build`
+- `OK`
+
+### No modificado
+
+Esta fase no modifico:
+
+- backend
+- DB
+- migraciones
+- `EventoService`
+- `EventoRepository`
+- disponibilidad backend
+- regla de 30 minutos
+- `ClienteService`
+- `ClientesController`
+- familiares
+- normalizacion de telefonos
+- WhatsApp
+- Llamar
+- `ContratoEventoPdfService`
+- Caja
+- `PagoEvento`
+- `GastoEvento`
+- Mercado Pago
+- QR
+- JWT
+- claims
+- `sucursalId`
+
+### Estado final conseguido entre 1D.1A y 1D.1B
+
+- Calendario -> seleccionar dia -> `Eventos del dia`
+- ver Eventos y quien reservo
+- `Anadir evento`
+- `Nuevo Evento`
+- fecha seleccionada precargada
+- completar horario/Cliente
+- validar disponibilidad
+- guardar
+- refrescar calendario
+
 ### Proxima fase
 
-## Fase 1D.1B - Anadir Evento desde popup diario
-
-Objetivo previsto:
-
-- click dia
-- popup diario
-- Anadir evento
-- reutilizar modal `Nuevo Evento`
-- fecha seleccionada precargada
-
-Esta fase no se implementa ahora.
-- MySQL real no fue tocado.
+- continuar con mejoras menores de Eventos si se consideran necesarias
+- o avanzar con la siguiente etapa funcional
 
 ### Nota tecnica MySQL
 

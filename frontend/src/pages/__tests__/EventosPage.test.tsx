@@ -78,7 +78,7 @@ describe('EventosPage', () => {
     apiState.crearCliente.mockResolvedValue({})
     apiState.obtenerCliente.mockResolvedValue({
       id: 1,
-      nombre: 'Cliente Prueba',
+      nombre: 'Juan Pérez',
       tipoDocumento: 'DNI',
       numeroDocumento: '12345678',
       ivaCondicion: 'ConsumidorFinal',
@@ -98,6 +98,19 @@ describe('EventosPage', () => {
     date.setDate(date.getDate() + offsetDays)
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   }
+
+  const dayLabelFromDateKey = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-').map(Number)
+    const raw = new Date(year, month - 1, day).toLocaleDateString('es-AR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
+
+  const dayButtonName = (dateKey: string) => new RegExp(`Eventos del día .*${dayLabelFromDateKey(dateKey).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
 
   function renderPage() {
     return import('../../pages/EventosPage').then(({ default: EventosPage }) => render(<EventosPage />))
@@ -441,6 +454,30 @@ describe('EventosPage', () => {
   })
 
   it('opens the daily dialog when clicking a day', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          nombre: 'Juan Pérez',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+        {
+          id: 2,
+          nombre: 'María Gómez',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '87654321',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
     apiState.listarRango.mockResolvedValueOnce([
       {
         id: 1,
@@ -459,7 +496,7 @@ describe('EventosPage', () => {
       },
       {
         id: 2,
-        clienteId: 1,
+        clienteId: 2,
         usuarioCreadorId: 1,
         sucursalId: 1,
         fecha: '2026-08-15',
@@ -481,11 +518,55 @@ describe('EventosPage', () => {
     await user.click(screen.getByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    await waitFor(() => expect(apiState.listarClientes).toHaveBeenCalledTimes(1))
     expect(within(dialog).getByText(/2 eventos?/)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '10:00 Brunch' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '18:00 Cumpleaños' })).toBeInTheDocument()
     expect(within(dialog).getAllByText('18:00 - 22:00')[0]).toBeInTheDocument()
     expect(within(dialog).getAllByText('10:00 - 12:00')[0]).toBeInTheDocument()
+    expect(within(dialog).getByText('Reservado por: Juan Pérez')).toBeInTheDocument()
+    expect(within(dialog).getByText('Reservado por: María Gómez')).toBeInTheDocument()
+  })
+
+  it('shows a fallback reserved-by label when the client is not in cache', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [{
+        id: 1,
+        nombre: 'Juan Pérez',
+        tipoDocumento: 'DNI',
+        numeroDocumento: '12345678',
+        ivaCondicion: 'ConsumidorFinal',
+        activo: true,
+      }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 99,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByText('Reservado por: Cliente #99')).toBeInTheDocument()
   })
 
   it('shows the empty day message when clicking a day without events', async () => {
@@ -499,6 +580,187 @@ describe('EventosPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     expect(within(dialog).getByText('No hay eventos para este día.')).toBeInTheDocument()
+  })
+
+  it('does not show Añadir evento for a past day', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+
+    await renderPage()
+
+    const pastKey = dateKeyFromToday(-1)
+    const pastDay = await screen.findByRole('button', { name: dayButtonName(pastKey) })
+    await userEvent.setup().click(pastDay)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).queryByRole('button', { name: 'Añadir evento' })).not.toBeInTheDocument()
+  })
+
+  it('shows Añadir evento for today and future days', async () => {
+    apiState.listarRango.mockResolvedValue([])
+
+    await renderPage()
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: dayButtonName(dateKeyFromToday(1)) }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByRole('button', { name: 'Añadir evento' })).toBeInTheDocument()
+  })
+
+  it('shows Añadir evento for a day that already has events', async () => {
+    const key = dateKeyFromToday(1)
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: key,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: dayButtonName(key) }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByRole('button', { name: 'Añadir evento' })).toBeInTheDocument()
+  })
+
+  it('opens Nuevo Evento with the selected day when clicking Añadir evento', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+
+    await renderPage()
+    const user = userEvent.setup()
+    const selectedKey = dateKeyFromToday(1)
+    await user.click(await screen.findByRole('button', { name: dayButtonName(selectedKey) }))
+
+    const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    await user.click(within(dayDialog).getByRole('button', { name: 'Añadir evento' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Eventos del día' })).not.toBeInTheDocument()
+    const createDialog = await screen.findByRole('dialog', { name: 'Nuevo Evento' })
+    expect(within(createDialog).getByLabelText(/Fecha/)).toHaveValue(selectedKey)
+    expect(within(createDialog).getByLabelText(/Hora inicio/)).toHaveValue('')
+    expect(within(createDialog).getByLabelText(/Hora fin/)).toHaveValue('')
+    expect(within(createDialog).getByLabelText(/Cliente/)).toHaveValue('')
+  })
+
+  it('keeps the general Nuevo Evento button independent from the selected day', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: dayButtonName(dateKeyFromToday(1)) }))
+    const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    await user.click(within(dayDialog).getAllByRole('button', { name: /^Cerrar$/ })[1])
+    await user.click(screen.getByRole('button', { name: 'Nuevo Evento' }))
+
+    const createDialog = await screen.findByRole('dialog', { name: 'Nuevo Evento' })
+    expect(await within(createDialog).findByDisplayValue(dateKeyFromToday())).toBeInTheDocument()
+  })
+
+  it('cierra el popup diario sin abrir Nuevo Evento', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+
+    await renderPage()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: dayButtonName(dateKeyFromToday(1)) }))
+
+    const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    await user.click(within(dayDialog).getAllByRole('button', { name: /^Cerrar$/ })[1])
+
+    expect(screen.queryByRole('dialog', { name: 'Eventos del día' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument()
+  })
+
+  it('abre Nuevo Evento desde el popup con la fecha seleccionada y conserva la validacion existente', async () => {
+    apiState.listarRango.mockResolvedValueOnce([])
+    apiState.listarClientes.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          nombre: 'Cliente Prueba',
+          tipoDocumento: 'DNI',
+          numeroDocumento: '12345678',
+          ivaCondicion: 'ConsumidorFinal',
+          activo: true,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    })
+    apiState.consultarDisponibilidad.mockResolvedValueOnce(true)
+    apiState.crear.mockResolvedValueOnce({
+      id: 77,
+      clienteId: 1,
+      usuarioCreadorId: 7,
+      sucursalId: 3,
+      fecha: dateKeyFromToday(1),
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 30,
+      montoTotal: 300000,
+      observaciones: null,
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+
+    await renderPage()
+    const user = userEvent.setup()
+    const selectedKey = dateKeyFromToday(1)
+    await user.click(await screen.findByRole('button', { name: dayButtonName(selectedKey) }))
+    const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    await user.click(within(dayDialog).getByRole('button', { name: 'Añadir evento' }))
+
+    const createDialog = await screen.findByRole('dialog', { name: 'Nuevo Evento' })
+    expect(within(createDialog).getByLabelText(/Fecha/)).toHaveValue(selectedKey)
+    expect(within(createDialog).getByLabelText(/Hora inicio/)).toHaveValue('')
+    expect(within(createDialog).getByLabelText(/Hora fin/)).toHaveValue('')
+    expect(within(createDialog).getByLabelText(/Cliente/)).toHaveValue('')
+
+    await user.type(within(createDialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
+    await pause(350)
+    await user.click(within(createDialog).getByRole('button', { name: /Cliente Prueba/ }))
+    await user.type(within(createDialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(createDialog).getByLabelText(/Hora fin/), '22:00')
+    await user.type(within(createDialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
+    await user.type(within(createDialog).getByLabelText(/Cantidad de invitados/), '30')
+    await user.type(within(createDialog).getByLabelText(/Monto total/), '300000')
+
+    await pause(350)
+    await waitFor(() => expect(within(createDialog).getByText('Disponible')).toBeInTheDocument())
+    await user.click(within(createDialog).getByRole('button', { name: 'Guardar Evento' }))
+
+    await waitFor(() => expect(apiState.crear).toHaveBeenCalledWith(expect.objectContaining({
+      fecha: selectedKey,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+    })))
+    expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('usuarioCreadorId')
+    expect(apiState.crear.mock.calls[0][0]).not.toHaveProperty('sucursalId')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Nuevo Evento' })).not.toBeInTheDocument())
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(4))
+  }, 10000)
+
+  it('keeps the fecha validation intact for past dates in Nuevo Evento', async () => {
+    const { dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: dateKeyFromToday(-1) } })
+
+    expect(within(dialog).getByText('No se puede reservar un evento en una fecha anterior a hoy')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Guardar Evento' })).toBeDisabled()
   })
 
   it('keeps event clicks opening the detail dialog', async () => {
@@ -1014,6 +1276,8 @@ describe('EventosPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
     await waitFor(() => expect(apiState.obtenerCliente).toHaveBeenCalledWith(1))
+    expect(within(dialog).getByText('Reservado por')).toBeInTheDocument()
+    expect(within(dialog).getByText('Juan Pérez')).toBeInTheDocument()
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
     expect(await within(dialog).findByText('Contacto')).toBeInTheDocument()
