@@ -1131,7 +1131,7 @@ describe('EventosPage', () => {
   })
 
   it('shows Horario no disponible and blocks save', async () => {
-    apiState.consultarDisponibilidad.mockResolvedValueOnce(false)
+    apiState.consultarDisponibilidad.mockResolvedValueOnce({ disponible: false, proximaHoraDisponible: '22:30' })
     const { user, dialog } = await abrirAlta()
 
     fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
@@ -1140,8 +1140,23 @@ describe('EventosPage', () => {
 
     await pause(350)
 
-    expect(within(dialog).getByText('Horario no disponible')).toBeInTheDocument()
+    expect(within(dialog).getByText(/Horario no disponible/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Próximo horario disponible: 22:30/)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Guardar Evento' })).toBeDisabled()
+  })
+
+  it('does not invent a next slot when backend returns null', async () => {
+    apiState.consultarDisponibilidad.mockResolvedValueOnce({ disponible: false, proximaHoraDisponible: null })
+    const { user, dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+
+    expect(within(dialog).getByText(/Horario no disponible/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/Próximo horario disponible/)).not.toBeInTheDocument()
   })
 
   it('shows availability below the schedule block', async () => {
@@ -1157,6 +1172,23 @@ describe('EventosPage', () => {
     const scheduleBlock = within(dialog).getByLabelText(/Hora inicio/).closest('div')?.parentElement
     expect(scheduleBlock).not.toBeNull()
     expect(scheduleBlock!.compareDocumentPosition(availability) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('rechecks availability when the schedule changes', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+    await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledTimes(1))
+
+    await user.clear(within(dialog).getByLabelText(/Hora fin/))
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '23:00')
+
+    await pause(350)
+    await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledTimes(2))
   })
 
   it('does not query availability without fecha, horaInicio or horaFin', async () => {
@@ -1175,6 +1207,23 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByLabelText(/Hora fin/), '17:00')
     await pause(350)
     expect(apiState.consultarDisponibilidad).not.toHaveBeenCalled()
+  })
+
+  it('does not calculate the next slot on the frontend', async () => {
+    const { user, dialog } = await abrirAlta()
+
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
+    await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
+
+    await pause(350)
+
+    expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith(expect.objectContaining({
+      fecha: '2026-08-15',
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+    }))
+    expect(within(dialog).queryByText(/Próximo horario disponible:/)).not.toBeInTheDocument()
   })
 
   it('creates event with the exact payload and refreshes the calendar', async () => {

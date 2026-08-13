@@ -70,6 +70,19 @@ public class EventoService : IEventoService
         return EventoDisponibilidad.EstaDisponible(candidato, eventosExistentes, eventoIdIgnorado);
     }
 
+    public async Task<DisponibilidadEventoResponseDto> ObtenerDisponibilidadAsync(DateOnly fecha, TimeOnly horaInicio, TimeOnly horaFin, int sucursalId, int? eventoIdIgnorado = null, CancellationToken cancellationToken = default)
+    {
+        var candidato = new Evento(1, 1, sucursalId, fecha, horaInicio, horaFin, "Temporal", 0, 0m, fechaCreacion: DateTime.UtcNow);
+        var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(fecha, sucursalId, cancellationToken);
+        var disponible = EventoDisponibilidad.EstaDisponible(candidato, eventosExistentes, eventoIdIgnorado);
+
+        return new DisponibilidadEventoResponseDto
+        {
+            Disponible = disponible,
+            ProximaHoraDisponible = disponible ? null : EncontrarProximaHoraDisponible(candidato, eventosExistentes, eventoIdIgnorado),
+        };
+    }
+
     public async Task<EventoDto?> ObtenerPorIdAsync(int eventoId, int? sucursalId = null, CancellationToken cancellationToken = default)
     {
         var evento = await _repository.ObtenerPorIdAsync(eventoId, cancellationToken);
@@ -198,5 +211,35 @@ public class EventoService : IEventoService
             Estado = evento.ESTADO,
             FechaCreacion = evento.FECHA_CREACION,
         };
+    }
+
+    private static TimeOnly? EncontrarProximaHoraDisponible(Evento candidato, IReadOnlyList<Evento> eventosExistentes, int? excluirEventoId)
+    {
+        var duracion = candidato.HORA_FIN.ToTimeSpan() - candidato.HORA_INICIO.ToTimeSpan();
+        if (duracion <= TimeSpan.Zero)
+            return null;
+
+        var inicioBusquedaMinutos = candidato.HORA_INICIO.Hour * 60 + candidato.HORA_INICIO.Minute;
+        var duracionMinutos = (int)duracion.TotalMinutes;
+        var endLimitMinutos = 23 * 60 + 59;
+
+        if (inicioBusquedaMinutos > endLimitMinutos)
+            return null;
+
+        for (var minutos = inicioBusquedaMinutos; minutos <= endLimitMinutos; minutos += 30)
+        {
+            var probeFinMinutos = minutos + duracionMinutos;
+            if (probeFinMinutos > endLimitMinutos)
+                break;
+
+            var probe = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(minutos));
+            var probeFin = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(probeFinMinutos));
+
+            var probeEvento = new Evento(1, 1, candidato.ID_SUCURSAL, candidato.FECHA, probe, probeFin, candidato.TIPO_EVENTO, 0, 0m, fechaCreacion: DateTime.UtcNow);
+            if (EventoDisponibilidad.EstaDisponible(probeEvento, eventosExistentes, excluirEventoId))
+                return probe;
+        }
+
+        return null;
     }
 }

@@ -1758,6 +1758,146 @@ Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar
 
 No se implementa ninguna de esas cosas en esta tarea.
 
+## Fase 1D.2B - Proximo horario disponible
+
+**Estado:** COMPLETADA
+**Tag Git previsto:** `fase-1d2b-proximo-horario-disponible-ok`
+
+### Resumen
+
+- La consulta de disponibilidad evoluciono para informar tambien la proxima hora disponible cuando el horario solicitado esta ocupado.
+- El backend sigue siendo la unica autoridad de la regla de negocio.
+- El frontend solo consume y muestra `proximaHoraDisponible` devuelta por el backend.
+
+### Contrato HTTP
+
+- `GET /api/eventos/disponibilidad` ahora devuelve un objeto de respuesta.
+- Se agrego `DisponibilidadEventoResponseDto`.
+- Contrato conceptual:
+
+```json
+{
+  "disponible": true,
+  "proximaHoraDisponible": null
+}
+```
+
+```json
+{
+  "disponible": false,
+  "proximaHoraDisponible": "10:00"
+}
+```
+
+### Comportamiento funcional
+
+- Si esta disponible: `Horario disponible`.
+- Si esta ocupado y existe una franja valida: `Horario no disponible` y `Próximo horario disponible: HH:mm`.
+- Si esta ocupado y no existe franja valida dentro del mismo dia: `Horario no disponible` sin sugerencia inventada.
+
+### Cálculo en backend
+
+- `EventoService` busca la primera franja posterior valida.
+- Conserva la duracion solicitada.
+- Reutiliza `EventoDisponibilidad.HayConflicto(...)`.
+- Respeta los eventos existentes.
+- Respeta `eventoIdExcluir` en edicion.
+- Mantiene el comportamiento de eventos cancelados.
+- La busqueda quedo limitada estrictamente al mismo dia.
+- Si no hay hueco valido antes de medianoche, `proximaHoraDisponible = null`.
+
+### Regla de 30 minutos
+
+- La regla real de negocio sigue centralizada en `EventoDisponibilidad.HayConflicto(...)`.
+- 30 minutos exactos entre eventos es valido.
+- Menos de 30 minutos es conflicto.
+- Ejemplo:
+  - evento `08:00 - 09:30`
+  - primer inicio valido `10:00`
+  - no `10:30`
+- La correccion de esta fase elimino el doble margen que se estaba aplicando en el buscador de proxima disponibilidad.
+
+### Corrección del doble margen
+
+- Se detecto que `EncontrarProximaHoraDisponible(...)` arrancaba la busqueda desde un valor ya desplazado con margen y luego `HayConflicto(...)` volvía a aplicar la regla real.
+- Eso podia producir sugerencias erroneas como `10:30` cuando el inicio correcto era `10:00`.
+- Se corrigio para que el margen de negocio se aplique una sola vez, en la autoridad central del sistema.
+
+### Duración y edición
+
+- La sugerencia conserva la duracion solicitada.
+- No se sugiere simplemente el primer momento libre.
+- En edicion se mantiene `eventoIdExcluir`.
+- El propio evento no se considera conflicto consigo mismo.
+
+### Frontend
+
+- `EventosPage` muestra la disponibilidad debajo de `Hora inicio` / `Hora fin`.
+- Puede mostrar `Horario disponible` o `Horario no disponible` con `Próximo horario disponible: HH:mm`.
+- El frontend no calcula solapamientos.
+- El frontend no calcula el margen de 30 minutos.
+- El frontend no busca huecos.
+- El frontend no modifica automaticamente `horaInicio` ni `horaFin`.
+- En alta desde calendario funciona el mismo flujo: seleccionar dia, abrir evento, cargar horarios y consultar disponibilidad sin logica paralela.
+
+### Test desactualizado detectado
+
+- Tras corregir el doble margen, aparecio un test backend desactualizado: `Proxima_disponibilidad_salta_eventos_consecutivos_y_considera_cancelados`.
+- El escenario era:
+  - Evento A: `08:00 - 09:30`
+  - Evento B: `12:30 - 15:00`
+  - Consulta: `10:00 - 12:00`
+- La expectativa anterior lo trataba como no disponible.
+- Con la regla real, la franja es valida porque se respetan 30 minutos exactos antes y despues.
+- El test se corrigio sin cambiar la regla de negocio.
+
+### Verificacion
+
+- `dotnet test PosWeb.Application.Test/PosWeb.Application.Test.csproj --filter "FullyQualifiedName~EventoServiceTests|FullyQualifiedName~EventosControllerTests"`
+  - `48 total`
+  - `48 passed`
+  - `0 failed`
+- `dotnet build PosWeb/PosWeb.csproj`
+  - `OK`
+  - `0 errores`
+- `npx.cmd vitest run src/pages/__tests__/EventosPage.test.tsx`
+  - `OK`
+- `npm.cmd run build`
+  - `OK`
+
+### Prueba manual
+
+- Horario libre: muestra `Horario disponible`.
+- Horario ocupado: muestra `Horario no disponible`.
+- Visualizacion de proxima hora: muestra `Próximo horario disponible: HH:mm` cuando corresponde.
+- Caso `09:30 -> 10:00`: confirmado.
+- Comportamiento general: correcto.
+
+### No modificado
+
+- esquema DB
+- migraciones
+- Clientes
+- `ClienteService`
+- `ClientesController`
+- familiares
+- telefonos
+- WhatsApp
+- Llamar
+- contrato PDF
+- Caja
+- Pagos
+- Mercado Pago
+- QR
+- JWT
+- claims
+- `sucursalId`
+
+### Mejora futura
+
+- Posible mejora opcional: permitir click/tap sobre la hora sugerida para aplicarla automaticamente al formulario.
+- No se implementa en esta fase.
+
 ## Fase 1C.1 - Datos basicos de Cliente para Eventos
 
 **Estado:** COMPLETADA

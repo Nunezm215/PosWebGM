@@ -275,6 +275,111 @@ public class EventoServiceTests
         Assert.True(disponible);
     }
 
+    [Fact]
+    public async Task Proxima_disponibilidad_devuelve_null_si_esta_libre()
+    {
+        var repo = new EventoRepositoryFake();
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), 3);
+
+        Assert.True(disponibilidad.Disponible);
+        Assert.Null(disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Proxima_disponibilidad_busca_siguiente_hueco_respetando_30_minutos_y_duracion()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(8, 0), new TimeOnly(9, 30)),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), 3);
+
+        Assert.False(disponibilidad.Disponible);
+        Assert.Equal(new TimeOnly(10, 0), disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Caso_manual_0800_a_1000_devuelve_la_siguiente_franga_disponible_del_mismo_dia()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(8, 0), new TimeOnly(9, 30)),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), 3);
+
+        Assert.False(disponibilidad.Disponible);
+        Assert.Equal(new TimeOnly(10, 0), disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Proxima_disponibilidad_no_debe_sumar_margen_dos_veces()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(8, 0), new TimeOnly(9, 30)),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), 3);
+
+        Assert.Equal(new TimeOnly(10, 0), disponibilidad.ProximaHoraDisponible);
+        Assert.NotEqual(new TimeOnly(10, 30), disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Proxima_disponibilidad_salta_eventos_consecutivos_y_considera_cancelados()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(8, 0), new TimeOnly(9, 30)),
+            CrearEventoExistente(2, 10, 3, Hoy, new TimeOnly(12, 30), new TimeOnly(15, 0)),
+            CrearEventoExistente(3, 10, 3, Hoy, new TimeOnly(23, 0), new TimeOnly(23, 30), EventoEstados.Cancelado),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(10, 0), new TimeOnly(12, 0), 3);
+
+        Assert.True(disponibilidad.Disponible);
+        Assert.Null(disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Edicion_no_colisiona_con_si_mismo_y_proxima_disponibilidad_lo_respeta()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), 3, eventoIdIgnorado: 1);
+
+        Assert.True(disponibilidad.Disponible);
+        Assert.Null(disponibilidad.ProximaHoraDisponible);
+    }
+
+    [Fact]
+    public async Task Sin_hueco_valido_devuelve_proxima_nula()
+    {
+        var repo = new EventoRepositoryFake(new[]
+        {
+            CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(8, 0), new TimeOnly(20, 30)),
+            CrearEventoExistente(2, 10, 3, Hoy, new TimeOnly(21, 0), new TimeOnly(23, 59)),
+        });
+        var service = new EventoService(repo);
+
+        var disponibilidad = await service.ObtenerDisponibilidadAsync(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), 3);
+
+        Assert.False(disponibilidad.Disponible);
+        Assert.Null(disponibilidad.ProximaHoraDisponible);
+    }
+
     private sealed class EventoRepositoryFake : IEventoRepository
     {
         private readonly List<Evento> _eventos;

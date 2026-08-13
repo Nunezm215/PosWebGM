@@ -89,7 +89,7 @@ public class EventosController : ControllerBase
     }
 
     [HttpGet("disponibilidad")]
-    public async Task<ActionResult> Disponibilidad(
+    public async Task<ActionResult<DisponibilidadEventoResponseDto>> Disponibilidad(
         [FromQuery] DateOnly fecha,
         [FromQuery] TimeOnly horaInicio,
         [FromQuery] TimeOnly horaFin,
@@ -101,8 +101,8 @@ public class EventosController : ControllerBase
 
         try
         {
-            var disponible = await _eventoService.EstaDisponibleAsync(fecha, horaInicio, horaFin, sucursalId, eventoIdExcluir, cancellationToken);
-            return Ok(disponible);
+            var disponibilidad = await _eventoService.ObtenerDisponibilidadAsync(fecha, horaInicio, horaFin, sucursalId, eventoIdExcluir, cancellationToken);
+            return Ok(disponibilidad);
         }
         catch (ArgumentException ex)
         {

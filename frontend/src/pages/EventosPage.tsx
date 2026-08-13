@@ -198,6 +198,8 @@ interface EventoAltaFormState {
 
 type DisponibilidadEstado = 'idle' | 'loading' | 'available' | 'unavailable' | 'error'
 
+type DisponibilidadResponse = { disponible: boolean; proximaHoraDisponible?: string | null }
+
 function createEmptyForm(fecha = formatDateInput(new Date())): EventoAltaFormState {
   return {
     fecha,
@@ -549,16 +551,22 @@ export default function EventosPage() {
     const timeoutId = window.setTimeout(async () => {
       setDisponibilidad({ estado: 'loading', mensaje: 'Comprobando disponibilidad...' })
       try {
-        const disponible = await api.eventos.consultarDisponibilidad({
+        const respuesta = await api.eventos.consultarDisponibilidad({
           fecha,
           horaInicio: normalizeTimeForApi(horaInicio),
           horaFin: normalizeTimeForApi(horaFin),
           eventoIdExcluir: formMode === 'edit' ? editingEventoId ?? undefined : undefined,
         })
         if (!active) return
+        const disponibilidadRespuesta = typeof respuesta === 'boolean'
+          ? { disponible: respuesta, proximaHoraDisponible: null }
+          : respuesta as DisponibilidadResponse
+        const proximaHora = disponibilidadRespuesta.proximaHoraDisponible?.slice(0, 5) ?? ''
         setDisponibilidad({
-          estado: disponible ? 'available' : 'unavailable',
-          mensaje: disponible ? 'Disponible' : 'Horario no disponible',
+          estado: disponibilidadRespuesta.disponible ? 'available' : 'unavailable',
+          mensaje: disponibilidadRespuesta.disponible
+            ? 'Horario disponible'
+            : `Horario no disponible${proximaHora ? `\nPróximo horario disponible: ${proximaHora}` : ''}`,
         })
       } catch (err) {
         if (!active) return
@@ -1457,7 +1465,7 @@ export default function EventosPage() {
             <p className="text-xs font-medium text-red-600">{fechaError}</p>
           )}
 
-          <div className={`rounded-xl border px-4 py-3 text-sm ${
+          <div className={`rounded-xl border px-4 py-3 text-sm whitespace-pre-line ${
             disponibilidad.estado === 'available'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
               : disponibilidad.estado === 'unavailable'
@@ -1469,7 +1477,7 @@ export default function EventosPage() {
             {disponibilidad.estado === 'idle' && 'Completá fecha y horarios para validar disponibilidad.'}
             {disponibilidad.estado === 'loading' && 'Consultando disponibilidad...'}
             {disponibilidad.estado === 'available' && 'Horario disponible'}
-            {disponibilidad.estado === 'unavailable' && 'Horario no disponible'}
+            {disponibilidad.estado === 'unavailable' && disponibilidad.mensaje}
             {disponibilidad.estado === 'error' && disponibilidad.mensaje}
           </div>
 

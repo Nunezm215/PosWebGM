@@ -319,8 +319,75 @@ public class EventosControllerTests
             var a29 = await controller.Disponibilidad(Hoy, new TimeOnly(22, 29), new TimeOnly(23, 30), null, CancellationToken.None);
             var a30 = await controller.Disponibilidad(Hoy, new TimeOnly(22, 30), new TimeOnly(23, 30), null, CancellationToken.None);
 
-            Assert.False((bool)Assert.IsType<OkObjectResult>(a29).Value!);
-            Assert.True((bool)Assert.IsType<OkObjectResult>(a30).Value!);
+            var a29Ok = Assert.IsType<OkObjectResult>(a29.Result);
+            var a30Ok = Assert.IsType<OkObjectResult>(a30.Result);
+            var a29Body = Assert.IsType<DisponibilidadEventoResponseDto>(a29Ok.Value);
+            var a30Body = Assert.IsType<DisponibilidadEventoResponseDto>(a30Ok.Value);
+            Assert.False(a29Body.Disponible);
+            Assert.True(a30Body.Disponible);
+            Assert.Null(a29Body.ProximaHoraDisponible);
+            Assert.Null(a30Body.ProximaHoraDisponible);
+        }
+    }
+
+    [Fact]
+    public async Task Disponibilidad_devuelve_contracto_con_proxima_hora()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            await CrearEventoPersistidoAsync(context, fecha: Hoy, inicio: new TimeOnly(8, 0), fin: new TimeOnly(9, 30));
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var disponibilidad = await controller.Disponibilidad(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), null, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(disponibilidad.Result);
+            var body = Assert.IsType<DisponibilidadEventoResponseDto>(ok.Value);
+            Assert.False(body.Disponible);
+            Assert.Equal(new TimeOnly(10, 0), body.ProximaHoraDisponible);
+        }
+    }
+
+    [Fact]
+    public async Task Caso_manual_0800_a_1000_devuelve_proxima_hora_en_el_contrato()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            await CrearEventoPersistidoAsync(context, fecha: Hoy, inicio: new TimeOnly(8, 0), fin: new TimeOnly(9, 30));
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var disponibilidad = await controller.Disponibilidad(Hoy, new TimeOnly(8, 0), new TimeOnly(10, 0), null, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(disponibilidad.Result);
+            var body = Assert.IsType<DisponibilidadEventoResponseDto>(ok.Value);
+            Assert.False(body.Disponible);
+            Assert.Equal(new TimeOnly(10, 0), body.ProximaHoraDisponible);
+        }
+    }
+
+    [Fact]
+    public async Task Disponibilidad_devuelve_null_si_no_hay_hueco()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            await CrearEventoPersistidoAsync(context, fecha: Hoy, inicio: new TimeOnly(18, 0), fin: new TimeOnly(20, 30));
+            await CrearEventoPersistidoAsync(context, fecha: Hoy, inicio: new TimeOnly(21, 0), fin: new TimeOnly(23, 59));
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var disponibilidad = await controller.Disponibilidad(Hoy, new TimeOnly(18, 0), new TimeOnly(20, 0), null, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(disponibilidad.Result);
+            var body = Assert.IsType<DisponibilidadEventoResponseDto>(ok.Value);
+            Assert.False(body.Disponible);
+            Assert.Null(body.ProximaHoraDisponible);
         }
     }
 
@@ -373,7 +440,8 @@ public class EventosControllerTests
             Assert.IsType<OkObjectResult>(cancel);
 
             var disponibilidad = await controller.Disponibilidad(Hoy, new TimeOnly(20, 0), new TimeOnly(21, 0), null, CancellationToken.None);
-            Assert.True((bool)Assert.IsType<OkObjectResult>(disponibilidad).Value!);
+            var ok = Assert.IsType<OkObjectResult>(disponibilidad.Result);
+            Assert.True(Assert.IsType<DisponibilidadEventoResponseDto>(ok.Value).Disponible);
         }
     }
 
