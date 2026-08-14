@@ -88,6 +88,23 @@ public class EventosController : ControllerBase
         }
     }
 
+    [HttpGet("buscar")]
+    public async Task<ActionResult<IReadOnlyList<BuscarEventoResponseDto>>> Buscar([FromQuery] string q, [FromQuery] int limit = 10, CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error))
+            return error;
+
+        try
+        {
+            var resultados = await _eventoService.BuscarGlobalAsync(sucursalId, q, limit, cancellationToken);
+            return Ok(resultados);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("disponibilidad")]
     public async Task<ActionResult<DisponibilidadEventoResponseDto>> Disponibilidad(
         [FromQuery] DateOnly fecha,

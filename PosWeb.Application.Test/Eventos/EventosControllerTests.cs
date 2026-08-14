@@ -306,6 +306,45 @@ public class EventosControllerTests
     }
 
     [Fact]
+    public async Task Buscar_devuelve_resultados_globales_y_respeta_limit()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            await CrearEventoPersistidoAsync(context, sucursalId: SucursalId, clienteId: ClienteId, fecha: Fecha(30));
+            var historico = new Evento(OtroClienteId, UsuarioId, SucursalId, Fecha(-5), new TimeOnly(18, 0), new TimeOnly(20, 0), "Cumpleanos", 30, 100000m);
+            context.Evento.Add(historico);
+            await context.SaveChangesAsync();
+
+            var controller = CrearController(context, Roles.UsuarioComun);
+            var result = await controller.Buscar("cliente", 1, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var lista = Assert.IsAssignableFrom<IReadOnlyList<BuscarEventoResponseDto>>(ok.Value);
+            Assert.Single(lista);
+            Assert.NotEmpty(lista[0].ReservadoPor);
+        }
+    }
+
+    [Fact]
+    public async Task Buscar_query_vacia_devuelve_badrequest()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.Buscar("   ", 10, CancellationToken.None);
+
+            Assert.IsType<BadRequestObjectResult>(result.Result);
+        }
+    }
+
+    [Fact]
     public async Task Disponibilidad_respeta_30_minutos()
     {
         var (connection, context) = await CrearContextoAsync();

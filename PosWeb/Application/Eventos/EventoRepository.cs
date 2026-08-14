@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using PosWeb.Data;
 using PosWeb.Domain;
@@ -53,6 +54,46 @@ public class EventoRepository : IEventoRepository
             .ThenBy(e => e.ID_EVENTO)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Evento>> BuscarGlobalAsync(int sucursalId, string query, int limit, CancellationToken cancellationToken = default)
+    {
+        var normalized = Normalize(query);
+        var dateFilters = GetDateFilters(query);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        IQueryable<Evento> baseQuery = _context.Evento
+            .Include(e => e.Cliente)
+            .Where(e => e.ID_SUCURSAL == sucursalId);
+
+        baseQuery = baseQuery.Where(e =>
+            (e.Cliente != null && e.Cliente.NOMBRE.ToLower().Contains(normalized)) ||
+            e.TIPO_EVENTO.ToLower().Contains(normalized) ||
+            e.ESTADO.ToLower().Contains(normalized) ||
+            dateFilters.Contains(e.FECHA));
+
+        var future = await baseQuery
+            .Where(e => e.FECHA >= today)
+            .OrderBy(e => e.FECHA)
+            .ThenBy(e => e.HORA_INICIO)
+            .ThenBy(e => e.ID_EVENTO)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        if (future.Count >= limit)
+            return future;
+
+        var remaining = limit - future.Count;
+        var past = await baseQuery
+            .Where(e => e.FECHA < today)
+            .OrderByDescending(e => e.FECHA)
+            .ThenByDescending(e => e.HORA_INICIO)
+            .ThenByDescending(e => e.ID_EVENTO)
+            .Take(remaining)
+            .ToListAsync(cancellationToken);
+
+        future.AddRange(past);
+        return future;
+    }
+
     public Task<Evento?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default)
         => _context.Evento
             .Include(e => e.Cliente)
@@ -69,5 +110,22 @@ public class EventoRepository : IEventoRepository
     public async Task ActualizarAsync(Evento evento, CancellationToken cancellationToken = default)
     {
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string Normalize(string value)
+        => value.Trim().ToLowerInvariant();
+
+    private static HashSet<DateOnly> GetDateFilters(string query)
+    {
+        var result = new HashSet<DateOnly>();
+        var formats = new[] { "dd/MM/yyyy", "yyyy-MM-dd" };
+
+        foreach (var part in query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (DateOnly.TryParseExact(part, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                result.Add(parsed);
+        }
+
+        return result;
     }
 }

@@ -113,6 +113,26 @@ public class EventoService : IEventoService
         return eventos.Select(Map).ToList();
     }
 
+    public async Task<IReadOnlyList<BuscarEventoResponseDto>> BuscarGlobalAsync(int sucursalId, string query, int limit, CancellationToken cancellationToken = default)
+    {
+        ValidarQuery(query);
+        var normalizadoLimit = NormalizarLimit(limit);
+
+        var eventos = await _repository.BuscarGlobalAsync(sucursalId, query, normalizadoLimit, cancellationToken);
+        return eventos.Select(evento => new BuscarEventoResponseDto
+        {
+            Id = evento.ID_EVENTO,
+            ClienteId = evento.ID_CLIENTE,
+            ReservadoPor = evento.Cliente?.NOMBRE ?? $"Cliente #{evento.ID_CLIENTE}",
+            Fecha = evento.FECHA,
+            HoraInicio = evento.HORA_INICIO,
+            HoraFin = evento.HORA_FIN,
+            TipoEvento = evento.TIPO_EVENTO,
+            Estado = evento.ESTADO,
+            CantidadInvitados = evento.CANTIDAD_INVITADOS,
+        }).ToList();
+    }
+
     public async Task<EventoDto> CancelarAsync(int eventoId, CancellationToken cancellationToken = default)
     {
         var evento = await _repository.ObtenerPorIdAsync(eventoId, cancellationToken)
@@ -242,4 +262,13 @@ public class EventoService : IEventoService
 
         return null;
     }
+
+    private static void ValidarQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            throw new ArgumentException("Debe ingresar un criterio de búsqueda", nameof(query));
+    }
+
+    private static int NormalizarLimit(int limit)
+        => limit < 1 ? 10 : Math.Min(limit, 50);
 }

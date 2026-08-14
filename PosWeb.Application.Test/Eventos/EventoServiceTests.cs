@@ -49,6 +49,13 @@ public class EventoServiceTests
         return evento;
     }
 
+    private static Cliente CrearCliente(int id, string nombre)
+    {
+        var cliente = new Cliente(nombre, "DNI", $"{id:00000000}", telefono: "11111111", mail: $"cliente{id}@correo.com");
+        PosWeb.Testing.TestHelpers.SetId(cliente, id, "ID_CLIENTE");
+        return cliente;
+    }
+
     [Fact]
     public async Task CrearEventoAsync_con_datos_validos_crea_evento_reservado()
     {
@@ -380,14 +387,75 @@ public class EventoServiceTests
         Assert.Null(disponibilidad.ProximaHoraDisponible);
     }
 
+    [Fact]
+    public async Task BuscarGlobalAsync_busca_por_cliente_tipo_estado_fecha_y_respeta_limit()
+    {
+        var clienteJuan = CrearCliente(10, "Juan Perez");
+        var clienteMaria = CrearCliente(11, "Maria Lopez");
+
+        var eventoFuturo = CrearEventoExistente(1, clienteJuan.ID_CLIENTE, 3, Hoy.AddMonths(1), new TimeOnly(18, 0), new TimeOnly(20, 0));
+        eventoFuturo.Editar(clienteJuan.ID_CLIENTE, Hoy.AddMonths(1), new TimeOnly(18, 0), new TimeOnly(20, 0), "Cumpleanos", 50, 100m);
+
+        var eventoHistorico = CrearEventoExistente(2, clienteMaria.ID_CLIENTE, 3, Hoy.AddMonths(-1), new TimeOnly(18, 0), new TimeOnly(20, 0), EventoEstados.Cancelado);
+        eventoHistorico.Editar(clienteMaria.ID_CLIENTE, Hoy.AddMonths(-1), new TimeOnly(18, 0), new TimeOnly(20, 0), "Casamiento", 30, 200m);
+        eventoHistorico.Cancelar();
+
+        var repo = new EventoRepositoryFake(new[] { eventoFuturo, eventoHistorico }, new[] { clienteJuan, clienteMaria });
+        var service = new EventoService(repo);
+
+        var porCliente = await service.BuscarGlobalAsync(3, "juan", 10);
+        Assert.Single(porCliente);
+        Assert.Equal("Juan Perez", porCliente[0].ReservadoPor);
+
+        var porTipo = await service.BuscarGlobalAsync(3, "cumple", 10);
+        Assert.Single(porTipo);
+        Assert.Equal("Cumpleanos", porTipo[0].TipoEvento);
+
+        var porEstado = await service.BuscarGlobalAsync(3, "cancelado", 10);
+        Assert.Single(porEstado);
+        Assert.Equal(EventoEstados.Cancelado, porEstado[0].Estado);
+
+        var porFecha = await service.BuscarGlobalAsync(3, Hoy.AddMonths(1).ToString("dd/MM/yyyy"), 10);
+        Assert.Single(porFecha);
+
+        var porFechaIso = await service.BuscarGlobalAsync(3, Hoy.AddMonths(1).ToString("yyyy-MM-dd"), 10);
+        Assert.Single(porFechaIso);
+
+        var trimCase = await service.BuscarGlobalAsync(3, "   JUAN   ", 10);
+        Assert.Single(trimCase);
+
+        var otroMes = await service.BuscarGlobalAsync(3, "lopez", 10);
+        Assert.Single(otroMes);
+
+        var limitado = await service.BuscarGlobalAsync(3, "juan", 1);
+        Assert.Single(limitado);
+    }
+
     private sealed class EventoRepositoryFake : IEventoRepository
     {
         private readonly List<Evento> _eventos;
+        private readonly Dictionary<int, Cliente> _clientes;
         private int _nextId;
 
         public EventoRepositoryFake(IEnumerable<Evento>? seed = null)
+            : this(seed, Enumerable.Empty<Cliente>())
+        {
+        }
+
+        public EventoRepositoryFake(IEnumerable<Evento>? seed, IEnumerable<Cliente> clientes)
         {
             _eventos = seed?.ToList() ?? new List<Evento>();
+            _clientes = clientes?.ToDictionary(c => c.ID_CLIENTE) ?? new Dictionary<int, Cliente>();
+
+            foreach (var evento in _eventos)
+            {
+                if (_clientes.TryGetValue(evento.ID_CLIENTE, out var cliente))
+                {
+                    var propiedad = typeof(Evento).GetProperty("Cliente");
+                    propiedad?.SetValue(evento, cliente);
+                }
+            }
+
             _nextId = _eventos.Count == 0 ? 1 : _eventos.Max(e => e.ID_EVENTO) + 1;
         }
 
@@ -407,6 +475,39 @@ public class EventoServiceTests
                 .Where(e => e.FECHA == fecha && e.ID_SUCURSAL == sucursalId)
                 .OrderBy(e => e.HORA_INICIO)
                 .ToList());
+
+        public Task<IReadOnlyList<Evento>> BuscarGlobalAsync(int sucursalId, string query, int limit, CancellationToken cancellationToken = default)
+        {
+            var normalized = query.Trim().ToLowerInvariant();
+            var dates = new HashSet<DateOnly>();
+            foreach (var part in query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (DateOnly.TryParseExact(part, new[] { "dd/MM/yyyy", "yyyy-MM-dd" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
+                    dates.Add(parsed);
+            }
+
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+
+            var resultado = _eventos
+                .Where(e => e.ID_SUCURSAL == sucursalId)
+                .Where(e =>
+                    GetClienteNombre(e.ID_CLIENTE).Contains(normalized) ||
+                    e.TIPO_EVENTO.ToLowerInvariant().Contains(normalized) ||
+                    e.ESTADO.ToLowerInvariant().Contains(normalized) ||
+                    dates.Contains(e.FECHA))
+                .OrderBy(e => e.FECHA >= hoy ? 0 : 1)
+                .ThenBy(e => e.FECHA >= hoy ? (DateOnly?)e.FECHA : null)
+                .ThenByDescending(e => e.FECHA < hoy ? (DateOnly?)e.FECHA : null)
+                .ThenBy(e => e.HORA_INICIO)
+                .ThenBy(e => e.ID_EVENTO)
+                .Take(limit)
+                .ToList();
+
+            return Task.FromResult((IReadOnlyList<Evento>)resultado);
+        }
+
+        private string GetClienteNombre(int clienteId)
+            => _clientes.TryGetValue(clienteId, out var cliente) ? cliente.NOMBRE.ToLowerInvariant() : string.Empty;
 
         public Task<Evento?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default)
             => Task.FromResult(_eventos.FirstOrDefault(e => e.ID_EVENTO == eventoId));
