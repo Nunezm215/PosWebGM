@@ -128,6 +128,7 @@ describe('EventosPage', () => {
 
     expect(await screen.findByText('Eventos')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nuevo Evento' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Buscar evento' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mes anterior' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mes siguiente' })).not.toBeInTheDocument()
     expect(screen.queryByText('Hoy')).not.toBeInTheDocument()
@@ -1941,5 +1942,348 @@ describe('EventosPage', () => {
     expect(screen.getByRole('button', { name: '11:00 Evento 10' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '11:00 Evento 11' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '11:00 Evento Cancelado' })).not.toBeInTheDocument()
+  })
+
+  it('filters upcoming events locally with the search box', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        { id: 1, nombre: 'Juan Pérez' },
+        { id: 2, nombre: 'María Gómez' },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-22',
+        horaInicio: '09:00:00',
+        horaFin: '10:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+      {
+        id: 2,
+        clienteId: 2,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-23',
+        horaInicio: '10:00:00',
+        horaFin: '11:00:00',
+        tipoEvento: 'Reunión',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Señado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+      {
+        id: 3,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-24',
+        horaInicio: '11:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Evento Cancelado',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Cancelado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Buscar evento' })
+
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '10:00 Reunión' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '11:00 Evento Cancelado' })).not.toBeInTheDocument()
+
+    await user.type(search, 'juan')
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '10:00 Reunión' })).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'cumple')
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'reservado')
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, '22/08')
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'no existe')
+    expect(screen.getByText('No se encontraron eventos.')).toBeInTheDocument()
+
+    await user.clear(search)
+    expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument()
+  })
+
+  it('shows the reservador in each upcoming event card using the shared client cache', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        { id: 1, nombre: 'Juan Pérez' },
+        { id: 2, nombre: 'María Gómez' },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-22',
+        horaInicio: '21:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+      {
+        id: 2,
+        clienteId: 2,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-23',
+        horaInicio: '22:00:00',
+        horaFin: '23:00:00',
+        tipoEvento: 'Reunión',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Señado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    await renderPage()
+
+    expect(await screen.findByText('Reservado por: Juan Pérez')).toBeInTheDocument()
+    expect(screen.getByText('Reservado por: María Gómez')).toBeInTheDocument()
+    expect(apiState.listarClientes).toHaveBeenCalledWith(undefined, 1, 1000, true)
+    expect(apiState.listarClientes).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to Cliente #ID when the client is not in the cache', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 0,
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 23,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-22',
+        horaInicio: '21:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    await renderPage()
+
+    expect(await screen.findByText('Reservado por: Cliente #23')).toBeInTheDocument()
+  })
+
+  it('keeps chronological order, excludes cancelados and still caps visible results to 10', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: Array.from({ length: 12 }, (_, index) => ({ id: index + 1, nombre: `Cliente ${index + 1}` })),
+      totalCount: 12,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+
+    const base = new Date()
+    base.setHours(12, 0, 0, 0)
+    const makeDate = (daysAhead: number) => {
+      const date = new Date(base)
+      date.setDate(date.getDate() + daysAhead)
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
+
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: index + 1,
+        clienteId: index + 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: makeDate(index + 1),
+        horaInicio: `${String(8 + index).padStart(2, '0')}:00:00`,
+        horaFin: `${String(9 + index).padStart(2, '0')}:00:00`,
+        tipoEvento: `Evento ${index + 1}`,
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      })),
+      {
+        id: 99,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: makeDate(15),
+        horaInicio: '20:00:00',
+        horaFin: '21:00:00',
+        tipoEvento: 'Evento 15',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+      {
+        id: 100,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: makeDate(16),
+        horaInicio: '21:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Evento Cancelado',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Cancelado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Buscar evento' })
+
+    await user.type(search, 'evento')
+    const buttons = await screen.findAllByRole('button', { name: /^\d{2}:\d{2} Evento / })
+    expect(buttons).toHaveLength(10)
+    expect(screen.getByRole('button', { name: '08:00 Evento 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '17:00 Evento 10' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '20:00 Evento 15' })).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, '15')
+    expect(screen.getByRole('button', { name: '20:00 Evento 15' })).toBeInTheDocument()
+  })
+
+  it('opens detail when clicking an upcoming result and does not refetch while typing', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [{ id: 1, nombre: 'Juan Pérez' }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: '2026-08-22',
+      horaInicio: '09:00:00',
+      horaFin: '10:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 20,
+      montoTotal: 1000,
+      observaciones: null,
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-01T10:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-22',
+        horaInicio: '09:00:00',
+        horaFin: '10:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Buscar evento' })
+
+    const clienteCallsBeforeTyping = apiState.listarClientes.mock.calls.length
+    await user.type(search, 'juan')
+    expect(apiState.listarClientes.mock.calls.length).toBe(clienteCallsBeforeTyping)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '09:00 Cumpleaños' })).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: '09:00 Cumpleaños' }))
+    expect(await screen.findByRole('dialog', { name: 'Detalle del evento' })).toBeInTheDocument()
+  })
+
+  it('keeps the reservador search working from the shared client cache', async () => {
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [{ id: 1, nombre: 'Juan Pérez' }],
+      totalCount: 1,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: '2026-08-22',
+        horaInicio: '09:00:00',
+        horaFin: '10:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: null,
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-01T10:00:00',
+      },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Buscar evento' })
+
+    await user.type(search, 'juan')
+    expect(screen.getByText('Reservado por: Juan Pérez')).toBeInTheDocument()
   })
 })

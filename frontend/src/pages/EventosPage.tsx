@@ -143,6 +143,14 @@ function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function addMonths(date: Date, months: number) {
   return new Date(date.getFullYear(), date.getMonth() + months, date.getDate())
 }
@@ -351,6 +359,7 @@ export default function EventosPage() {
   const [proximosEventos, setProximosEventos] = useState<EventoDto[]>([])
   const [proximosLoading, setProximosLoading] = useState(true)
   const [proximosError, setProximosError] = useState<string | null>(null)
+  const [busquedaProximos, setBusquedaProximos] = useState('')
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const monthPickerRef = useRef<HTMLDivElement | null>(null)
 
@@ -478,6 +487,27 @@ export default function EventosPage() {
     }
   }, [selectedDay, clientesPorId])
 
+  useEffect(() => {
+    if (proximosEventos.length === 0) return
+    if (Object.keys(clientesPorId).length > 0) return
+
+    let active = true
+    api.clientes.listar(undefined, 1, 1000, true)
+      .then(result => {
+        if (!active) return
+        const next: Record<number, string> = {}
+        for (const cliente of result.items ?? []) {
+          if (cliente.id) next[cliente.id] = cliente.nombre
+        }
+        setClientesPorId(next)
+      })
+      .catch(() => {})
+
+    return () => {
+      active = false
+    }
+  }, [clientesPorId, proximosEventos.length])
+
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoDto[]>()
     for (const evento of eventos) {
@@ -499,11 +529,24 @@ export default function EventosPage() {
 
   const eventosProximosVisibles = useMemo(() => {
     const ahora = new Date()
+    const busqueda = normalizeSearchText(busquedaProximos)
     return proximosEventos
       .filter(evento => isUpcomingEvento(evento, ahora))
+      .filter(evento => {
+        if (!busqueda) return true
+        const clienteNombre = clientesPorId[evento.clienteId]?.trim() || ''
+        const fechaVisible = formatUpcomingDay(evento)
+        const fechaBusqueda = `${evento.fecha.slice(8, 10)}/${evento.fecha.slice(5, 7)}`
+        const campos = [clienteNombre, evento.tipoEvento, evento.estado, fechaVisible, evento.fecha, fechaBusqueda].map(normalizeSearchText)
+        return campos.some(campo => campo.includes(busqueda))
+      })
       .sort(compareEventosByDateTime)
       .slice(0, 10)
-  }, [proximosEventos, reloadKey])
+  }, [busquedaProximos, clientesPorId, proximosEventos, reloadKey])
+
+  function getClienteLabel(clienteId: number) {
+    return clientesPorId[clienteId]?.trim() || `Cliente #${clienteId}`
+  }
 
   const monthTitle = formatMonthTitle(monthAnchor)
 
@@ -1242,6 +1285,15 @@ export default function EventosPage() {
               {proximosLoading && <span className="text-xs text-gray-500">Cargando...</span>}
             </div>
 
+            <input
+              type="search"
+              value={busquedaProximos}
+              onChange={event => setBusquedaProximos(event.target.value)}
+              placeholder="Buscar evento..."
+              aria-label="Buscar evento"
+              className="mt-4 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            />
+
             <div className="mt-4 space-y-3">
               {proximosError && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
@@ -1249,7 +1301,13 @@ export default function EventosPage() {
                 </div>
               )}
 
-              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && (
+              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && busquedaProximos.trim() && (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                  No se encontraron eventos.
+                </div>
+              )}
+
+              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && !busquedaProximos.trim() && (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
                   No hay próximos eventos.
                 </div>
@@ -1273,6 +1331,9 @@ export default function EventosPage() {
                       </div>
                       <div className="text-sm font-medium text-gray-900 truncate">
                         {evento.tipoEvento}
+                      </div>
+                      <div className="text-xs text-gray-600 truncate">
+                        Reservado por: {getClienteLabel(evento.clienteId)}
                       </div>
                       <div className="text-xs text-gray-700">
                         {evento.cantidadInvitados} invitados
