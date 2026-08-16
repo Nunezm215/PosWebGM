@@ -617,4 +617,102 @@ public class EventosControllerTests
             Assert.IsType<NotFoundObjectResult>(result);
         }
     }
+
+    [Fact]
+    public async Task Cargos_get_devuelve_activos_y_anulados()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var service = new EventoService(new EventoRepository(context));
+            var activo = await service.AgregarCargoExtraAsync(evento.ID_EVENTO, new CrearCargoExtraEventoRequestDto { Descripcion = "Activo", Monto = 100m }, UsuarioId);
+            var anulado = await service.AgregarCargoExtraAsync(evento.ID_EVENTO, new CrearCargoExtraEventoRequestDto { Descripcion = "Anulado", Monto = 200m }, UsuarioId);
+            await service.AnularCargoExtraAsync(evento.ID_EVENTO, anulado.Id, new AnularCargoExtraEventoRequestDto { Motivo = "Correccion" }, UsuarioId);
+
+            var result = await CrearController(context, Roles.UsuarioComun).ListarCargos(evento.ID_EVENTO, CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var cargos = Assert.IsAssignableFrom<IReadOnlyList<CargoExtraEventoDto>>(ok.Value);
+            Assert.Contains(cargos, c => c.Id == activo.Id && !c.Anulado);
+            Assert.Contains(cargos, c => c.Id == anulado.Id && c.Anulado);
+        }
+    }
+
+    [Fact]
+    public async Task Cargos_post_admin_crea_con_usuario_del_claim()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+
+            var result = await CrearController(context, Roles.Admin).AgregarCargo(evento.ID_EVENTO,
+                new CrearCargoExtraEventoRequestDto { Descripcion = "Horas extra", Monto = 1500m }, CancellationToken.None);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result);
+            Assert.IsType<CargoExtraEventoDto>(created.Value);
+            Assert.Equal(UsuarioId, (await context.CargoExtraEvento.SingleAsync()).ID_USUARIO_REGISTRA);
+        }
+    }
+
+    [Fact]
+    public async Task Cargos_post_usuario_comun_es_rechazado()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+
+            var result = await CrearController(context, Roles.UsuarioComun).AgregarCargo(evento.ID_EVENTO,
+                new CrearCargoExtraEventoRequestDto { Descripcion = "Horas extra", Monto = 1500m }, CancellationToken.None);
+
+            Assert.IsType<ForbidResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Cargos_post_monto_invalido_devuelve_badrequest()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+
+            var result = await CrearController(context, Roles.SuperAdmin).AgregarCargo(evento.ID_EVENTO,
+                new CrearCargoExtraEventoRequestDto { Descripcion = "Horas extra", Monto = 0m }, CancellationToken.None);
+
+            Assert.IsType<BadRequestObjectResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Cargos_anular_registra_usuario_del_claim_y_segunda_anulacion_es_controlada()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var service = new EventoService(new EventoRepository(context));
+            var cargo = await service.AgregarCargoExtraAsync(evento.ID_EVENTO, new CrearCargoExtraEventoRequestDto { Descripcion = "Horas extra", Monto = 1500m }, UsuarioId);
+            var controller = CrearController(context, Roles.SuperAdmin);
+
+            var first = await controller.AnularCargo(evento.ID_EVENTO, cargo.Id, new AnularCargoExtraEventoRequestDto { Motivo = "Correccion" }, CancellationToken.None);
+            var second = await controller.AnularCargo(evento.ID_EVENTO, cargo.Id, new AnularCargoExtraEventoRequestDto { Motivo = "Correccion" }, CancellationToken.None);
+
+            Assert.IsType<NoContentResult>(first);
+            Assert.IsType<BadRequestObjectResult>(second);
+            Assert.Equal(UsuarioId, (await context.CargoExtraEvento.SingleAsync()).ID_USUARIO_ANULA);
+        }
+    }
 }

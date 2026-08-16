@@ -207,6 +207,66 @@ public class EventosController : ControllerBase
         }
     }
 
+    [HttpGet("{eventoId:int}/cargos")]
+    public async Task<ActionResult<IReadOnlyList<CargoExtraEventoDto>>> ListarCargos(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) == null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        return Ok(await _eventoService.ListarCargosExtraAsync(eventoId, cancellationToken));
+    }
+
+    [HttpPost("{eventoId:int}/cargos")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> AgregarCargo(int eventoId, [FromBody] CrearCargoExtraEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out var usuarioId, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) == null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        try
+        {
+            var creado = await _eventoService.AgregarCargoExtraAsync(eventoId, request, usuarioId, cancellationToken);
+            return CreatedAtAction(nameof(ListarCargos), new { eventoId }, creado);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{eventoId:int}/cargos/{cargoId:int}/anular")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> AnularCargo(int eventoId, int cargoId, [FromBody] AnularCargoExtraEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out var usuarioId, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) == null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        try
+        {
+            await _eventoService.AnularCargoExtraAsync(eventoId, cargoId, request, usuarioId, cancellationToken);
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("no encontrado", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("no pertenece", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{id:int}/contrato")]
     public async Task<IActionResult> Contrato(int id, CancellationToken cancellationToken)
     {
