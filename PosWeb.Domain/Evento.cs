@@ -49,6 +49,8 @@ public class Evento
 
     private readonly List<CargoExtraEvento> _CARGOS_EXTRA = new();
     public IReadOnlyCollection<CargoExtraEvento> CARGOS_EXTRA => _CARGOS_EXTRA;
+    private readonly List<PagoEvento> _PAGOS = new();
+    public IReadOnlyCollection<PagoEvento> PAGOS => _PAGOS;
 
     public Evento(
         int clienteId,

@@ -37,6 +37,7 @@ public class PosDbContextLocal : DbContext
     public DbSet<PagoDeuda> PagoDeuda { get; set; }
     public DbSet<Evento> Evento { get; set; }
     public DbSet<CargoExtraEvento> CargoExtraEvento { get; set; }
+    public DbSet<PagoEvento> PagoEvento { get; set; }
     public DbSet<FamiliarCliente> FamiliarCliente { get; set; }
     public DbSet<OportunidadCumpleaniosAtendida> OportunidadCumpleaniosAtendida { get; set; }
 

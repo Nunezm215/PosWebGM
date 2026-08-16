@@ -182,6 +182,54 @@ public class EventoRepositoryEfTests
     }
 
     [Fact]
+    public async Task Persiste_pago_evento_con_relaciones_y_campos_opcionales()
+    {
+        var (connection, context) = await CrearContextoListoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedBaseAsync(context);
+            var medioPago = new MedioPago(9101, "PAGO_EVENTO_TEST", "Pago evento test", true);
+            context.MedioPago.Add(medioPago);
+            var evento = CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0));
+            context.Evento.Add(evento);
+            await context.SaveChangesAsync();
+
+            context.PagoEvento.Add(new PagoEvento(evento.ID_EVENTO, medioPago.ID_MEDIO_PAGO, 1234.56m, UsuarioId));
+            await context.SaveChangesAsync();
+
+            var pago = await context.PagoEvento.SingleAsync();
+            Assert.Equal(evento.ID_EVENTO, pago.ID_EVENTO);
+            Assert.Equal(medioPago.ID_MEDIO_PAGO, pago.ID_MEDIO_PAGO);
+            Assert.Equal(UsuarioId, pago.ID_USUARIO_REGISTRA);
+            Assert.Equal(1234.56m, pago.MONTO);
+            Assert.False(pago.ANULADO);
+            Assert.Null(pago.ID_USUARIO_ANULA);
+            Assert.Null(pago.OBSERVACION);
+            Assert.Null(pago.REFERENCIA_EXTERNA);
+            Assert.Null(pago.CLAVE_IDEMPOTENCIA);
+            Assert.Single(evento.PAGOS);
+        }
+    }
+
+    [Fact]
+    public async Task Modelo_pago_evento_define_indices_requeridos_e_idempotencia_unica()
+    {
+        var (connection, context) = await CrearContextoListoAsync();
+        await using (connection)
+        await using (context)
+        {
+            var entityType = context.Model.FindEntityType(typeof(PagoEvento));
+            Assert.NotNull(entityType);
+
+            Assert.Contains(entityType!.GetIndexes(), i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ID_EVENTO" }));
+            Assert.Contains(entityType.GetIndexes(), i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { "FECHA_REGISTRO" }));
+            var idempotencia = entityType.GetIndexes().Single(i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { "CLAVE_IDEMPOTENCIA" }));
+            Assert.True(idempotencia.IsUnique);
+        }
+    }
+
+    [Fact]
     public async Task Servicio_de_eventos_funciona_con_repo_EF_real()
     {
         var (connection, context) = await CrearContextoListoAsync();

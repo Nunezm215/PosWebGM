@@ -827,6 +827,85 @@ namespace PosWeb.Migrations.Local
                     b.ToTable("PAGO_DEUDA", (string)null);
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.PagoEvento", b =>
+                {
+                    b.Property<int>("ID_PAGO_EVENTO")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_PAGO_EVENTO");
+
+                    b.Property<bool>("ANULADO")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false)
+                        .HasColumnName("ANULADO");
+
+                    b.Property<string>("CLAVE_IDEMPOTENCIA")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("CLAVE_IDEMPOTENCIA");
+
+                    b.Property<DateTime?>("FECHA_ANULACION")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("FECHA_ANULACION");
+
+                    b.Property<DateTime>("FECHA_REGISTRO")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("FECHA_REGISTRO");
+
+                    b.Property<int>("ID_EVENTO")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_EVENTO");
+
+                    b.Property<int>("ID_MEDIO_PAGO")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_MEDIO_PAGO");
+
+                    b.Property<int?>("ID_USUARIO_ANULA")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_USUARIO_ANULA");
+
+                    b.Property<int>("ID_USUARIO_REGISTRA")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_USUARIO_REGISTRA");
+
+                    b.Property<decimal>("MONTO")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("MONTO");
+
+                    b.Property<string>("MOTIVO_ANULACION")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("MOTIVO_ANULACION");
+
+                    b.Property<string>("OBSERVACION")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("OBSERVACION");
+
+                    b.Property<string>("REFERENCIA_EXTERNA")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("REFERENCIA_EXTERNA");
+
+                    b.HasKey("ID_PAGO_EVENTO");
+
+                    b.HasIndex("CLAVE_IDEMPOTENCIA")
+                        .IsUnique();
+
+                    b.HasIndex("FECHA_REGISTRO");
+
+                    b.HasIndex("ID_EVENTO");
+
+                    b.HasIndex("ID_MEDIO_PAGO");
+
+                    b.HasIndex("ID_USUARIO_ANULA");
+
+                    b.HasIndex("ID_USUARIO_REGISTRA");
+
+                    b.ToTable("PAGO_EVENTO", (string)null);
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Pedido", b =>
                 {
                     b.Property<int>("ID_PEDIDO")
@@ -1731,6 +1810,32 @@ namespace PosWeb.Migrations.Local
                     b.Navigation("Deuda");
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.PagoEvento", b =>
+                {
+                    b.HasOne("PosWeb.Domain.Evento", null)
+                        .WithMany("PAGOS")
+                        .HasForeignKey("ID_EVENTO")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosWeb.Domain.MedioPago", null)
+                        .WithMany()
+                        .HasForeignKey("ID_MEDIO_PAGO")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosWeb.Domain.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("ID_USUARIO_ANULA")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PosWeb.Domain.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("ID_USUARIO_REGISTRA")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Pedido", b =>
                 {
                     b.HasOne("PosWeb.Domain.Pedido", null)
@@ -1910,6 +2015,8 @@ namespace PosWeb.Migrations.Local
             modelBuilder.Entity("PosWeb.Domain.Evento", b =>
                 {
                     b.Navigation("CARGOS_EXTRA");
+
+                    b.Navigation("PAGOS");
                 });
 
             modelBuilder.Entity("PosWeb.Domain.Pedido", b =>

@@ -9,6 +9,7 @@ public partial class PosDbContext
     {
         ConfigureEvento(modelBuilder);
         ConfigureCargoExtraEvento(modelBuilder);
+        ConfigurePagoEvento(modelBuilder);
 
         // ---- PRODUCTO ----
         modelBuilder.Entity<Producto>(entity =>
