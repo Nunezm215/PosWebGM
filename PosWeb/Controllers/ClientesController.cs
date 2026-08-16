@@ -48,6 +48,24 @@ public class ClientesController : ControllerBase
         return Ok(_clienteService.ListarProximosCumpleanios(dias));
     }
 
+    [HttpPost("oportunidades-cumpleanios/atender")]
+    public IActionResult MarcarOportunidadCumpleaniosAtendida([FromBody] MarcarOportunidadCumpleaniosAtendidaRequestDto dto)
+    {
+        try
+        {
+            _clienteService.MarcarOportunidadCumpleaniosAtendida(dto);
+            return NoContent();
+        }
+        catch (KeyNotFoundException exception)
+        {
+            return NotFound(new { error = exception.Message });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
     [HttpPost]
     public IActionResult Crear([FromBody] ClienteDto dto)
     {

@@ -110,10 +110,58 @@ public class ClienteService
             }
         }
 
+        var atendidas = _context.OportunidadCumpleaniosAtendida
+            .AsNoTracking()
+            .AsEnumerable()
+            .Select(o => (o.TIPO_PERSONA, o.ID_PERSONA, o.PROXIMO_CUMPLEANIOS))
+            .ToHashSet();
+
         return resultados
+            .Where(resultado => !atendidas.Contains((ParseTipoPersona(resultado.TipoPersona), resultado.PersonaId, resultado.ProximoCumpleanios)))
             .OrderBy(resultado => resultado.DiasFaltantes)
             .ThenBy(resultado => resultado.NombrePersona)
             .ToList();
+    }
+
+    public void MarcarOportunidadCumpleaniosAtendida(MarcarOportunidadCumpleaniosAtendidaRequestDto dto, DateOnly? fechaReferencia = null)
+    {
+        if (dto is null)
+        {
+            throw new ArgumentException("La oportunidad es requerida");
+        }
+
+        if (dto.PersonaId <= 0)
+        {
+            throw new ArgumentException("La persona es requerida");
+        }
+
+        if (dto.ProximoCumpleanios == default)
+        {
+            throw new ArgumentException("La fecha de próximo cumpleaños es requerida");
+        }
+
+        var tipoPersona = ParseTipoPersona(dto.TipoPersona);
+        var hoy = fechaReferencia ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaNacimiento = ObtenerFechaNacimiento(tipoPersona, dto.PersonaId);
+        var proximoCumpleanios = CalcularProximoCumpleanios(fechaNacimiento, hoy);
+
+        if (dto.ProximoCumpleanios != proximoCumpleanios)
+        {
+            throw new ArgumentException("La fecha no corresponde al próximo cumpleaños de la persona");
+        }
+
+        var yaAtendida = _context.OportunidadCumpleaniosAtendida.Any(o =>
+            o.TIPO_PERSONA == tipoPersona &&
+            o.ID_PERSONA == dto.PersonaId &&
+            o.PROXIMO_CUMPLEANIOS == dto.ProximoCumpleanios);
+        if (yaAtendida) return;
+
+        _context.OportunidadCumpleaniosAtendida.Add(new OportunidadCumpleaniosAtendida(
+            tipoPersona,
+            dto.PersonaId,
+            dto.ProximoCumpleanios,
+            DateTime.Now));
+        _context.SaveChanges();
     }
 
     public ClienteDto Crear(ClienteDto dto)
@@ -310,6 +358,51 @@ public class ClienteService
             ? 28
             : fechaNacimiento.Day;
         return new DateOnly(year, fechaNacimiento.Month, day);
+    }
+
+    private DateOnly ObtenerFechaNacimiento(TipoPersonaOportunidad tipoPersona, int personaId)
+    {
+        if (tipoPersona == TipoPersonaOportunidad.Cliente)
+        {
+            var cliente = _context.Cliente
+                .AsNoTracking()
+                .FirstOrDefault(c => c.ID_CLIENTE == personaId && c.ACTIVO);
+            if (cliente is null)
+            {
+                throw new KeyNotFoundException("Cliente no encontrado");
+            }
+
+            if (!cliente.FECHA_NACIMIENTO.HasValue)
+            {
+                throw new ArgumentException("El cliente no tiene fecha de nacimiento");
+            }
+
+            return cliente.FECHA_NACIMIENTO.Value;
+        }
+
+        var familiar = _context.FamiliarCliente
+            .AsNoTracking()
+            .Join(_context.Cliente.Where(c => c.ACTIVO),
+                f => f.ID_CLIENTE,
+                c => c.ID_CLIENTE,
+                (f, _) => f)
+            .FirstOrDefault(f => f.ID_FAMILIAR_CLIENTE == personaId);
+        if (familiar is null)
+        {
+            throw new KeyNotFoundException("Familiar no encontrado");
+        }
+
+        return familiar.FECHA_NACIMIENTO;
+    }
+
+    private static TipoPersonaOportunidad ParseTipoPersona(string? tipoPersona)
+    {
+        return tipoPersona switch
+        {
+            "Cliente" => TipoPersonaOportunidad.Cliente,
+            "Familiar" => TipoPersonaOportunidad.Familiar,
+            _ => throw new ArgumentException("El tipo de persona debe ser Cliente o Familiar"),
+        };
     }
 
     private void SincronizarFamiliares(Cliente cliente, List<FamiliarClienteDto>? familiaresDto)

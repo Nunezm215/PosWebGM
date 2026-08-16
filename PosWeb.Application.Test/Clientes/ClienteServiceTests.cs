@@ -409,4 +409,181 @@ public class ClienteServiceTests
         Assert.IsType<BadRequestObjectResult>(controller.ListarProximosCumpleanios(-1).Result);
         Assert.IsType<BadRequestObjectResult>(controller.ListarProximosCumpleanios(366).Result);
     }
+
+    [Fact]
+    public void Marcar_oportunidad_cliente_atendida_la_persiste_idempotentemente_y_la_excluye()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 8, 16);
+        var cliente = service.Crear(CrearDtoCumple("Cliente", new DateOnly(1990, 8, 20), "10000011"));
+        var request = new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        };
+
+        service.MarcarOportunidadCumpleaniosAtendida(request, hoy);
+        service.MarcarOportunidadCumpleaniosAtendida(request, hoy);
+
+        var atendida = Assert.Single(context.OportunidadCumpleaniosAtendida);
+        Assert.Equal(TipoPersonaOportunidad.Cliente, atendida.TIPO_PERSONA);
+        Assert.Equal(cliente.Id, atendida.ID_PERSONA);
+        Assert.Equal(request.ProximoCumpleanios, atendida.PROXIMO_CUMPLEANIOS);
+        Assert.NotEqual(default, atendida.FECHA_ATENDIDO);
+        Assert.DoesNotContain(service.ListarProximosCumpleanios(90, hoy), r => r.PersonaId == cliente.Id);
+    }
+
+    [Fact]
+    public void Marcar_oportunidad_familiar_atendida_no_oculta_al_cliente_y_viceversa()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 8, 16);
+        var cliente = service.Crear(CrearDtoCumple("Titular", new DateOnly(1990, 8, 20), "10000012", familiares: new List<FamiliarClienteDto>
+        {
+            new() { Nombre = "Familiar", FechaNacimiento = new DateOnly(2010, 8, 21) },
+        }));
+        var familiar = cliente.Familiares.Single();
+
+        service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Familiar",
+            PersonaId = familiar.Id!.Value,
+            ProximoCumpleanios = new DateOnly(2026, 8, 21),
+        }, hoy);
+
+        var pendientes = service.ListarProximosCumpleanios(90, hoy);
+        Assert.Contains(pendientes, r => r.TipoPersona == "Cliente" && r.PersonaId == cliente.Id);
+        Assert.DoesNotContain(pendientes, r => r.TipoPersona == "Familiar" && r.PersonaId == familiar.Id);
+
+        service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        }, hoy);
+
+        Assert.Empty(service.ListarProximosCumpleanios(90, hoy));
+    }
+
+    [Fact]
+    public void Oportunidad_atendida_en_un_ano_no_bloquea_la_campana_siguiente()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var cliente = service.Crear(CrearDtoCumple("Anual", new DateOnly(1990, 10, 20), "10000013"));
+        var campana2026 = new DateOnly(2026, 8, 16);
+
+        service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 10, 20),
+        }, campana2026);
+
+        var siguiente = Assert.Single(service.ListarProximosCumpleanios(90, new DateOnly(2027, 8, 16)));
+        Assert.Equal(cliente.Id, siguiente.PersonaId);
+        Assert.Equal(new DateOnly(2027, 10, 20), siguiente.ProximoCumpleanios);
+    }
+
+    [Fact]
+    public void Oportunidad_de_29_de_febrero_usa_la_fecha_calculada_de_cada_campana()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var cliente = service.Crear(CrearDtoCumple("Leap", new DateOnly(2000, 2, 29), "10000014"));
+
+        service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2027, 2, 28),
+        }, new DateOnly(2027, 1, 1));
+
+        Assert.Empty(service.ListarProximosCumpleanios(90, new DateOnly(2027, 1, 1)));
+        var bisiesto = Assert.Single(service.ListarProximosCumpleanios(90, new DateOnly(2028, 1, 1)));
+        Assert.Equal(new DateOnly(2028, 2, 29), bisiesto.ProximoCumpleanios);
+    }
+
+    [Fact]
+    public void Marcar_oportunidad_valida_tipo_persona_persona_y_fecha_real()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 8, 16);
+        var cliente = service.Crear(CrearDtoCumple("Validacion", new DateOnly(1990, 8, 20), "10000015"));
+
+        Assert.Throws<ArgumentException>(() => service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Otro",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        }, hoy));
+        Assert.Throws<KeyNotFoundException>(() => service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = 999,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        }, hoy));
+        Assert.Throws<ArgumentException>(() => service.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 21),
+        }, hoy));
+    }
+
+    [Fact]
+    public void Marcar_oportunidad_controller_devuelve_respuestas_controladas()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var cliente = service.Crear(CrearDtoCumple("Controller", DateOnly.FromDateTime(DateTime.Today), "10000016", familiares: new List<FamiliarClienteDto>
+        {
+            new() { Nombre = "Familiar Controller", FechaNacimiento = DateOnly.FromDateTime(DateTime.Today) },
+        }));
+        var familiar = cliente.Familiares.Single();
+        var controller = new ClientesController(service);
+
+        Assert.IsType<NoContentResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<NoContentResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<NoContentResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Familiar",
+            PersonaId = familiar.Id!.Value,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<BadRequestObjectResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Invalido",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<BadRequestObjectResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
+        }));
+        Assert.IsType<NotFoundObjectResult>(controller.MarcarOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = 999,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        var proximos = Assert.IsType<OkObjectResult>(controller.ListarProximosCumpleanios(90).Result);
+        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<ProximoCumpleaniosResponseDto>>(proximos.Value));
+    }
 }

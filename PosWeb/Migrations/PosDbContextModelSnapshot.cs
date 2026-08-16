@@ -539,6 +539,40 @@ namespace PosWeb.Migrations
                     b.ToTable("FAMILIAR_CLIENTE", (string)null);
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.OportunidadCumpleaniosAtendida", b =>
+                {
+                    b.Property<int>("ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA"));
+
+                    b.Property<DateTime>("FECHA_ATENDIDO")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("FECHA_ATENDIDO");
+
+                    b.Property<int>("ID_PERSONA")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_PERSONA");
+
+                    b.Property<DateOnly>("PROXIMO_CUMPLEANIOS")
+                        .HasColumnType("date")
+                        .HasColumnName("PROXIMO_CUMPLEANIOS");
+
+                    b.Property<int>("TIPO_PERSONA")
+                        .HasColumnType("int")
+                        .HasColumnName("TIPO_PERSONA");
+
+                    b.HasKey("ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA");
+
+                    b.HasIndex("TIPO_PERSONA", "ID_PERSONA", "PROXIMO_CUMPLEANIOS")
+                        .IsUnique();
+
+                    b.ToTable("OPORTUNIDAD_CUMPLEANIOS_ATENDIDA", (string)null)
+                        .HasCharSet("utf8mb4");
+                });
+
             modelBuilder.Entity("PosWeb.Domain.Gasto", b =>
                 {
                     b.Property<int>("ID_GASTO")

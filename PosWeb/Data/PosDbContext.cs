@@ -37,6 +37,7 @@ public partial class PosDbContext : DbContext
     public DbSet<PagoDeuda> PagoDeuda { get; set; }
     public DbSet<Evento> Evento { get; set; }
     public DbSet<FamiliarCliente> FamiliarCliente { get; set; }
+    public DbSet<OportunidadCumpleaniosAtendida> OportunidadCumpleaniosAtendida { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -296,6 +296,34 @@ public partial class PosDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ---- OPORTUNIDAD CUMPLEAÑOS ATENDIDA ----
+        modelBuilder.Entity<OportunidadCumpleaniosAtendida>(entity =>
+        {
+            entity.ToTable("OPORTUNIDAD_CUMPLEANIOS_ATENDIDA");
+
+            entity.HasKey(o => o.ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA);
+
+            entity.Property(o => o.ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA)
+                .HasColumnName("ID_OPORTUNIDAD_CUMPLEANIOS_ATENDIDA");
+
+            entity.Property(o => o.TIPO_PERSONA)
+                .HasColumnName("TIPO_PERSONA")
+                .HasConversion<int>();
+
+            entity.Property(o => o.ID_PERSONA)
+                .HasColumnName("ID_PERSONA");
+
+            entity.Property(o => o.PROXIMO_CUMPLEANIOS)
+                .HasColumnName("PROXIMO_CUMPLEANIOS")
+                .HasColumnType("date");
+
+            entity.Property(o => o.FECHA_ATENDIDO)
+                .HasColumnName("FECHA_ATENDIDO");
+
+            entity.HasIndex(o => new { o.TIPO_PERSONA, o.ID_PERSONA, o.PROXIMO_CUMPLEANIOS })
+                .IsUnique();
+        });
+
         // ---- VENTA ----
         modelBuilder.Entity<Venta>(entity =>
         {
