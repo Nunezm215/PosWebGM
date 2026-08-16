@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { SucursalDto } from '../types'
 import { useAuth } from '../context/AuthContext'
 import ProductLookupModal from './ProductLookupModal'
-import { CalendarDays, Menu, LogOut } from 'lucide-react'
+import { CalendarDays, Gift, Menu, LogOut } from 'lucide-react'
 import { getCurrentVersion } from '../versionCheck'
 
 declare const __APP_VERSION__: string
@@ -16,6 +16,7 @@ const menuByRole = {
   admin: [
     { to: '/eventos', label: 'Eventos', icon: <CalendarDays size={16} strokeWidth={2} /> as ReactNode },
     { to: '/clientes', label: 'Clientes', icon: '👤' },
+    { to: '/oportunidades', label: 'Oportunidades', icon: <Gift size={16} strokeWidth={2} /> as ReactNode },
     { to: '/caja', label: 'Caja', icon: '💰' },
     { to: '/gastos', label: 'Gastos', icon: '💸' },
     { to: '/usuarios/alta', label: 'Usuarios', icon: '👥' },

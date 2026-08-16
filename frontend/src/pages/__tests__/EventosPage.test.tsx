@@ -14,6 +14,7 @@ const apiState = vi.hoisted(() => ({
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
   listarClientes: vi.fn(),
+  proximosCumpleanios: vi.fn(),
 }))
 
 const authState = vi.hoisted(() => ({
@@ -35,6 +36,7 @@ vi.mock('../../api/client', () => ({
       listar: apiState.listarClientes,
       crear: apiState.crearCliente,
       obtener: apiState.obtenerCliente,
+      proximosCumpleanios: apiState.proximosCumpleanios,
     },
   },
 }))
@@ -73,6 +75,7 @@ describe('EventosPage', () => {
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
     apiState.listarClientes.mockReset()
+    apiState.proximosCumpleanios.mockReset()
     apiState.listarRango.mockResolvedValue([])
     apiState.buscar.mockResolvedValue([])
     apiState.obtenerPorId.mockResolvedValue(null)
@@ -93,6 +96,7 @@ describe('EventosPage', () => {
     })
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
+    apiState.proximosCumpleanios.mockResolvedValue([])
   })
 
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -140,8 +144,10 @@ describe('EventosPage', () => {
     expect(screen.getByRole('searchbox', { name: 'Buscar evento' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mes anterior' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mes siguiente' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Hoy')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hoy' })).not.toBeInTheDocument()
     expect(screen.queryByText(/2026-\d{2}-\d{2} - 2026-\d{2}-\d{2}/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Oportunidades de cumpleaños')).not.toBeInTheDocument()
+    expect(apiState.proximosCumpleanios).not.toHaveBeenCalled()
   })
 
   it('initializes the selector with the current local month and year', async () => {
@@ -751,6 +757,144 @@ describe('EventosPage', () => {
     expect(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'true')
     expect(screen.getByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'false')
     expect(screen.getByRole('button', { name: /Eventos del día .*17 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'true')
+  })
+
+  it('highlights the local current day without replacing reservation styling or day interaction', async () => {
+    const todayKey = dateKeyFromToday()
+    const otherReservedKey = dateKeyFromToday(1)
+    const pastReservedKey = dateKeyFromToday(-1)
+    const pastCancelledKey = dateKeyFromToday(-2)
+    const pastMixedKey = dateKeyFromToday(-3)
+    apiState.listarRango.mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: todayKey,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Reserva hoy',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: '',
+        estado: 'Reservado',
+        fechaCreacion: `${todayKey}T12:00:00`,
+      },
+      {
+        id: 2,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: otherReservedKey,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Otra reserva',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Señado',
+        fechaCreacion: `${todayKey}T12:00:00`,
+      },
+      {
+        id: 3,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: pastReservedKey,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Reserva pasada',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Pagado',
+        fechaCreacion: `${pastReservedKey}T12:00:00`,
+      },
+      {
+        id: 4,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: pastCancelledKey,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Cancelado pasado',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Cancelado',
+        fechaCreacion: `${pastCancelledKey}T12:00:00`,
+      },
+      {
+        id: 5,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: pastMixedKey,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Reserva activa pasada',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Señado',
+        fechaCreacion: `${pastMixedKey}T12:00:00`,
+      },
+      {
+        id: 6,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: pastMixedKey,
+        horaInicio: '14:00:00',
+        horaFin: '16:00:00',
+        tipoEvento: 'Cancelado mixto pasado',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Cancelado',
+        fechaCreacion: `${pastMixedKey}T12:00:00`,
+      },
+    ])
+
+    await renderPage()
+
+    const today = await screen.findByRole('button', { name: dayButtonName(todayKey) })
+    const otherReserved = screen.getByRole('button', { name: dayButtonName(otherReservedKey) })
+    const pastReserved = screen.getByRole('button', { name: dayButtonName(pastReservedKey) })
+    const pastCancelled = screen.getByRole('button', { name: dayButtonName(pastCancelledKey) })
+    const pastMixed = screen.getByRole('button', { name: dayButtonName(pastMixedKey) })
+    const normalDay = document.querySelector<HTMLElement>('[data-is-current-month="true"][data-is-past="false"][data-is-today="false"][data-has-events="false"]')
+    const pastDay = document.querySelector<HTMLElement>('[data-is-past="true"][data-has-events="false"]')
+    const outsideMonthDay = document.querySelector<HTMLElement>('[data-is-current-month="false"][data-has-events="false"]')
+
+    expect(document.querySelectorAll('[data-is-today="true"]')).toHaveLength(1)
+    expect(today).toHaveAttribute('data-is-today', 'true')
+    expect(today).toHaveAttribute('data-has-events', 'true')
+    expect(today).toHaveClass('bg-sky-200', 'ring-blue-700')
+    expect(today).not.toHaveClass('bg-slate-300')
+    expect(within(today).getByText('HOY')).toBeInTheDocument()
+    expect(otherReserved).toHaveAttribute('data-has-events', 'true')
+    expect(otherReserved).not.toHaveAttribute('data-is-today', 'true')
+    expect(otherReserved).toHaveClass('bg-sky-200')
+    expect(pastReserved).toHaveAttribute('data-has-events', 'true')
+    expect(pastReserved).toHaveClass('bg-slate-300')
+    expect(pastCancelled).toHaveAttribute('data-has-events', 'false')
+    expect(pastCancelled).toHaveClass('bg-slate-100')
+    expect(pastCancelled).not.toHaveClass('bg-slate-300')
+    expect(pastMixed).toHaveAttribute('data-has-events', 'true')
+    expect(pastMixed).toHaveClass('bg-slate-300')
+    expect(normalDay).toHaveClass('bg-white')
+    expect(normalDay).toHaveAttribute('data-has-events', 'false')
+    expect(normalDay).toHaveAttribute('data-is-today', 'false')
+    expect(within(normalDay!).queryByText('HOY')).not.toBeInTheDocument()
+    expect(pastDay?.className).toContain('bg-slate')
+    expect(outsideMonthDay).toHaveClass('bg-slate-50')
+    expect(screen.getByText('Reserva pasada')).toBeInTheDocument()
+
+    await userEvent.setup().click(today)
+    expect(await screen.findByRole('dialog', { name: 'Eventos del día' })).toBeInTheDocument()
   })
 
   it('shows a fallback reserved-by label when the client is not in cache', async () => {

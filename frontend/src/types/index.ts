@@ -328,6 +328,18 @@ export interface ActualizarEstadoEventoRequestDto {
   estado: string
 }
 
+export interface ProximoCumpleaniosResponseDto {
+  personaId: number
+  tipoPersona: string
+  nombrePersona: string
+  fechaNacimiento: string
+  proximoCumpleanios: string
+  diasFaltantes: number
+  clienteId: number
+  nombreCliente: string
+  telefonoCliente?: string | null
+}
+
 // --- Cliente types ---
 export interface ClienteDto {
   id?: number

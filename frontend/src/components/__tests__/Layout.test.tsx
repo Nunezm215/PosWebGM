@@ -68,6 +68,7 @@ describe('Layout navigation', () => {
     expect(screen.getAllByText('Gestor de Eventos')).toHaveLength(2)
     expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Clientes')).toBeInTheDocument()
+    expect(screen.getByText('Oportunidades')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
     expect(screen.getByText('Gastos')).toBeInTheDocument()
     expect(screen.getByText('Usuarios')).toBeInTheDocument()
@@ -99,6 +100,7 @@ describe('Layout navigation', () => {
 
     expect(screen.getByText('Eventos')).toBeInTheDocument()
     expect(screen.getByText('Clientes')).toBeInTheDocument()
+    expect(screen.queryByText('Oportunidades')).not.toBeInTheDocument()
     expect(screen.queryByText('Caja')).not.toBeInTheDocument()
     expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
     expect(screen.queryByText('Usuarios')).not.toBeInTheDocument()
@@ -110,6 +112,7 @@ describe('Layout navigation', () => {
     renderLayout()
 
     expect(screen.getByText('Eventos')).toBeInTheDocument()
+    expect(screen.getByText('Oportunidades')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
   })
 

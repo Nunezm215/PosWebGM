@@ -239,29 +239,35 @@ function buildVisibleDays(anchor: Date) {
   return { days, desde: toDateKey(start), hasta: toDateKey(end) }
 }
 
-function statusStyles(estado: string) {
+function statusStyles(estado: string, isPast = false) {
+  if (isPast && estado !== 'Cancelado') {
+    return 'border-slate-500 bg-slate-200 text-slate-800'
+  }
+
   switch (estado) {
     case 'Pagado':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      return 'border-sky-400 bg-sky-100 text-sky-950'
     case 'Señado':
-      return 'border-amber-200 bg-amber-50 text-amber-800'
+      return 'border-blue-400 bg-blue-100 text-blue-950'
     case 'Cancelado':
-      return 'border-gray-200 bg-gray-100 text-gray-500 opacity-80'
+      return 'border-slate-400 bg-slate-100 text-slate-700 opacity-80'
     default:
-      return 'border-indigo-200 bg-indigo-50 text-indigo-800'
+      return 'border-blue-400 bg-blue-100 text-blue-950'
   }
 }
 
-function statusBadgeStyles(estado: string) {
+function statusBadgeStyles(estado: string, isPast = false) {
+  if (isPast && estado !== 'Cancelado') return 'bg-slate-700 text-white'
+
   switch (estado) {
     case 'Pagado':
-      return 'bg-emerald-600 text-white'
+      return 'bg-sky-700 text-white'
     case 'Señado':
-      return 'bg-amber-600 text-white'
+      return 'bg-blue-700 text-white'
     case 'Cancelado':
-      return 'bg-gray-500 text-white'
+      return 'bg-slate-600 text-white'
     default:
-      return 'bg-indigo-600 text-white'
+      return 'bg-blue-700 text-white'
   }
 }
 
@@ -1189,7 +1195,7 @@ export default function EventosPage() {
             <button
               type="button"
               onClick={toggleMonthPicker}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-400 bg-white px-3 py-1.5 font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
               aria-haspopup="dialog"
               aria-expanded={monthPickerOpen}
             >
@@ -1234,30 +1240,40 @@ export default function EventosPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div>
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <div className="rounded-2xl bg-slate-100 p-2 shadow-sm">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs font-semibold text-slate-700" aria-label="Leyenda del calendario">
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-sky-500 bg-sky-200" aria-hidden="true" />Con reserva</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-slate-500 bg-slate-300" aria-hidden="true" />Reserva pasada</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2 border-blue-700 bg-white" aria-hidden="true" />Hoy</span>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-slate-300 bg-white">
+            <div className="grid grid-cols-7 border-b border-slate-300 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:text-xs">
               {WEEKDAY_LABELS.map(day => (
                 <div key={day} className="px-2 py-2 text-center">{day}</div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-px bg-gray-200">
+            <div className="grid grid-cols-7 gap-px bg-slate-300">
               {range.days.map(day => {
                 const key = toDateKey(day)
                 const eventosDia = eventosPorDia.get(key) ?? []
                 const tieneReservas = eventosDia.some(evento => evento.estado !== 'Cancelado')
                 const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
+                const isToday = key === todayDateKey
+                const isPast = key < todayDateKey
                 const dayCellClassName = [
-                  'min-h-[100px] p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 sm:min-h-[122px] sm:p-3',
-                  isCurrentMonth ? 'text-gray-900' : 'text-gray-400',
+                  'min-h-[100px] border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
+                  isCurrentMonth ? 'text-slate-900' : 'text-slate-400',
+                  isToday ? 'ring-[3px] ring-inset ring-blue-700' : '',
                   tieneReservas
-                    ? isCurrentMonth
-                      ? 'bg-emerald-100 hover:bg-emerald-200'
-                      : 'bg-emerald-50 hover:bg-emerald-100'
-                    : isCurrentMonth
-                      ? 'bg-white hover:bg-indigo-50/40'
-                      : 'bg-gray-50 hover:bg-indigo-50/40',
+                    ? isPast
+                      ? 'border-slate-500 bg-slate-300 text-slate-800 hover:bg-slate-400'
+                      : 'border-sky-500 bg-sky-200 text-sky-950 hover:bg-sky-300'
+                    : !isCurrentMonth
+                      ? 'bg-slate-50 hover:bg-slate-100'
+                      : isPast
+                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        : 'bg-white hover:bg-slate-100',
                 ].join(' ')
 
                 return (
@@ -1267,6 +1283,9 @@ export default function EventosPage() {
                     aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
                     tabIndex={0}
                     data-has-events={tieneReservas}
+                    data-is-today={isToday}
+                    data-is-past={isPast}
+                    data-is-current-month={isCurrentMonth}
                     onClick={() => openDay(key)}
                     onKeyDown={event => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -1277,9 +1296,12 @@ export default function EventosPage() {
                     className={dayCellClassName}
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isCurrentMonth ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
+                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold ${tieneReservas ? isPast ? 'bg-slate-700 text-white' : 'bg-blue-950 text-white' : isCurrentMonth ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-400'}`}>
                         {day.getDate()}
                       </span>
+                      {isToday && (
+                        <span className="rounded-full bg-blue-700 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white">HOY</span>
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -1291,7 +1313,7 @@ export default function EventosPage() {
                             event.stopPropagation()
                             openEvent(evento.id)
                           }}
-                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado)}`}
+                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado, isPast)}`}
                           aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -1304,7 +1326,7 @@ export default function EventosPage() {
                                 <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
                               </div>
                             </div>
-                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadgeStyles(evento.estado, isPast)}`}>
                               {evento.estado}
                             </span>
                           </div>
@@ -1312,7 +1334,7 @@ export default function EventosPage() {
                       ))}
 
                       {eventosDia.length > 3 && (
-                        <div className="px-1 text-[10px] font-medium text-gray-500">
+                        <div className="px-1 text-[10px] font-medium text-slate-700">
                           +{eventosDia.length - 3} más
                         </div>
                       )}

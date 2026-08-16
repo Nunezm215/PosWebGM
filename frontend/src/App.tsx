@@ -21,6 +21,7 @@ import PedidosPage from './pages/PedidosPage'
 import InicioPage from './pages/InicioPage'
 import CombosPage from './pages/CombosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
+import OportunidadesPage from './pages/OportunidadesPage'
 import { esperarBackend } from './api/client'
 import { onUpdaterChange, runUpdateCheck, type UpdaterState, type UpdaterStatus } from './updater'
 import { initVersionCheck, getCurrentVersion } from './versionCheck'
@@ -118,7 +119,8 @@ export default function App() {
           <Route element={<AuthGuard />}>
             <Route element={<Layout />}> 
               <Route path="/" element={<HomePage />} />
-              <Route path="/eventos" element={<EventosPage />} />
+               <Route path="/eventos" element={<EventosPage />} />
+               <Route path="/oportunidades" element={<OportunidadesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
             <Route path="/ventas" element={<VentasPage />} />
             <Route path="/historial" element={<HistorialVentasPage />} />
