@@ -15,4 +15,12 @@ public class CajaDiariaService(PosDbContextLocal context) : ICajaDiariaService
   var realizados=eventos.Where(e=>e.FECHA==fecha&&e.ESTADO!=EventoEstados.Cancelado).Select(e=>new EventoRealizadoCajaDto{EventoId=e.ID_EVENTO,Fecha=e.FECHA,HoraInicio=e.HORA_INICIO,TipoEvento=e.TIPO_EVENTO,ClienteId=e.ID_CLIENTE,NombreCliente=e.Cliente.NOMBRE,Estado=e.ESTADO}).ToList();
   return new CajaDiariaDto{Fecha=fecha,Ingresos=ingresos,Egresos=gastos,EventosRealizados=realizados,CantidadEventosRealizados=realizados.Count,TotalIngresos=ingresos.Sum(i=>i.Monto),TotalEgresos=gastos.Sum(g=>g.Monto),Resultado=ingresos.Sum(i=>i.Monto)-gastos.Sum(g=>g.Monto),DesgloseMediosPago=ingresos.GroupBy(i=>new{i.MedioPagoId,i.MedioPago}).Select(g=>new MedioPagoCajaDto{MedioPagoId=g.Key.MedioPagoId,Descripcion=g.Key.MedioPago,Total=g.Sum(x=>x.Monto),CantidadPagos=g.Count()}).ToList()};
  }
+ public async Task<IReadOnlyList<CajaDiariaResumenDto>> ObtenerHistorialAsync(DateOnly desde, DateOnly hasta, CancellationToken ct = default)
+ {
+  if (desde>hasta) throw new ArgumentException("La fecha desde no puede ser posterior a hasta."); if (hasta.DayNumber-desde.DayNumber>365) throw new ArgumentException("El rango máximo es de 366 días.");
+  var sucursales=await context.Sucursal.Where(s=>s.ACTIVO).ToListAsync(ct); if(sucursales.Count!=1) throw new InvalidOperationException("Se esperaba una única sucursal activa."); var id=sucursales[0].ID_SUCURSAL;
+  var eventos=await context.Evento.Where(e=>e.ID_SUCURSAL==id).ToListAsync(ct); var ids=eventos.Select(e=>e.ID_EVENTO).ToList(); var pagos=await context.PagoEvento.Where(p=>!p.ANULADO&&ids.Contains(p.ID_EVENTO)).ToListAsync(ct); var gastos=await context.Gasto.Where(g=>!g.ANULADO&&g.ID_SUCURSAL==id).ToListAsync(ct);
+  var ingresos=pagos.GroupBy(p=>FechaContableArgentina.DesdeUtc(p.FECHA_REGISTRO)).ToDictionary(g=>g.Key,g=>g.Sum(x=>x.MONTO)); var egresos=gastos.GroupBy(g=>FechaContableArgentina.DesdeUtc(g.FECHA_GASTO)).ToDictionary(g=>g.Key,g=>g.Sum(x=>x.MONTO)); var realizados=eventos.Where(e=>e.ESTADO!=EventoEstados.Cancelado&&e.FECHA>=desde&&e.FECHA<=hasta).GroupBy(e=>e.FECHA).ToDictionary(g=>g.Key,g=>g.Count());
+  var resultado=new List<CajaDiariaResumenDto>(); for(var dia=desde;dia<=hasta;dia=dia.AddDays(1)){ingresos.TryGetValue(dia,out var i);egresos.TryGetValue(dia,out var e);realizados.TryGetValue(dia,out var c);resultado.Add(new CajaDiariaResumenDto{Fecha=dia,TotalIngresos=i,TotalEgresos=e,Resultado=i-e,CantidadEventosRealizados=c});} return resultado;
+ }
 }

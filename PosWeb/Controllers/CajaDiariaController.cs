@@ -17,4 +17,13 @@ public class CajaDiariaController(ICajaDiariaService service) : ControllerBase
         try { return Ok(await service.ObtenerAsync(fecha.Value, cancellationToken)); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }
+
+    [HttpGet("historial")]
+    public async Task<IActionResult> Historial([FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, CancellationToken cancellationToken)
+    {
+        if (!desde.HasValue || !hasta.HasValue) return BadRequest(new { error = "Las fechas desde y hasta son requeridas" });
+        try { return Ok(await service.ObtenerHistorialAsync(desde.Value, hasta.Value, cancellationToken)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
 }
