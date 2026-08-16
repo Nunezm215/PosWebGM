@@ -246,4 +246,28 @@ public class EventoRepositoryEfTests
             Assert.True(disponible);
         }
     }
+
+    [Fact]
+    public async Task Persiste_cargo_extra_con_fk_a_evento_e_indice()
+    {
+        var (connection, context) = await CrearContextoListoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedBaseAsync(context);
+            var evento = CrearEvento(Cliente1Id, UsuarioId, Sucursal1Id, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0));
+            context.Evento.Add(evento);
+            await context.SaveChangesAsync();
+
+            context.CargoExtraEvento.Add(new CargoExtraEvento(evento.ID_EVENTO, "Pool", 50000.50m, UsuarioId, new DateTime(2026, 8, 16)));
+            await context.SaveChangesAsync();
+
+            var cargo = Assert.Single(context.CargoExtraEvento);
+            Assert.Equal(evento.ID_EVENTO, cargo.ID_EVENTO);
+            Assert.Equal(50000.50m, cargo.MONTO);
+            Assert.False(cargo.ANULADO);
+            var entityType = context.Model.FindEntityType(typeof(CargoExtraEvento));
+            Assert.NotNull(entityType!.GetIndexes().SingleOrDefault(i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { "ID_EVENTO" })));
+        }
+    }
 }

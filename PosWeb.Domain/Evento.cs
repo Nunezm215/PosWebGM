@@ -47,6 +47,9 @@ public class Evento
 
     public DateTime FECHA_CREACION { get; private set; }
 
+    private readonly List<CargoExtraEvento> _CARGOS_EXTRA = new();
+    public IReadOnlyCollection<CargoExtraEvento> CARGOS_EXTRA => _CARGOS_EXTRA;
+
     public Evento(
         int clienteId,
         int usuarioCreadorId,

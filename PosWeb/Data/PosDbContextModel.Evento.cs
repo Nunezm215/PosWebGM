@@ -79,4 +79,66 @@ public partial class PosDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
+
+    internal static void ConfigureCargoExtraEvento(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CargoExtraEvento>(entity =>
+        {
+            entity.ToTable("CARGO_EXTRA_EVENTO");
+
+            entity.HasKey(c => c.ID_CARGO_EXTRA_EVENTO);
+
+            entity.Property(c => c.ID_CARGO_EXTRA_EVENTO)
+                .HasColumnName("ID_CARGO_EXTRA_EVENTO");
+
+            entity.Property(c => c.ID_EVENTO)
+                .HasColumnName("ID_EVENTO");
+
+            entity.Property(c => c.DESCRIPCION)
+                .HasColumnName("DESCRIPCION")
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(c => c.MONTO)
+                .HasColumnName("MONTO")
+                .HasColumnType("decimal(18,2)");
+
+            entity.Property(c => c.FECHA_REGISTRO)
+                .HasColumnName("FECHA_REGISTRO");
+
+            entity.Property(c => c.ID_USUARIO_REGISTRA)
+                .HasColumnName("ID_USUARIO_REGISTRA");
+
+            entity.Property(c => c.ANULADO)
+                .HasColumnName("ANULADO")
+                .HasDefaultValue(false);
+
+            entity.Property(c => c.FECHA_ANULACION)
+                .HasColumnName("FECHA_ANULACION");
+
+            entity.Property(c => c.ID_USUARIO_ANULA)
+                .HasColumnName("ID_USUARIO_ANULA");
+
+            entity.Property(c => c.MOTIVO_ANULACION)
+                .HasColumnName("MOTIVO_ANULACION")
+                .HasMaxLength(500);
+
+            entity.HasIndex(c => c.ID_EVENTO);
+
+            entity.HasOne<Evento>()
+                .WithMany(e => e.CARGOS_EXTRA)
+                .HasForeignKey(c => c.ID_EVENTO)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne<Usuario>()
+                .WithMany()
+                .HasForeignKey(c => c.ID_USUARIO_REGISTRA)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne<Usuario>()
+                .WithMany()
+                .HasForeignKey(c => c.ID_USUARIO_ANULA)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
 }
