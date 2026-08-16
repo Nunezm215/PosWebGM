@@ -36,6 +36,18 @@ public class ClientesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("proximos-cumpleanios")]
+    public ActionResult<IReadOnlyList<ProximoCumpleaniosResponseDto>> ListarProximosCumpleanios([FromQuery] int dias = 90)
+    {
+        if (dias < 0 || dias > 365)
+        {
+            return BadRequest(new { error = "Los días deben estar entre 0 y 365" });
+        }
+
+        // Clientes are global in the current model, so this endpoint intentionally does not use sucursalId.
+        return Ok(_clienteService.ListarProximosCumpleanios(dias));
+    }
+
     [HttpPost]
     public IActionResult Crear([FromBody] ClienteDto dto)
     {

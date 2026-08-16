@@ -63,6 +63,59 @@ public class ClienteService
         return MapToDto(cliente);
     }
 
+    // Clientes are global in the current model, so this query intentionally has no sucursal filter.
+    public IReadOnlyList<ProximoCumpleaniosResponseDto> ListarProximosCumpleanios(int dias = 90, DateOnly? fechaReferencia = null)
+    {
+        if (dias < 0 || dias > 365)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dias), "Los días deben estar entre 0 y 365");
+        }
+
+        var hoy = fechaReferencia ?? DateOnly.FromDateTime(DateTime.Today);
+        var resultados = new List<ProximoCumpleaniosResponseDto>();
+
+        // Include loads each active customer and their relatives in a constant number of queries, avoiding N+1 lookups.
+        var clientes = _context.Cliente
+            .AsNoTracking()
+            .Where(cliente => cliente.ACTIVO)
+            .Include(cliente => cliente.FAMILIARES)
+            .AsEnumerable();
+
+        foreach (var cliente in clientes)
+        {
+            if (cliente.FECHA_NACIMIENTO.HasValue)
+            {
+                AgregarProximoCumpleanios(
+                    resultados,
+                    cliente.ID_CLIENTE,
+                    "Cliente",
+                    cliente.NOMBRE,
+                    cliente.FECHA_NACIMIENTO.Value,
+                    cliente,
+                    hoy,
+                    dias);
+            }
+
+            foreach (var familiar in cliente.FAMILIARES)
+            {
+                AgregarProximoCumpleanios(
+                    resultados,
+                    familiar.ID_FAMILIAR_CLIENTE,
+                    "Familiar",
+                    familiar.NOMBRE,
+                    familiar.FECHA_NACIMIENTO,
+                    cliente,
+                    hoy,
+                    dias);
+            }
+        }
+
+        return resultados
+            .OrderBy(resultado => resultado.DiasFaltantes)
+            .ThenBy(resultado => resultado.NombrePersona)
+            .ToList();
+    }
+
     public ClienteDto Crear(ClienteDto dto)
     {
         var nombre = Requerido(dto.Nombre, "El nombre es requerido");
@@ -215,6 +268,48 @@ public class ClienteService
                 .ToList(),
             Activo = cliente.ACTIVO
         };
+    }
+
+    private static void AgregarProximoCumpleanios(
+        List<ProximoCumpleaniosResponseDto> resultados,
+        int personaId,
+        string tipoPersona,
+        string nombrePersona,
+        DateOnly fechaNacimiento,
+        Cliente cliente,
+        DateOnly hoy,
+        int dias)
+    {
+        var proximoCumpleanios = CalcularProximoCumpleanios(fechaNacimiento, hoy);
+        var diasFaltantes = proximoCumpleanios.DayNumber - hoy.DayNumber;
+        if (diasFaltantes > dias) return;
+
+        resultados.Add(new ProximoCumpleaniosResponseDto
+        {
+            PersonaId = personaId,
+            TipoPersona = tipoPersona,
+            NombrePersona = nombrePersona,
+            FechaNacimiento = fechaNacimiento,
+            ProximoCumpleanios = proximoCumpleanios,
+            DiasFaltantes = diasFaltantes,
+            ClienteId = cliente.ID_CLIENTE,
+            NombreCliente = cliente.NOMBRE,
+            TelefonoCliente = cliente.TELEFONO,
+        });
+    }
+
+    private static DateOnly CalcularProximoCumpleanios(DateOnly fechaNacimiento, DateOnly hoy)
+    {
+        var cumpleanios = CrearAniversario(fechaNacimiento, hoy.Year);
+        return cumpleanios < hoy ? CrearAniversario(fechaNacimiento, hoy.Year + 1) : cumpleanios;
+    }
+
+    private static DateOnly CrearAniversario(DateOnly fechaNacimiento, int year)
+    {
+        var day = fechaNacimiento.Month == 2 && fechaNacimiento.Day == 29 && !DateTime.IsLeapYear(year)
+            ? 28
+            : fechaNacimiento.Day;
+        return new DateOnly(year, fechaNacimiento.Month, day);
     }
 
     private void SincronizarFamiliares(Cliente cliente, List<FamiliarClienteDto>? familiaresDto)

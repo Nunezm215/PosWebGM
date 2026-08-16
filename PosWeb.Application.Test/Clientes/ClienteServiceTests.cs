@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using PosWeb.Application.Clientes;
 using PosWeb.Contracts;
+using PosWeb.Controllers;
 using PosWeb.Data;
 using PosWeb.Domain;
 
@@ -51,6 +53,9 @@ public class ClienteServiceTests
             Nombre = nombre,
             FechaNacimiento = fechaNacimiento ?? DateOnly.FromDateTime(DateTime.Today.AddYears(-5)),
         };
+
+    private static ClienteDto CrearDtoCumple(string nombre, DateOnly fechaNacimiento, string numeroDocumento, string telefono = "11111111", List<FamiliarClienteDto>? familiares = null)
+        => CrearDto(nombre, fechaNacimiento, telefono, $"{nombre.Replace(" ", "").ToLowerInvariant()}@correo.com", numeroDocumento: numeroDocumento, familiares: familiares);
 
     [Fact]
     public void Crear_con_datos_validos_crea_cliente()
@@ -322,5 +327,86 @@ public class ClienteServiceTests
         context.SaveChanges();
 
         Assert.Equal(0, context.Set<FamiliarCliente>().Count());
+    }
+
+    [Fact]
+    public void Proximos_cumpleanios_incluye_hoy_manana_y_limite_de_90_dias()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 8, 16);
+
+        var cumpleHoy = service.Crear(CrearDtoCumple("Hoy", new DateOnly(1990, 8, 16), "10000001"));
+        var cumpleManana = service.Crear(CrearDtoCumple("Manana", new DateOnly(1990, 8, 17), "10000002"));
+        var cumple90 = service.Crear(CrearDtoCumple("Limite", new DateOnly(1990, 11, 14), "10000003"));
+        var cumple91 = service.Crear(CrearDtoCumple("Fuera", new DateOnly(1990, 11, 15), "10000004"));
+        var pasado = service.Crear(CrearDtoCumple("Pasado", new DateOnly(1990, 8, 15), "10000005"));
+        context.Cliente.Add(new Cliente("Historico", "DNI", "10000006", telefono: "11111111", mail: "historico@correo.com"));
+        context.SaveChanges();
+
+        var resultados = service.ListarProximosCumpleanios(90, hoy);
+
+        Assert.Contains(resultados, r => r.PersonaId == cumpleHoy.Id && r.DiasFaltantes == 0);
+        Assert.Contains(resultados, r => r.PersonaId == cumpleManana.Id && r.DiasFaltantes == 1);
+        Assert.Contains(resultados, r => r.PersonaId == cumple90.Id && r.DiasFaltantes == 90);
+        Assert.DoesNotContain(resultados, r => r.PersonaId == cumple91.Id);
+        Assert.DoesNotContain(resultados, r => r.PersonaId == pasado.Id);
+        Assert.DoesNotContain(resultados, r => r.NombrePersona == "Historico");
+        Assert.Equal(resultados.OrderBy(r => r.DiasFaltantes).ThenBy(r => r.NombrePersona).Select(r => r.PersonaId), resultados.Select(r => r.PersonaId));
+    }
+
+    [Fact]
+    public void Proximos_cumpleanios_incluye_familiar_y_usa_datos_del_titular()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 12, 15);
+        var cliente = service.Crear(CrearDtoCumple(
+            "Titular",
+            new DateOnly(1990, 6, 1),
+            "10000007",
+            "5491112345678",
+            new List<FamiliarClienteDto> { new() { Nombre = "Sofia", FechaNacimiento = new DateOnly(2015, 1, 10) } }));
+
+        var resultado = Assert.Single(service.ListarProximosCumpleanios(90, hoy));
+
+        Assert.Equal("Familiar", resultado.TipoPersona);
+        Assert.Equal("Sofia", resultado.NombrePersona);
+        Assert.Equal(new DateOnly(2027, 1, 10), resultado.ProximoCumpleanios);
+        Assert.Equal(cliente.Id, resultado.ClienteId);
+        Assert.Equal("Titular", resultado.NombreCliente);
+        Assert.Equal("5491112345678", resultado.TelefonoCliente);
+    }
+
+    [Fact]
+    public void Proximos_cumpleanios_aplica_regla_de_29_de_febrero_e_ignora_inactivos()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var leap = service.Crear(CrearDtoCumple("Leap", new DateOnly(2000, 2, 29), "10000008"));
+        var inactivo = service.Crear(CrearDtoCumple("Inactivo", new DateOnly(1990, 1, 2), "10000009"));
+        service.Desactivar(inactivo.Id);
+
+        var noBisiesto = Assert.Single(service.ListarProximosCumpleanios(90, new DateOnly(2027, 1, 1)));
+        Assert.Equal(leap.Id, noBisiesto.PersonaId);
+        Assert.Equal(new DateOnly(2027, 2, 28), noBisiesto.ProximoCumpleanios);
+
+        var bisiesto = Assert.Single(service.ListarProximosCumpleanios(90, new DateOnly(2028, 1, 1)));
+        Assert.Equal(new DateOnly(2028, 2, 29), bisiesto.ProximoCumpleanios);
+        Assert.DoesNotContain(service.ListarProximosCumpleanios(365, new DateOnly(2027, 1, 1)), r => r.PersonaId == inactivo.Id);
+    }
+
+    [Fact]
+    public void Proximos_cumpleanios_controller_usa_default_valida_dias_y_devuelve_dto()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        service.Crear(CrearDtoCumple("Hoy", DateOnly.FromDateTime(DateTime.Today), "10000010"));
+        var controller = new ClientesController(service);
+
+        var ok = Assert.IsType<OkObjectResult>(controller.ListarProximosCumpleanios().Result);
+        Assert.IsAssignableFrom<IReadOnlyList<ProximoCumpleaniosResponseDto>>(ok.Value);
+        Assert.IsType<BadRequestObjectResult>(controller.ListarProximosCumpleanios(-1).Result);
+        Assert.IsType<BadRequestObjectResult>(controller.ListarProximosCumpleanios(366).Result);
     }
 }
