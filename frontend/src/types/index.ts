@@ -330,7 +330,7 @@ export interface ActualizarEstadoEventoRequestDto {
 
 export interface ProximoCumpleaniosResponseDto {
   personaId: number
-  tipoPersona: string
+  tipoPersona: 'Cliente' | 'Familiar'
   nombrePersona: string
   fechaNacimiento: string
   proximoCumpleanios: string
@@ -338,6 +338,23 @@ export interface ProximoCumpleaniosResponseDto {
   clienteId: number
   nombreCliente: string
   telefonoCliente?: string | null
+}
+
+export interface MarcarOportunidadCumpleaniosAtendidaRequestDto {
+  tipoPersona: 'Cliente' | 'Familiar'
+  personaId: number
+  proximoCumpleanios: string
+}
+
+export interface OportunidadCumpleaniosAtendidaResponseDto {
+  tipoPersona: 'Cliente' | 'Familiar'
+  personaId: number
+  nombrePersona: string
+  clienteId: number
+  nombreCliente: string
+  telefonoCliente?: string | null
+  proximoCumpleanios: string
+  fechaAtendido: string
 }
 
 // --- Cliente types ---

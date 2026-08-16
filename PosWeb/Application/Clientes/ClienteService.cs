@@ -164,6 +164,54 @@ public class ClienteService
         _context.SaveChanges();
     }
 
+    public IReadOnlyList<OportunidadCumpleaniosAtendidaResponseDto> ListarOportunidadesCumpleaniosAtendidas()
+    {
+        // Historical records intentionally have no foreign keys. Resolve only people that still exist.
+        var clientes = _context.Cliente
+            .AsNoTracking()
+            .Include(cliente => cliente.FAMILIARES)
+            .AsEnumerable()
+            .ToDictionary(cliente => cliente.ID_CLIENTE);
+
+        return _context.OportunidadCumpleaniosAtendida
+            .AsNoTracking()
+            .AsEnumerable()
+            .Select(atendida => MapOportunidadAtendida(atendida, clientes))
+            .Where(resultado => resultado is not null)
+            .Select(resultado => resultado!)
+            .OrderByDescending(resultado => resultado.FechaAtendido)
+            .ThenByDescending(resultado => resultado.ProximoCumpleanios)
+            .ToList();
+    }
+
+    public void DeshacerOportunidadCumpleaniosAtendida(MarcarOportunidadCumpleaniosAtendidaRequestDto dto)
+    {
+        if (dto is null)
+        {
+            throw new ArgumentException("La oportunidad es requerida");
+        }
+
+        if (dto.PersonaId <= 0)
+        {
+            throw new ArgumentException("La persona es requerida");
+        }
+
+        if (dto.ProximoCumpleanios == default)
+        {
+            throw new ArgumentException("La fecha de próximo cumpleaños es requerida");
+        }
+
+        var tipoPersona = ParseTipoPersona(dto.TipoPersona);
+        var atendida = _context.OportunidadCumpleaniosAtendida.FirstOrDefault(o =>
+            o.TIPO_PERSONA == tipoPersona &&
+            o.ID_PERSONA == dto.PersonaId &&
+            o.PROXIMO_CUMPLEANIOS == dto.ProximoCumpleanios);
+        if (atendida is null) return;
+
+        _context.OportunidadCumpleaniosAtendida.Remove(atendida);
+        _context.SaveChanges();
+    }
+
     public ClienteDto Crear(ClienteDto dto)
     {
         var nombre = Requerido(dto.Nombre, "El nombre es requerido");
@@ -403,6 +451,48 @@ public class ClienteService
             "Familiar" => TipoPersonaOportunidad.Familiar,
             _ => throw new ArgumentException("El tipo de persona debe ser Cliente o Familiar"),
         };
+    }
+
+    private static OportunidadCumpleaniosAtendidaResponseDto? MapOportunidadAtendida(
+        OportunidadCumpleaniosAtendida atendida,
+        IReadOnlyDictionary<int, Cliente> clientes)
+    {
+        if (atendida.TIPO_PERSONA == TipoPersonaOportunidad.Cliente)
+        {
+            if (!clientes.TryGetValue(atendida.ID_PERSONA, out var cliente)) return null;
+
+            return new OportunidadCumpleaniosAtendidaResponseDto
+            {
+                TipoPersona = "Cliente",
+                PersonaId = cliente.ID_CLIENTE,
+                NombrePersona = cliente.NOMBRE,
+                ClienteId = cliente.ID_CLIENTE,
+                NombreCliente = cliente.NOMBRE,
+                TelefonoCliente = cliente.TELEFONO,
+                ProximoCumpleanios = atendida.PROXIMO_CUMPLEANIOS,
+                FechaAtendido = atendida.FECHA_ATENDIDO,
+            };
+        }
+
+        foreach (var cliente in clientes.Values)
+        {
+            var familiar = cliente.FAMILIARES.FirstOrDefault(f => f.ID_FAMILIAR_CLIENTE == atendida.ID_PERSONA);
+            if (familiar is null) continue;
+
+            return new OportunidadCumpleaniosAtendidaResponseDto
+            {
+                TipoPersona = "Familiar",
+                PersonaId = familiar.ID_FAMILIAR_CLIENTE,
+                NombrePersona = familiar.NOMBRE,
+                ClienteId = cliente.ID_CLIENTE,
+                NombreCliente = cliente.NOMBRE,
+                TelefonoCliente = cliente.TELEFONO,
+                ProximoCumpleanios = atendida.PROXIMO_CUMPLEANIOS,
+                FechaAtendido = atendida.FECHA_ATENDIDO,
+            };
+        }
+
+        return null;
     }
 
     private void SincronizarFamiliares(Cliente cliente, List<FamiliarClienteDto>? familiaresDto)

@@ -1,4 +1,4 @@
-import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto } from '../types'
+import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto, MarcarOportunidadCumpleaniosAtendidaRequestDto, OportunidadCumpleaniosAtendidaResponseDto } from '../types'
 
 function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -356,6 +356,15 @@ export const api = {
     },
     obtener: (id: number) => request<ClienteDto>(`/clientes/${id}`),
     proximosCumpleanios: (dias: number = 90) => request<ProximoCumpleaniosResponseDto[]>(`/clientes/proximos-cumpleanios?dias=${dias}`),
+    marcarOportunidadCumpleaniosAtendida: (dto: MarcarOportunidadCumpleaniosAtendidaRequestDto) => request<void>('/clientes/oportunidades-cumpleanios/atender', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    }),
+    oportunidadesCumpleaniosAtendidas: () => request<OportunidadCumpleaniosAtendidaResponseDto[]>('/clientes/oportunidades-cumpleanios/atendidas'),
+    deshacerOportunidadCumpleaniosAtendida: (dto: MarcarOportunidadCumpleaniosAtendidaRequestDto) => request<void>('/clientes/oportunidades-cumpleanios/atendidas', {
+      method: 'DELETE',
+      body: JSON.stringify(dto),
+    }),
     crear: (dto: ClienteDto) => request<ClienteDto>('/clientes', {
       method: 'POST',
       body: JSON.stringify(dto),

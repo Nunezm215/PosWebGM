@@ -66,6 +66,24 @@ public class ClientesController : ControllerBase
         }
     }
 
+    [HttpGet("oportunidades-cumpleanios/atendidas")]
+    public ActionResult<IReadOnlyList<OportunidadCumpleaniosAtendidaResponseDto>> ListarOportunidadesCumpleaniosAtendidas()
+        => Ok(_clienteService.ListarOportunidadesCumpleaniosAtendidas());
+
+    [HttpDelete("oportunidades-cumpleanios/atendidas")]
+    public IActionResult DeshacerOportunidadCumpleaniosAtendida([FromBody] MarcarOportunidadCumpleaniosAtendidaRequestDto dto)
+    {
+        try
+        {
+            _clienteService.DeshacerOportunidadCumpleaniosAtendida(dto);
+            return NoContent();
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { error = exception.Message });
+        }
+    }
+
     [HttpPost]
     public IActionResult Crear([FromBody] ClienteDto dto)
     {

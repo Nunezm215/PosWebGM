@@ -586,4 +586,121 @@ public class ClienteServiceTests
         var proximos = Assert.IsType<OkObjectResult>(controller.ListarProximosCumpleanios(90).Result);
         Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<ProximoCumpleaniosResponseDto>>(proximos.Value));
     }
+
+    [Fact]
+    public void Lista_atendidas_resuelve_cliente_familiar_inactivo_y_omite_huerfanos_ordenados()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var cliente = service.Crear(CrearDtoCumple("Titular", new DateOnly(1990, 8, 20), "10000017", "5491112345678", new List<FamiliarClienteDto>
+        {
+            new() { Nombre = "Sofia", FechaNacimiento = new DateOnly(2010, 8, 21) },
+        }));
+        var familiar = cliente.Familiares.Single();
+        context.OportunidadCumpleaniosAtendida.AddRange(
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, cliente.Id, new DateOnly(2026, 8, 20), new DateTime(2026, 8, 10)),
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Familiar, familiar.Id!.Value, new DateOnly(2026, 8, 21), new DateTime(2026, 8, 11)),
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, 999, new DateOnly(2026, 8, 22), new DateTime(2026, 8, 12)));
+        context.SaveChanges();
+        service.Desactivar(cliente.Id);
+
+        var atendidas = service.ListarOportunidadesCumpleaniosAtendidas();
+
+        Assert.Equal(2, atendidas.Count);
+        Assert.Equal("Familiar", atendidas[0].TipoPersona);
+        Assert.Equal(familiar.Id, atendidas[0].PersonaId);
+        Assert.Equal("Sofia", atendidas[0].NombrePersona);
+        Assert.Equal(cliente.Id, atendidas[0].ClienteId);
+        Assert.Equal("Titular", atendidas[0].NombreCliente);
+        Assert.Equal("5491112345678", atendidas[0].TelefonoCliente);
+        Assert.Equal("Cliente", atendidas[1].TipoPersona);
+        Assert.Equal("Titular", atendidas[1].NombrePersona);
+    }
+
+    [Fact]
+    public void Deshacer_atendida_elimina_solo_la_campana_y_la_devuelve_a_pendientes()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var hoy = new DateOnly(2026, 8, 16);
+        var cliente = service.Crear(CrearDtoCumple("Campanas", new DateOnly(1990, 8, 20), "10000018", familiares: new List<FamiliarClienteDto>
+        {
+            new() { Nombre = "Familiar", FechaNacimiento = new DateOnly(2010, 8, 21) },
+        }));
+        var familiar = cliente.Familiares.Single();
+        context.OportunidadCumpleaniosAtendida.AddRange(
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, cliente.Id, new DateOnly(2026, 8, 20), DateTime.Now),
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, cliente.Id, new DateOnly(2027, 8, 20), DateTime.Now),
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Familiar, familiar.Id!.Value, new DateOnly(2026, 8, 21), DateTime.Now));
+        context.SaveChanges();
+
+        service.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        });
+        service.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = new DateOnly(2026, 8, 20),
+        });
+
+        Assert.Equal(2, context.OportunidadCumpleaniosAtendida.Count());
+        Assert.Contains(service.ListarProximosCumpleanios(90, hoy), r => r.TipoPersona == "Cliente" && r.PersonaId == cliente.Id && r.ProximoCumpleanios == new DateOnly(2026, 8, 20));
+        Assert.DoesNotContain(service.ListarProximosCumpleanios(90, hoy), r => r.TipoPersona == "Familiar" && r.PersonaId == familiar.Id);
+        Assert.DoesNotContain(service.ListarProximosCumpleanios(90, new DateOnly(2027, 8, 16)), r => r.ProximoCumpleanios == new DateOnly(2027, 8, 20));
+    }
+
+    [Fact]
+    public void Deshacer_atendida_respeta_ventana_y_fecha_calculada_de_29_de_febrero()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var leap = service.Crear(CrearDtoCumple("Leap Undo", new DateOnly(2000, 2, 29), "10000019"));
+        var fuera = service.Crear(CrearDtoCumple("Fuera", new DateOnly(1990, 11, 20), "10000020"));
+        context.OportunidadCumpleaniosAtendida.AddRange(
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, leap.Id, new DateOnly(2027, 2, 28), DateTime.Now),
+            new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, fuera.Id, new DateOnly(2026, 11, 20), DateTime.Now));
+        context.SaveChanges();
+
+        service.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto { TipoPersona = "Cliente", PersonaId = leap.Id, ProximoCumpleanios = new DateOnly(2027, 2, 28) });
+        service.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto { TipoPersona = "Cliente", PersonaId = fuera.Id, ProximoCumpleanios = new DateOnly(2026, 11, 20) });
+
+        Assert.Contains(service.ListarProximosCumpleanios(90, new DateOnly(2027, 1, 1)), r => r.PersonaId == leap.Id && r.ProximoCumpleanios == new DateOnly(2027, 2, 28));
+        Assert.DoesNotContain(service.ListarProximosCumpleanios(90, new DateOnly(2026, 8, 16)), r => r.PersonaId == fuera.Id);
+    }
+
+    [Fact]
+    public void Atendidas_controller_lista_y_deshace_con_respuestas_controladas()
+    {
+        using var context = CrearContexto();
+        var service = CrearService(context);
+        var cliente = service.Crear(CrearDtoCumple("Controller Atendida", DateOnly.FromDateTime(DateTime.Today), "10000021"));
+        context.OportunidadCumpleaniosAtendida.Add(new OportunidadCumpleaniosAtendida(TipoPersonaOportunidad.Cliente, cliente.Id, DateOnly.FromDateTime(DateTime.Today), DateTime.Now));
+        context.SaveChanges();
+        var controller = new ClientesController(service);
+
+        var listado = Assert.IsType<OkObjectResult>(controller.ListarOportunidadesCumpleaniosAtendidas().Result);
+        Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<OportunidadCumpleaniosAtendidaResponseDto>>(listado.Value));
+        Assert.IsType<NoContentResult>(controller.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<NoContentResult>(controller.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Cliente",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+        Assert.IsType<BadRequestObjectResult>(controller.DeshacerOportunidadCumpleaniosAtendida(new MarcarOportunidadCumpleaniosAtendidaRequestDto
+        {
+            TipoPersona = "Invalido",
+            PersonaId = cliente.Id,
+            ProximoCumpleanios = DateOnly.FromDateTime(DateTime.Today),
+        }));
+    }
 }
