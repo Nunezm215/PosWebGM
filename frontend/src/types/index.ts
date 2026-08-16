@@ -328,6 +328,26 @@ export interface ActualizarEstadoEventoRequestDto {
   estado: string
 }
 
+export interface CrearCargoExtraEventoRequestDto {
+  descripcion: string
+  monto: number
+}
+
+export interface CargoExtraEventoDto {
+  id: number
+  eventoId: number
+  descripcion: string
+  monto: number
+  fechaRegistro: string
+  anulado: boolean
+  fechaAnulacion?: string | null
+  motivoAnulacion?: string | null
+}
+
+export interface AnularCargoExtraEventoRequestDto {
+  motivo: string
+}
+
 export interface ProximoCumpleaniosResponseDto {
   personaId: number
   tipoPersona: 'Cliente' | 'Familiar'

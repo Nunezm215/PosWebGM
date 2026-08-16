@@ -13,6 +13,9 @@ const apiState = vi.hoisted(() => ({
   crearCliente: vi.fn(),
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
+  listarCargos: vi.fn(),
+  agregarCargo: vi.fn(),
+  anularCargo: vi.fn(),
   listarClientes: vi.fn(),
   proximosCumpleanios: vi.fn(),
 }))
@@ -30,6 +33,9 @@ vi.mock('../../api/client', () => ({
       consultarDisponibilidad: apiState.consultarDisponibilidad,
       crear: apiState.crear,
       editar: apiState.editar,
+      listarCargos: apiState.listarCargos,
+      agregarCargo: apiState.agregarCargo,
+      anularCargo: apiState.anularCargo,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
     },
     clientes: {
@@ -74,6 +80,9 @@ describe('EventosPage', () => {
     apiState.crearCliente.mockReset()
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
+    apiState.listarCargos.mockReset()
+    apiState.agregarCargo.mockReset()
+    apiState.anularCargo.mockReset()
     apiState.listarClientes.mockReset()
     apiState.proximosCumpleanios.mockReset()
     apiState.listarRango.mockResolvedValue([])
@@ -95,6 +104,9 @@ describe('EventosPage', () => {
       activo: true,
     })
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
+    apiState.listarCargos.mockResolvedValue([])
+    apiState.agregarCargo.mockResolvedValue({})
+    apiState.anularCargo.mockResolvedValue(undefined)
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
     apiState.proximosCumpleanios.mockResolvedValue([])
   })

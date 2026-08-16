@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
-import type { BuscarEventoResponseDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
+import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
@@ -290,6 +290,18 @@ export default function EventosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<EventoDto | null>(null)
+  const [cargosExtra, setCargosExtra] = useState<CargoExtraEventoDto[]>([])
+  const [cargosExtraLoading, setCargosExtraLoading] = useState(false)
+  const [cargosExtraError, setCargosExtraError] = useState('')
+  const [agregarExtraOpen, setAgregarExtraOpen] = useState(false)
+  const [extraDescripcion, setExtraDescripcion] = useState('')
+  const [extraMonto, setExtraMonto] = useState('')
+  const [extraError, setExtraError] = useState('')
+  const [extraSaving, setExtraSaving] = useState(false)
+  const [cargoParaAnular, setCargoParaAnular] = useState<CargoExtraEventoDto | null>(null)
+  const [motivoAnulacion, setMotivoAnulacion] = useState('')
+  const [anulacionError, setAnulacionError] = useState('')
+  const [anulacionSaving, setAnulacionSaving] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
@@ -350,6 +362,10 @@ export default function EventosPage() {
   const busquedaGlobalTimeoutRef = useRef<number | null>(null)
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
+  const totalExtrasActivos = useMemo(
+    () => cargosExtra.filter(cargo => !cargo.anulado).reduce((total, cargo) => total + cargo.monto, 0),
+    [cargosExtra],
+  )
 
   useEffect(() => {
     let active = true
@@ -450,6 +466,24 @@ export default function EventosPage() {
       active = false
     }
   }, [selectedEvento?.clienteId, selectedEvento?.id])
+
+  useEffect(() => {
+    if (!selectedEvento) {
+      setCargosExtra([])
+      setCargosExtraError('')
+      return
+    }
+
+    let active = true
+    setCargosExtraLoading(true)
+    setCargosExtraError('')
+    api.eventos.listarCargos(selectedEvento.id)
+      .then(cargos => { if (active) setCargosExtra(cargos) })
+      .catch(() => { if (active) setCargosExtraError('No se pudieron cargar los extras.') })
+      .finally(() => { if (active) setCargosExtraLoading(false) })
+
+    return () => { active = false }
+  }, [selectedEvento?.id])
 
   useEffect(() => {
     if (!selectedDay) return
@@ -1165,6 +1199,60 @@ export default function EventosPage() {
       setSelectedEvento(await api.eventos.obtenerPorId(id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el evento')
+    }
+  }
+
+  async function guardarExtra() {
+    if (!selectedEvento) return
+    const descripcion = extraDescripcion.trim()
+    const monto = Number(extraMonto)
+    if (!descripcion) {
+      setExtraError('La descripción es requerida.')
+      return
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setExtraError('El monto debe ser mayor a cero.')
+      return
+    }
+
+    setExtraSaving(true)
+    setExtraError('')
+    try {
+      const creado = await api.eventos.agregarCargo(selectedEvento.id, { descripcion, monto })
+      setCargosExtra(current => [...current, creado])
+      setAgregarExtraOpen(false)
+      setExtraDescripcion('')
+      setExtraMonto('')
+      notifySuccess('Extra agregado correctamente')
+    } catch (err) {
+      setExtraError(err instanceof Error ? err.message : 'No se pudo agregar el extra.')
+    } finally {
+      setExtraSaving(false)
+    }
+  }
+
+  async function confirmarAnulacionExtra() {
+    if (!selectedEvento || !cargoParaAnular) return
+    const motivo = motivoAnulacion.trim()
+    if (!motivo) {
+      setAnulacionError('El motivo de anulación es requerido.')
+      return
+    }
+
+    setAnulacionSaving(true)
+    setAnulacionError('')
+    try {
+      await api.eventos.anularCargo(selectedEvento.id, cargoParaAnular.id, { motivo })
+      setCargosExtra(current => current.map(cargo => cargo.id === cargoParaAnular.id
+        ? { ...cargo, anulado: true, motivoAnulacion: motivo, fechaAnulacion: new Date().toISOString() }
+        : cargo))
+      setCargoParaAnular(null)
+      setMotivoAnulacion('')
+      notifySuccess('Extra anulado correctamente')
+    } catch (err) {
+      setAnulacionError(err instanceof Error ? err.message : 'No se pudo anular el extra.')
+    } finally {
+      setAnulacionSaving(false)
     }
   }
 
@@ -2047,8 +2135,74 @@ export default function EventosPage() {
                 {selectedEvento.observaciones?.trim() || 'Sin observaciones'}
               </p>
             </div>
+            <section className="mt-4 border-t border-gray-200 pt-4" aria-label="Finanzas del evento">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Finanzas del evento</p>
+                {canManageEvents && selectedEvento.estado !== 'Cancelado' && (
+                  <Button size="sm" onClick={() => { setExtraError(''); setAgregarExtraOpen(true) }} icon={<Plus size={14} />}>
+                    Agregar extra
+                  </Button>
+                )}
+              </div>
+              <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2">
+                <DetailRow label="Monto base" value={formatCurrency(selectedEvento.montoTotal)} />
+                <DetailRow label="Extras" value={formatCurrency(totalExtrasActivos)} />
+                <div className="flex items-center justify-between gap-4 pt-2 text-base font-bold text-slate-950">
+                  <span>Total del evento</span>
+                  <span>{formatCurrency(selectedEvento.montoTotal + totalExtrasActivos)}</span>
+                </div>
+              </div>
+              {cargosExtraLoading && <p className="mt-3 text-sm text-gray-500">Cargando extras...</p>}
+              {cargosExtraError && <p className="mt-3 text-sm text-red-700">{cargosExtraError}</p>}
+              {!cargosExtraLoading && !cargosExtraError && (
+                <div className="mt-3 space-y-2">
+                  {cargosExtra.length === 0 && <p className="text-sm text-gray-500">Sin extras registrados.</p>}
+                  {cargosExtra.map(cargo => (
+                    <div key={cargo.id} className={`rounded-lg border px-3 py-2 ${cargo.anulado ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-gray-200 bg-white'}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{cargo.descripcion}</p>
+                          {cargo.anulado && <p className="mt-1 text-xs font-bold tracking-wide text-slate-600">ANULADO</p>}
+                          {cargo.anulado && cargo.motivoAnulacion && <p className="mt-1 text-xs">Motivo: {cargo.motivoAnulacion}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(cargo.monto)}</span>
+                          {canManageEvents && !cargo.anulado && (
+                            <Button variant="secondary" size="sm" onClick={() => { setAnulacionError(''); setMotivoAnulacion(''); setCargoParaAnular(cargo) }}>
+                              Anular
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
+      </Dialog>
+
+      <Dialog open={agregarExtraOpen} onClose={() => !extraSaving && setAgregarExtraOpen(false)} title="Agregar extra" width="sm"
+        footer={<Button onClick={guardarExtra} disabled={extraSaving}>{extraSaving ? 'Guardando...' : 'Guardar extra'}</Button>}>
+        <div className="space-y-4">
+          <label className="block text-sm font-semibold text-gray-700">Descripción
+            <input className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" value={extraDescripcion} onChange={event => setExtraDescripcion(event.target.value)} />
+          </label>
+          <label className="block text-sm font-semibold text-gray-700">Monto
+            <input type="number" min="0" step="0.01" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" value={extraMonto} onChange={event => setExtraMonto(event.target.value)} />
+          </label>
+          {extraError && <p className="text-sm text-red-700">{extraError}</p>}
+        </div>
+      </Dialog>
+
+      <Dialog open={cargoParaAnular !== null} onClose={() => !anulacionSaving && setCargoParaAnular(null)} title="Anular extra" width="sm"
+        description="¿Anular este extra? Dejará de formar parte del total del Evento."
+        footer={<Button variant="destructive" onClick={confirmarAnulacionExtra} disabled={anulacionSaving}>{anulacionSaving ? 'Anulando...' : 'Confirmar anulación'}</Button>}>
+        <label className="block text-sm font-semibold text-gray-700">Motivo de anulación
+          <textarea className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" value={motivoAnulacion} onChange={event => setMotivoAnulacion(event.target.value)} />
+        </label>
+        {anulacionError && <p className="mt-2 text-sm text-red-700">{anulacionError}</p>}
       </Dialog>
 
       <Dialog
