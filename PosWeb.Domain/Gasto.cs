@@ -10,6 +10,10 @@ public class Gasto
     public DateTime FECHA_GASTO { get; private set; }
     public string DETALLE { get; private set; } = null!;
     public bool ANULADO { get; private set; }
+    public DateTime? FECHA_ANULACION { get; private set; }
+    public int? ID_USUARIO_ANULA { get; private set; }
+    public Usuario? UsuarioAnula { get; private set; }
+    public string? MOTIVO_ANULACION { get; private set; }
     public int? ID_USUARIO { get; private set; }
 
     // EF Core constructor

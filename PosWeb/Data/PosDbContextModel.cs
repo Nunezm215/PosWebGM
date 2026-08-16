@@ -735,6 +735,12 @@ public partial class PosDbContext
             entity.Property(g => g.ANULADO)
                 .HasColumnName("ANULADO");
 
+            entity.Property(g => g.FECHA_ANULACION).HasColumnName("FECHA_ANULACION");
+            entity.Property(g => g.ID_USUARIO_ANULA).HasColumnName("ID_USUARIO_ANULA");
+            entity.Property(g => g.MOTIVO_ANULACION).HasColumnName("MOTIVO_ANULACION").HasMaxLength(500);
+            entity.HasIndex(g => g.ID_USUARIO_ANULA);
+            entity.HasOne(g => g.UsuarioAnula).WithMany().HasForeignKey(g => g.ID_USUARIO_ANULA).OnDelete(DeleteBehavior.Restrict);
+
             entity.Property(g => g.ID_USUARIO)
                 .HasColumnName("ID_USUARIO");
 

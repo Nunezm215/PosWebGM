@@ -586,6 +586,10 @@ namespace PosWeb.Migrations.Local
                         .HasColumnType("TEXT")
                         .HasColumnName("DETALLE");
 
+                    b.Property<DateTime?>("FECHA_ANULACION")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("FECHA_ANULACION");
+
                     b.Property<DateTime>("FECHA_GASTO")
                         .HasColumnType("TEXT")
                         .HasColumnName("FECHA_GASTO");
@@ -602,15 +606,26 @@ namespace PosWeb.Migrations.Local
                         .HasColumnType("INTEGER")
                         .HasColumnName("ID_USUARIO");
 
+                    b.Property<int?>("ID_USUARIO_ANULA")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ID_USUARIO_ANULA");
+
                     b.Property<decimal>("MONTO")
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("MONTO");
+
+                    b.Property<string>("MOTIVO_ANULACION")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("MOTIVO_ANULACION");
 
                     b.HasKey("ID_GASTO");
 
                     b.HasIndex("ID_CAJA");
 
                     b.HasIndex("ID_SUCURSAL");
+
+                    b.HasIndex("ID_USUARIO_ANULA");
 
                     b.ToTable("GASTO", (string)null);
                 });
@@ -1779,7 +1794,14 @@ namespace PosWeb.Migrations.Local
                         .HasForeignKey("ID_SUCURSAL")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PosWeb.Domain.Usuario", "UsuarioAnula")
+                        .WithMany()
+                        .HasForeignKey("ID_USUARIO_ANULA")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Sucursal");
+
+                    b.Navigation("UsuarioAnula");
                 });
 
             modelBuilder.Entity("PosWeb.Domain.Oferta", b =>
