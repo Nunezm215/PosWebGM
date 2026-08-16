@@ -96,6 +96,11 @@ describe('EventosPage', () => {
   })
 
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+  const monthLabels = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  const formatMonthTitle = (date = new Date()) => {
+    const raw = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
 
   const dateKeyFromToday = (offsetDays = 0) => {
     const date = new Date()
@@ -139,43 +144,59 @@ describe('EventosPage', () => {
     expect(screen.queryByText(/2026-\d{2}-\d{2} - 2026-\d{2}-\d{2}/)).not.toBeInTheDocument()
   })
 
-  it('shows selector with current month and opens the month list', async () => {
+  it('initializes the selector with the current local month and year', async () => {
+    const realNow = new Date()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 8, 15, 12))
+
+    try {
+      await renderPage()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(screen.getByRole('button', { name: 'Septiembre de 2026' })).toBeInTheDocument()
+    } finally {
+      vi.setSystemTime(realNow)
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows selector with the current month and opens the month/year popup', async () => {
     await renderPage()
 
-    const monthButton = await screen.findByRole('button', { name: /Agosto de 2026/ })
-    expect(monthButton).toHaveAttribute('aria-haspopup', 'listbox')
+    const currentMonthTitle = formatMonthTitle()
+    const monthButton = await screen.findByRole('button', { name: currentMonthTitle })
+    expect(monthButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(monthButton).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.setup().click(monthButton)
 
-    const listbox = await screen.findByRole('listbox', { name: 'Selector de mes' })
-    expect(listbox).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /Agosto de 2026/ })).toHaveAttribute('aria-selected', 'true')
+    const picker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    expect(within(picker).getByText(String(new Date().getFullYear()))).toBeInTheDocument()
+    expect(within(picker).getByRole('button', { name: new Date().toLocaleDateString('es-AR', { month: 'long' }).replace(/^./, value => value.toUpperCase()) })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('shows 6 months before and future months in the selector', async () => {
+  it('shows all 12 months without the old scroll list', async () => {
     await renderPage()
-    await userEvent.setup().click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
+    await userEvent.setup().click(await screen.findByRole('button', { name: formatMonthTitle() }))
 
-    const listbox = await screen.findByRole('listbox', { name: 'Selector de mes' })
-    expect(within(listbox).getByRole('option', { name: /Febrero de 2026/ })).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /Julio de 2026/ })).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /Septiembre de 2026/ })).toBeInTheDocument()
-    expect(within(listbox).getByRole('option', { name: /Febrero de 2027/ })).toBeInTheDocument()
-    expect(within(listbox).queryByRole('option', { name: /Enero de 2026/ })).not.toBeInTheDocument()
+    const picker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    expect(within(picker).queryByRole('listbox')).not.toBeInTheDocument()
+    expect(monthLabels.map(label => within(picker).getByRole('button', { name: label }))).toHaveLength(12)
   })
 
-  it('changes month when selecting previous or next month', async () => {
+  it('changes the picker year freely and selects a month', async () => {
     await renderPage()
     const user = userEvent.setup()
+    const currentYear = new Date().getFullYear()
 
-    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
-    await user.click(await screen.findByRole('option', { name: /Julio de 2026/ }))
-    expect(await screen.findByRole('button', { name: /Julio de 2026/ })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: formatMonthTitle() }))
+    const picker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    await user.click(within(picker).getByRole('button', { name: 'Año siguiente' }))
+    expect(within(picker).getByText(String(currentYear + 1))).toBeInTheDocument()
+    await user.click(within(picker).getByRole('button', { name: 'Año anterior' }))
+    expect(within(picker).getByText(String(currentYear))).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Julio de 2026/ }))
-    await user.click(await screen.findByRole('option', { name: /Agosto de 2026/ }))
-    expect(await screen.findByRole('button', { name: /Agosto de 2026/ })).toBeInTheDocument()
+    await user.click(within(picker).getByRole('button', { name: 'Junio' }))
+    expect(await screen.findByRole('button', { name: formatMonthTitle(new Date(currentYear, 5, 1)) })).toBeInTheDocument()
   })
 
   it('reconsults the visible range when the month changes', async () => {
@@ -184,20 +205,64 @@ describe('EventosPage', () => {
     const initialCalls = apiState.listarRango.mock.calls.length
 
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
-    await user.click(await screen.findByRole('option', { name: /Septiembre de 2026/ }))
+    const currentDate = new Date()
+    const targetMonth = currentDate.getMonth() === 0 ? 1 : 0
+    await user.click(await screen.findByRole('button', { name: formatMonthTitle(currentDate) }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Selector de mes y año' })).getByRole('button', { name: monthLabels[targetMonth] }))
 
     await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(initialCalls + 1))
   })
 
+  it('navigates to distant future and past years without an artificial limit', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+    const currentYear = new Date().getFullYear()
+
+    await user.click(await screen.findByRole('button', { name: formatMonthTitle() }))
+    const picker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    for (let index = 0; index < 4; index += 1) {
+      fireEvent.click(within(picker).getByRole('button', { name: 'Año siguiente' }))
+    }
+    expect(within(picker).getByText(String(currentYear + 4))).toBeInTheDocument()
+    await user.click(within(picker).getByRole('button', { name: 'Junio' }))
+    expect(await screen.findByRole('button', { name: formatMonthTitle(new Date(currentYear + 4, 5, 1)) })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: formatMonthTitle(new Date(currentYear + 4, 5, 1)) }))
+    const reopenedPicker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    for (let index = 0; index < 7; index += 1) {
+      fireEvent.click(within(reopenedPicker).getByRole('button', { name: 'Año anterior' }))
+    }
+    expect(within(reopenedPicker).getByText(String(currentYear - 3))).toBeInTheDocument()
+  })
+
+  it('returns to the dynamic current month only when requested', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+    const currentDate = new Date()
+    const currentTitle = formatMonthTitle(currentDate)
+    const nextYearJuneTitle = formatMonthTitle(new Date(currentDate.getFullYear() + 1, 5, 1))
+
+    await user.click(await screen.findByRole('button', { name: currentTitle }))
+    const picker = await screen.findByRole('dialog', { name: 'Selector de mes y año' })
+    await user.click(within(picker).getByRole('button', { name: 'Año siguiente' }))
+    await user.click(within(picker).getByRole('button', { name: 'Junio' }))
+    expect(await screen.findByRole('button', { name: nextYearJuneTitle })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: nextYearJuneTitle }))
+    expect(await screen.findByRole('dialog', { name: 'Selector de mes y año' })).toHaveTextContent(String(currentDate.getFullYear() + 1))
+    await user.click(screen.getByRole('button', { name: 'Ir al mes actual' }))
+    expect(await screen.findByRole('button', { name: currentTitle })).toBeInTheDocument()
+  })
+
   it('keeps the day popup and availability flows intact', async () => {
+    const eventDate = dateKeyFromToday(1)
     apiState.listarRango.mockResolvedValueOnce([
       {
         id: 1,
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -211,7 +276,7 @@ describe('EventosPage', () => {
 
     const user = userEvent.setup()
     await renderPage()
-    await user.click(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+    await user.click(await screen.findByRole('button', { name: dayButtonName(eventDate) }))
     const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     expect(within(dayDialog).getByRole('button', { name: 'Añadir evento' })).toBeInTheDocument()
   })
@@ -292,6 +357,7 @@ describe('EventosPage', () => {
   })
 
   it('keeps Evento data while creating a Cliente and auto-selects the new Cliente', async () => {
+    const eventDate = dateKeyFromToday(1)
     const createdClient = {
       id: 10,
       nombre: 'Cliente Nuevo',
@@ -314,26 +380,24 @@ describe('EventosPage', () => {
 
     apiState.crearCliente.mockResolvedValueOnce(createdClient)
 
-    const { user, dialog } = await abrirAlta()
-    fireEvent.change(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), { target: { value: 'Cli' } })
-    await pause(350)
-    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    const { dialog } = await abrirAlta()
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: eventDate } })
     fireEvent.change(within(dialog).getByLabelText(/Hora inicio/), { target: { value: '18:00' } })
     fireEvent.change(within(dialog).getByLabelText(/Hora fin/), { target: { value: '22:00' } })
     fireEvent.change(within(dialog).getByLabelText(/Tipo de evento/), { target: { value: 'Cumpleaños' } })
     fireEvent.change(within(dialog).getByLabelText(/Cantidad de invitados/), { target: { value: '50' } })
     fireEvent.change(within(dialog).getByLabelText(/Monto total/), { target: { value: '500000' } })
 
-    await user.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Crear cliente nuevo' }))
     const clientDialog = await screen.findByRole('dialog', { name: 'Nuevo Cliente' })
-    await user.click(within(clientDialog).getByRole('button', { name: 'Agregar familiar' }))
+    fireEvent.click(within(clientDialog).getByRole('button', { name: 'Agregar familiar' }))
     fireEvent.change(within(clientDialog).getByLabelText('Nombre *'), { target: { value: 'Cliente Nuevo' } })
     fireEvent.change(within(clientDialog).getByLabelText('Fecha de nacimiento *'), { target: { value: '1990-01-01' } })
     fireEvent.change(within(clientDialog).getByLabelText('Celular / Teléfono *'), { target: { value: '12345678' } })
     fireEvent.change(within(clientDialog).getByLabelText('Email *'), { target: { value: 'cliente@correo.com' } })
     fireEvent.change(clientDialog.querySelector('#evento-cliente-familiar-0-nombre') as HTMLInputElement, { target: { value: 'Familiar Uno' } })
     fireEvent.change(within(clientDialog).getAllByLabelText('Fecha nacimiento')[0], { target: { value: '2015-02-03' } })
-    await user.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
+    fireEvent.click(within(clientDialog).getByRole('button', { name: 'Guardar Cliente' }))
 
     await waitFor(() => expect(apiState.crearCliente).toHaveBeenCalledWith({
       nombre: 'Cliente Nuevo',
@@ -959,10 +1023,12 @@ describe('EventosPage', () => {
     const user = userEvent.setup()
     await renderPage()
 
-    await user.click(await screen.findByRole('button', { name: /Agosto de 2026/ }))
-    await user.click(await screen.findByRole('option', { name: /Septiembre de 2026/ }))
+    const currentDate = new Date()
+    const targetMonth = currentDate.getMonth() === 0 ? 1 : 0
+    await user.click(await screen.findByRole('button', { name: formatMonthTitle(currentDate) }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Selector de mes y año' })).getByRole('button', { name: monthLabels[targetMonth] }))
 
-    expect(await screen.findByRole('button', { name: /Septiembre de 2026/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: formatMonthTitle(new Date(currentDate.getFullYear(), targetMonth, 1)) })).toBeInTheDocument()
   })
 
   it('sets today as the minimum date in create mode', async () => {
@@ -1285,16 +1351,17 @@ describe('EventosPage', () => {
   })
 
   it('calls disponibilidad and shows Horario disponible', async () => {
+    const eventDate = dateKeyFromToday(1)
     const { user, dialog } = await abrirAlta()
 
-    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: eventDate } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
 
     await pause(350)
 
     await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith({
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
     }))
@@ -1400,12 +1467,13 @@ describe('EventosPage', () => {
   })
 
   it('creates event with the exact payload and refreshes the calendar', async () => {
+    const eventDate = dateKeyFromToday(1)
     const created = {
       id: 99,
       clienteId: 1,
       usuarioCreadorId: 7,
       sucursalId: 3,
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       tipoEvento: 'Cumpleaños',
@@ -1445,7 +1513,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: eventDate } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -1460,7 +1528,7 @@ describe('EventosPage', () => {
 
     expect(apiState.crear).toHaveBeenCalledWith({
       clienteId: 1,
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       tipoEvento: 'Cumpleaños',
@@ -1478,6 +1546,7 @@ describe('EventosPage', () => {
   }, 10000)
 
   it('keeps the modal open when backend rejects the save', async () => {
+    const eventDate = dateKeyFromToday(1)
     apiState.listarClientes.mockResolvedValueOnce({
       items: [
         {
@@ -1501,7 +1570,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: eventDate } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -1518,6 +1587,7 @@ describe('EventosPage', () => {
   }, 10000)
 
   it('disables the save button while the POST is pending', async () => {
+    const eventDate = dateKeyFromToday(1)
     let resolveCreate!: (value: unknown) => void
     const createPromise = new Promise(resolve => { resolveCreate = resolve })
 
@@ -1544,7 +1614,7 @@ describe('EventosPage', () => {
     await user.type(within(dialog).getByPlaceholderText('Buscar cliente por nombre o documento'), 'Cli')
     await pause(350)
     await user.click(within(dialog).getByRole('button', { name: /Cliente Prueba/ }))
-    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: '2026-08-15' } })
+    fireEvent.change(within(dialog).getByLabelText(/Fecha/), { target: { value: eventDate } })
     await user.type(within(dialog).getByLabelText(/Hora inicio/), '18:00')
     await user.type(within(dialog).getByLabelText(/Hora fin/), '22:00')
     await user.type(within(dialog).getByLabelText(/Tipo de evento/), 'Cumpleaños')
@@ -1563,7 +1633,7 @@ describe('EventosPage', () => {
       clienteId: 1,
       usuarioCreadorId: 7,
       sucursalId: 3,
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       tipoEvento: 'Cumpleaños',

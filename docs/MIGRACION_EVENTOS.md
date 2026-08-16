@@ -1758,6 +1758,72 @@ Continuar con mejoras menores de Eventos si se consideran necesarias, o comenzar
 
 No se implementa ninguna de esas cosas en esta tarea.
 
+## Fase 1D.5A - Selector de mes y año sin límite artificial
+
+**Estado:** COMPLETADA
+
+### Selector de mes y año
+
+- Se reemplazó el selector anterior con scroll de meses por un popup compacto de mes y año.
+- Se eliminaron los límites anteriores de 6 meses hacia el pasado y 36 meses hacia el futuro.
+- El encabezado mantiene el formato dinámico `Mes de Año`, por ejemplo `Agosto de 2026`.
+- `Agosto de 2026` no está hardcodeado: el mes inicial se obtiene desde la fecha local del dispositivo mediante `startOfMonth(new Date())`.
+- Por lo tanto, si el sistema está en agosto de 2026 muestra `Agosto de 2026`; si está en septiembre de 2026 muestra `Septiembre de 2026`; y si está en enero de 2027 muestra `Enero de 2027`.
+- El popup muestra el año seleccionado, los botones `Año anterior` y `Año siguiente`, los 12 meses y el botón `Ir al mes actual`.
+- La navegación permite recorrer libremente años anteriores y futuros, sin límite artificial ni generación masiva de meses en memoria.
+- El mes visible en el calendario queda marcado dentro del selector.
+
+### Selección y navegación
+
+- Al seleccionar un mes se crea la fecha local correspondiente, se actualiza `monthAnchor`, se cierra el popup y se recalcula `range`.
+- La lógica existente vuelve a llamar `listarPorRango` para cargar los eventos del mes seleccionado.
+- `Ir al mes actual` calcula `new Date()` al hacer clic y vuelve al mes y año reales del dispositivo; no utiliza una fecha fija.
+- Si el usuario navega manualmente a otro mes, no vuelve automáticamente al presente.
+- Ejemplo: con agosto de 2026 como mes actual, si el usuario navega a junio de 2027 permanece en `Junio de 2027` hasta elegir otro mes, usar `Ir al mes actual` o volver a entrar a la página.
+
+### Problema resuelto
+
+- Se creó o consultó un evento en junio de 2027 y el selector anterior no permitía navegar cómodamente porque su lista tenía un límite futuro.
+- El nuevo selector permite consultar junio de 2027, años futuros más lejanos, años anteriores y volver inmediatamente al mes actual.
+
+### Funciones preservadas
+
+- Se mantienen intactos el calendario, `monthAnchor` como fuente del mes visible, `range` y `listarPorRango`.
+- También permanecen intactos el popup diario, `Añadir evento`, el fondo verde de días con reservas, el detalle de evento, el buscador global, próximos eventos y `Reservado por`.
+- Se preservan disponibilidad automática, próximo horario disponible, la regla de 30 minutos y `eventoIdExcluir`.
+- Backend, base de datos y migraciones no fueron modificados.
+
+### Tests
+
+- Se actualizaron pruebas para mes y año iniciales dinámicos, los 12 meses, año anterior, año siguiente, años futuros lejanos, años anteriores, selección de mes, actualización de `monthAnchor`, recarga de `listarPorRango`, mes seleccionado, `Ir al mes actual`, fecha dinámica y eliminación de los límites 6/36.
+- Se mantuvieron pruebas de regresión del resto de `EventosPage`.
+- Se encontraron pruebas antiguas dependientes de fechas fijas alrededor de `2026-08-15`.
+- Se volvieron deterministas mediante fechas locales relativas con `dateKeyFromToday(1)`, sin modificar reglas productivas.
+- También se corrigieron pruebas frágiles de temporización e interacción.
+- No se aumentaron timeouts ni se agregaron sleeps reales.
+- Resultado final: `70 passed`, `0 failed`.
+
+### Build
+
+- `npm.cmd run build`
+- Resultado: `OK`.
+
+### Prueba manual
+
+- Se realizó una prueba manual satisfactoria del nuevo selector.
+- Caso principal: navegar a junio de 2027, confirmar que el calendario carga junio de 2027 y usar `Ir al mes actual` para volver correctamente al mes real del dispositivo.
+- También se confirmó visualmente el nuevo popup de mes y año.
+
+### Próxima microfase
+
+**Fase 1D.5B - Identificar visualmente eventos pasados en el buscador global**
+
+- Objetivo futuro: cuando un resultado del buscador global tenga una fecha anterior al día actual, mostrar una etiqueta visual `Pasado`.
+- `Pasado` no será un nuevo estado de Evento.
+- Los estados reales seguirán siendo `Reservado`, `Señado`, `Pagado` y `Cancelado`.
+- `Pasado` será únicamente una indicación visual calculada en frontend.
+- No se implementa 1D.5B en esta fase.
+
 ## Fase 1D.3A - Navegacion rapida por meses y limpieza de cabecera
 
 **Estado:** COMPLETADA  
