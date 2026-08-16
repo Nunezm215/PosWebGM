@@ -267,6 +267,59 @@ public class EventosController : ControllerBase
         }
     }
 
+    [HttpGet("{eventoId:int}/pagos")]
+    public async Task<ActionResult<IReadOnlyList<PagoEventoDto>>> ListarPagos(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+        return Ok(await _eventoService.ListarPagosEventoAsync(eventoId, cancellationToken));
+    }
+
+    [HttpGet("{eventoId:int}/resumen-financiero")]
+    public async Task<ActionResult<ResumenFinancieroEventoDto>> ObtenerResumenFinanciero(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+        return Ok(await _eventoService.ObtenerResumenFinancieroAsync(eventoId, cancellationToken));
+    }
+
+    [HttpPost("{eventoId:int}/pagos")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> RegistrarPago(int eventoId, [FromBody] CrearPagoEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out var usuarioId, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+        try
+        {
+            var pago = await _eventoService.RegistrarPagoEventoAsync(eventoId, request, usuarioId, cancellationToken);
+            return CreatedAtAction(nameof(ListarPagos), new { eventoId }, pago);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpPost("{eventoId:int}/pagos/{pagoId:int}/anular")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> AnularPago(int eventoId, int pagoId, [FromBody] AnularPagoEventoRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out var usuarioId, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+        try
+        {
+            await _eventoService.AnularPagoEventoAsync(eventoId, pagoId, request, usuarioId, cancellationToken);
+            var pago = (await _eventoService.ListarPagosEventoAsync(eventoId, cancellationToken)).SingleOrDefault(p => p.Id == pagoId);
+            return pago is null ? NotFound(new { error = "Pago no encontrado" }) : Ok(pago);
+        }
+        catch (ArgumentException ex) { return ex.Message.Contains("no pertenece", StringComparison.OrdinalIgnoreCase) ? NotFound(new { error = ex.Message }) : BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return ex.Message.Contains("no encontrado", StringComparison.OrdinalIgnoreCase) ? NotFound(new { error = ex.Message }) : BadRequest(new { error = ex.Message }); }
+    }
+
     [HttpGet("{id:int}/contrato")]
     public async Task<IActionResult> Contrato(int id, CancellationToken cancellationToken)
     {
