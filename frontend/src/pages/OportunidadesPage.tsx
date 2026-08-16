@@ -26,7 +26,6 @@ export default function OportunidadesPage() {
   const [proximosCumpleanios, setProximosCumpleanios] = useState<ProximoCumpleaniosResponseDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [mostrarTodos, setMostrarTodos] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -46,8 +45,6 @@ export default function OportunidadesPage() {
       active = false
     }
   }, [])
-
-  const visibles = mostrarTodos ? proximosCumpleanios : proximosCumpleanios.slice(0, 5)
 
   return (
     <PageShell title="Oportunidades" subtitle="Contactos próximos para impulsar nuevas reservas.">
@@ -70,8 +67,9 @@ export default function OportunidadesPage() {
           <p className="text-sm text-gray-600">No hay oportunidades de cumpleaños en los próximos 90 días.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {visibles.map(cumpleanios => {
+            <div className="max-h-[600px] overflow-y-auto pr-1" data-testid="lista-oportunidades">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {proximosCumpleanios.map(cumpleanios => {
                 const whatsappHref = buildBirthdayWhatsAppHref(cumpleanios)
                 const whatsappLabel = cumpleanios.tipoPersona === 'Familiar'
                   ? `Enviar promoción por WhatsApp a ${cumpleanios.nombreCliente} por el cumpleaños de ${cumpleanios.nombrePersona}`
@@ -109,13 +107,8 @@ export default function OportunidadesPage() {
                 </article>
                 )
               })}
+              </div>
             </div>
-
-            {proximosCumpleanios.length > 5 && (
-              <button type="button" onClick={() => setMostrarTodos(value => !value)} className="mt-3 text-sm font-semibold text-violet-700 hover:text-violet-900">
-                {mostrarTodos ? 'Mostrar menos' : `Ver todos (${proximosCumpleanios.length})`}
-              </button>
-            )}
           </>
         )}
       </section>

@@ -98,7 +98,7 @@ describe('OportunidadesPage', () => {
     expect(screen.queryByRole('link', { name: /WhatsApp/ })).not.toBeInTheDocument()
   })
 
-  it('preserves backend order, initially limits results, and expands locally', async () => {
+  it('preserves backend order and renders every opportunity in a scrollable grid', async () => {
     apiState.proximosCumpleanios.mockResolvedValue([
       proximoCumpleanios(1, 'Primero', 0),
       proximoCumpleanios(2, 'Segundo', 1),
@@ -107,21 +107,18 @@ describe('OportunidadesPage', () => {
       proximoCumpleanios(5, 'Quinto', 4),
       proximoCumpleanios(6, 'Sexto', 5),
     ])
-    const user = userEvent.setup()
-
     render(<OportunidadesPage />)
     await screen.findByText('Primero')
 
     expect(screen.getAllByTestId(/^cumpleanios-/).map(card => within(card).getByRole('heading', { level: 3 }).textContent)).toEqual([
-      'Primero', 'Segundo', 'Tercero', 'Cuarto', 'Quinto',
+      'Primero', 'Segundo', 'Tercero', 'Cuarto', 'Quinto', 'Sexto',
     ])
-    expect(screen.queryByText('Sexto')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Ver todos (6)' }))
     expect(screen.getAllByTestId(/^cumpleanios-/)).toHaveLength(6)
     expect(within(screen.getByTestId('cumpleanios-6')).getByText('WhatsApp')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Mostrar menos' }))
-    expect(screen.getAllByTestId(/^cumpleanios-/)).toHaveLength(5)
+    expect(screen.queryByRole('button', { name: /Ver todos/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mostrar menos' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('lista-oportunidades')).toHaveClass('max-h-[600px]', 'overflow-y-auto')
+    expect(within(screen.getByLabelText('Oportunidades de cumpleaños')).getByText('6')).toBeInTheDocument()
   })
 
   it('shows a dedicated empty state', async () => {
