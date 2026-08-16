@@ -16,6 +16,8 @@ const apiState = vi.hoisted(() => ({
   listarCargos: vi.fn(),
   agregarCargo: vi.fn(),
   anularCargo: vi.fn(),
+  listarPagos: vi.fn(),
+  resumenFinanciero: vi.fn(),
   listarClientes: vi.fn(),
   proximosCumpleanios: vi.fn(),
 }))
@@ -36,6 +38,8 @@ vi.mock('../../api/client', () => ({
       listarCargos: apiState.listarCargos,
       agregarCargo: apiState.agregarCargo,
       anularCargo: apiState.anularCargo,
+      listarPagos: apiState.listarPagos,
+      resumenFinanciero: apiState.resumenFinanciero,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
     },
     clientes: {
@@ -83,6 +87,8 @@ describe('EventosPage', () => {
     apiState.listarCargos.mockReset()
     apiState.agregarCargo.mockReset()
     apiState.anularCargo.mockReset()
+    apiState.listarPagos.mockReset()
+    apiState.resumenFinanciero.mockReset()
     apiState.listarClientes.mockReset()
     apiState.proximosCumpleanios.mockReset()
     apiState.listarRango.mockResolvedValue([])
@@ -107,6 +113,8 @@ describe('EventosPage', () => {
     apiState.listarCargos.mockResolvedValue([])
     apiState.agregarCargo.mockResolvedValue({})
     apiState.anularCargo.mockResolvedValue(undefined)
+    apiState.listarPagos.mockResolvedValue([])
+    apiState.resumenFinanciero.mockResolvedValue({ montoBase: 0, totalExtras: 0, montoTotal: 0, totalPagado: 0, saldoPendiente: 0, estadoPago: 'SinPagos', cantidadPagosActivos: 0 })
     apiState.listarClientes.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 })
     apiState.proximosCumpleanios.mockResolvedValue([])
   })

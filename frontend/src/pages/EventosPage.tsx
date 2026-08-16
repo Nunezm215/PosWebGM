@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
-import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
+import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto, MedioPagoDto, PagoEventoDto, ResumenFinancieroEventoDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
@@ -293,6 +293,22 @@ export default function EventosPage() {
   const [cargosExtra, setCargosExtra] = useState<CargoExtraEventoDto[]>([])
   const [cargosExtraLoading, setCargosExtraLoading] = useState(false)
   const [cargosExtraError, setCargosExtraError] = useState('')
+  const [pagos, setPagos] = useState<PagoEventoDto[]>([])
+  const [resumenFinanciero, setResumenFinanciero] = useState<ResumenFinancieroEventoDto | null>(null)
+  const [pagosError, setPagosError] = useState('')
+  const [mediosPago, setMediosPago] = useState<MedioPagoDto[]>([])
+  const [pagoOpen, setPagoOpen] = useState(false)
+  const [pagoMonto, setPagoMonto] = useState('')
+  const [pagoMedioId, setPagoMedioId] = useState('')
+  const [pagoObservacion, setPagoObservacion] = useState('')
+  const [pagoReferencia, setPagoReferencia] = useState('')
+  const [pagoError, setPagoError] = useState('')
+  const [pagoSaving, setPagoSaving] = useState(false)
+  const [pagoClave, setPagoClave] = useState('')
+  const [pagoAnular, setPagoAnular] = useState<PagoEventoDto | null>(null)
+  const [pagoMotivo, setPagoMotivo] = useState('')
+  const [pagoAnularError, setPagoAnularError] = useState('')
+  const [pagoAnulando, setPagoAnulando] = useState(false)
   const [agregarExtraOpen, setAgregarExtraOpen] = useState(false)
   const [extraDescripcion, setExtraDescripcion] = useState('')
   const [extraMonto, setExtraMonto] = useState('')
@@ -484,6 +500,53 @@ export default function EventosPage() {
 
     return () => { active = false }
   }, [selectedEvento?.id])
+
+  useEffect(() => {
+    if (!selectedEvento) { setPagos([]); setResumenFinanciero(null); setPagosError(''); return }
+    let active = true
+    Promise.all([api.eventos.listarPagos(selectedEvento.id), api.eventos.resumenFinanciero(selectedEvento.id)])
+      .then(([nextPagos, resumen]) => { if (active) { setPagos(nextPagos); setResumenFinanciero(resumen) } })
+      .catch(() => { if (active) setPagosError('No se pudo cargar la información de pagos.') })
+    return () => { active = false }
+  }, [selectedEvento?.id, cargosExtra])
+
+  async function refrescarPagosYResumen(eventoId: number) {
+    const [nextPagos, resumen] = await Promise.all([api.eventos.listarPagos(eventoId), api.eventos.resumenFinanciero(eventoId)])
+    setPagos(nextPagos); setResumenFinanciero(resumen)
+  }
+
+  async function refrescarEventoFinanciero(eventoId: number) {
+    const [eventosActualizados, eventoActualizado] = await Promise.all([
+      api.eventos.listarPorRango(range.desde, range.hasta),
+      api.eventos.obtenerPorId(eventoId),
+    ])
+    setEventos(eventosActualizados)
+    if (eventoActualizado) setSelectedEvento(eventoActualizado)
+  }
+
+  async function abrirPago() {
+    try { setMediosPago((await api.mediosPago.listar()).filter(medio => medio.activo)); setPagoClave(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`); setPagoError(''); setPagoOpen(true) } catch { setPagoError('No se pudieron cargar los medios de pago.') }
+  }
+
+  async function guardarPago() {
+    if (!selectedEvento) return
+    const monto = Number(pagoMonto)
+    if (!pagoMedioId || !Number.isFinite(monto) || monto <= 0) { setPagoError('Ingrese un monto válido y un medio de pago.'); return }
+    if (resumenFinanciero && monto > resumenFinanciero.saldoPendiente) { setPagoError('El monto supera el saldo actual.'); return }
+    setPagoSaving(true); setPagoError('')
+    try {
+      await api.eventos.registrarPago(selectedEvento.id, { medioPagoId: Number(pagoMedioId), monto, observacion: pagoObservacion.trim() || undefined, referenciaExterna: pagoReferencia.trim() || undefined, claveIdempotencia: pagoClave })
+      await refrescarPagosYResumen(selectedEvento.id); await refrescarEventoFinanciero(selectedEvento.id); setPagoOpen(false); setPagoMonto(''); setPagoMedioId(''); setPagoObservacion(''); setPagoReferencia(''); setPagoClave('')
+    } catch (err) { setPagoError(err instanceof Error ? err.message : 'No se pudo registrar el pago.') } finally { setPagoSaving(false) }
+  }
+
+  async function confirmarAnularPago() {
+    if (!selectedEvento || !pagoAnular) return
+    const motivo = pagoMotivo.trim(); if (!motivo) { setPagoAnularError('El motivo de anulación es requerido.'); return }
+    setPagoAnulando(true); setPagoAnularError('')
+    try { await api.eventos.anularPago(selectedEvento.id, pagoAnular.id, { motivo }); await refrescarPagosYResumen(selectedEvento.id); await refrescarEventoFinanciero(selectedEvento.id); setPagoAnular(null) }
+    catch (err) { setPagoAnularError(err instanceof Error ? err.message : 'No se pudo anular el pago.') } finally { setPagoAnulando(false) }
+  }
 
   useEffect(() => {
     if (!selectedDay) return
@@ -1220,6 +1283,8 @@ export default function EventosPage() {
     try {
       const creado = await api.eventos.agregarCargo(selectedEvento.id, { descripcion, monto })
       setCargosExtra(current => [...current, creado])
+      await refrescarPagosYResumen(selectedEvento.id)
+      await refrescarEventoFinanciero(selectedEvento.id)
       setAgregarExtraOpen(false)
       setExtraDescripcion('')
       setExtraMonto('')
@@ -1246,6 +1311,8 @@ export default function EventosPage() {
       setCargosExtra(current => current.map(cargo => cargo.id === cargoParaAnular.id
         ? { ...cargo, anulado: true, motivoAnulacion: motivo, fechaAnulacion: new Date().toISOString() }
         : cargo))
+      await refrescarPagosYResumen(selectedEvento.id)
+      await refrescarEventoFinanciero(selectedEvento.id)
       setCargoParaAnular(null)
       setMotivoAnulacion('')
       notifySuccess('Extra anulado correctamente')
@@ -2143,15 +2210,23 @@ export default function EventosPage() {
                     Agregar extra
                   </Button>
                 )}
+                {canManageEvents && selectedEvento.estado !== 'Cancelado' && resumenFinanciero?.saldoPendiente !== 0 && <Button size="sm" variant="secondary" onClick={abrirPago}>Registrar pago</Button>}
               </div>
               <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2">
-                <DetailRow label="Monto base" value={formatCurrency(selectedEvento.montoTotal)} />
-                <DetailRow label="Extras" value={formatCurrency(totalExtrasActivos)} />
+                <DetailRow label="Monto base" value={formatCurrency(resumenFinanciero?.montoBase ?? selectedEvento.montoTotal)} />
+                <DetailRow label="Extras" value={formatCurrency(resumenFinanciero?.totalExtras ?? totalExtrasActivos)} />
                 <div className="flex items-center justify-between gap-4 pt-2 text-base font-bold text-slate-950">
                   <span>Total del evento</span>
-                  <span>{formatCurrency(selectedEvento.montoTotal + totalExtrasActivos)}</span>
+                  <span>{formatCurrency(resumenFinanciero?.montoTotal ?? selectedEvento.montoTotal + totalExtrasActivos)}</span>
                 </div>
+                {resumenFinanciero && <>
+                  <DetailRow label="Pagado" value={formatCurrency(resumenFinanciero.totalPagado)} />
+                  <div className="flex items-center justify-between gap-4 pt-2 text-base font-bold text-emerald-800"><span>Saldo pendiente</span><span>{formatCurrency(resumenFinanciero.saldoPendiente)}</span></div>
+                  <DetailRow label="Estado financiero" value={resumenFinanciero.estadoPago === 'SinPagos' ? 'Sin pagos' : resumenFinanciero.estadoPago} />
+                </>}
               </div>
+              {pagosError && <p className="mt-3 text-sm text-red-700">{pagosError}</p>}
+              {!pagosError && <div className="mt-3 space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Historial de pagos</p>{pagos.length === 0 ? <p className="text-sm text-gray-500">No hay pagos registrados.</p> : pagos.map(pago => <div key={pago.id} className="rounded-lg border border-gray-200 px-3 py-2 text-sm"><div className="flex justify-between gap-3"><span className="font-semibold">{pago.tipoPago === 'PagoTotal' ? 'Pago total' : pago.tipoPago} · {pago.medioPago}</span><span className="font-semibold">{formatCurrency(pago.monto)}</span></div><p className="text-xs text-gray-500">{new Date(pago.fechaRegistro).toLocaleString('es-AR')}</p>{pago.observacion && <p className="text-xs">{pago.observacion}</p>}{pago.referenciaExterna && <p className="text-xs">Ref: {pago.referenciaExterna}</p>}{pago.anulado ? <p className="mt-1 text-xs font-bold text-slate-600">ANULADO {pago.motivoAnulacion ? `· ${pago.motivoAnulacion}` : ''}</p> : canManageEvents && <Button variant="secondary" size="sm" onClick={() => { setPagoAnular(pago); setPagoMotivo(''); setPagoAnularError('') }}>Anular</Button>}</div>)}</div>}
               {cargosExtraLoading && <p className="mt-3 text-sm text-gray-500">Cargando extras...</p>}
               {cargosExtraError && <p className="mt-3 text-sm text-red-700">{cargosExtraError}</p>}
               {!cargosExtraLoading && !cargosExtraError && (
@@ -2182,6 +2257,11 @@ export default function EventosPage() {
           </div>
         )}
       </Dialog>
+
+      <Dialog open={pagoOpen} onClose={() => !pagoSaving && setPagoOpen(false)} title="Registrar pago" width="sm" footer={<Button onClick={guardarPago} disabled={pagoSaving}>{pagoSaving ? 'Registrando...' : 'Registrar pago'}</Button>}>
+        <div className="space-y-3"><p className="text-sm text-gray-600">Saldo actual: {formatCurrency(resumenFinanciero?.saldoPendiente ?? 0)}</p><input aria-label="Monto pago" type="number" min="0" step="0.01" value={pagoMonto} onChange={e => setPagoMonto(e.target.value)} className="w-full rounded-lg border px-3 py-2" placeholder="Monto"/><select aria-label="Medio de pago" value={pagoMedioId} onChange={e => setPagoMedioId(e.target.value)} className="w-full rounded-lg border px-3 py-2"><option value="">Seleccione un medio</option>{mediosPago.map(medio => <option key={medio.id} value={medio.id}>{medio.nombre}</option>)}</select><input aria-label="Observación" value={pagoObservacion} onChange={e => setPagoObservacion(e.target.value)} className="w-full rounded-lg border px-3 py-2" placeholder="Observación opcional"/><input aria-label="Referencia" value={pagoReferencia} onChange={e => setPagoReferencia(e.target.value)} className="w-full rounded-lg border px-3 py-2" placeholder="Referencia opcional"/>{pagoError && <p className="text-sm text-red-700">{pagoError}</p>}</div>
+      </Dialog>
+      <Dialog open={pagoAnular !== null} onClose={() => !pagoAnulando && setPagoAnular(null)} title="Anular pago" width="sm" footer={<Button variant="destructive" onClick={confirmarAnularPago} disabled={pagoAnulando}>{pagoAnulando ? 'Anulando...' : 'Confirmar anulación'}</Button>}><textarea aria-label="Motivo de anulación de pago" value={pagoMotivo} onChange={e => setPagoMotivo(e.target.value)} className="w-full rounded-lg border px-3 py-2" />{pagoAnularError && <p className="mt-2 text-sm text-red-700">{pagoAnularError}</p>}</Dialog>
 
       <Dialog open={agregarExtraOpen} onClose={() => !extraSaving && setAgregarExtraOpen(false)} title="Agregar extra" width="sm"
         footer={<Button onClick={guardarExtra} disabled={extraSaving}>{extraSaving ? 'Guardando...' : 'Guardar extra'}</Button>}>

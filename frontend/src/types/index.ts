@@ -348,6 +348,11 @@ export interface AnularCargoExtraEventoRequestDto {
   motivo: string
 }
 
+export interface CrearPagoEventoRequestDto { medioPagoId: number; monto: number; observacion?: string; referenciaExterna?: string; claveIdempotencia?: string }
+export interface AnularPagoEventoRequestDto { motivo: string }
+export interface PagoEventoDto { id: number; eventoId: number; medioPagoId: number; medioPago?: string | null; monto: number; fechaRegistro: string; observacion?: string | null; referenciaExterna?: string | null; anulado: boolean; fechaAnulacion?: string | null; motivoAnulacion?: string | null; tipoPago: string }
+export interface ResumenFinancieroEventoDto { eventoId: number; montoBase: number; totalExtras: number; montoTotal: number; totalPagado: number; saldoPendiente: number; estadoPago: string; cantidadPagosActivos: number; ultimoPagoFecha?: string | null }
+
 export interface ProximoCumpleaniosResponseDto {
   personaId: number
   tipoPersona: 'Cliente' | 'Familiar'

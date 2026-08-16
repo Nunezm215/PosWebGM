@@ -182,6 +182,7 @@ public class EventoService : IEventoService
 
         var cargo = new CargoExtraEvento(eventoId, descripcion, request.Monto, usuarioId);
         await _repository.AgregarCargoExtraAsync(cargo, cancellationToken);
+        await SincronizarEstadoFinancieroAsync(evento, cancellationToken);
         return Map(cargo);
     }
 
@@ -200,6 +201,7 @@ public class EventoService : IEventoService
         if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido", nameof(usuarioId));
         cargo.Anular(usuarioId, motivo);
         await _repository.GuardarCambiosAsync(cancellationToken);
+        await SincronizarEstadoFinancieroAsync(await ObtenerEventoRequerido(eventoId, cancellationToken), cancellationToken);
     }
 
     public async Task<decimal> CalcularTotalExtrasAsync(int eventoId, CancellationToken cancellationToken = default)
@@ -238,6 +240,7 @@ public class EventoService : IEventoService
             if (request.Monto > resumen.SaldoPendiente) throw new InvalidOperationException("El pago supera el saldo pendiente");
             var pago = new PagoEvento(eventoId, request.MedioPagoId, request.Monto, usuarioId, observacion: NormalizarOpcional(request.Observacion, 500), claveIdempotencia: clave, referenciaExterna: NormalizarOpcional(request.ReferenciaExterna, 200));
             await _repository.AgregarPagoEventoAsync(pago, cancellationToken);
+            await SincronizarEstadoFinancieroAsync(evento, cancellationToken);
             return await MapPagoAsync(pago, eventoId, cancellationToken);
         }
         finally { PagoMutex.Release(); }
@@ -258,6 +261,7 @@ public class EventoService : IEventoService
         if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido");
         pago.Anular(usuarioId, Requerido(request?.Motivo, "El motivo de anulación es requerido", 500));
         await _repository.GuardarCambiosAsync(cancellationToken);
+        await SincronizarEstadoFinancieroAsync(await ObtenerEventoRequerido(eventoId, cancellationToken), cancellationToken);
     }
 
     public async Task<ResumenFinancieroEventoDto> ObtenerResumenFinancieroAsync(int eventoId, CancellationToken cancellationToken = default)
@@ -269,6 +273,16 @@ public class EventoService : IEventoService
         var activos = (await _repository.ListarPagosEventoAsync(evento.ID_EVENTO, cancellationToken)).Where(p => !p.ANULADO).ToList();
         var total = evento.MONTO_TOTAL + extras; var pagado = activos.Sum(p => p.MONTO); var saldo = total - pagado;
         return new ResumenFinancieroEventoDto { EventoId = evento.ID_EVENTO, MontoBase = evento.MONTO_TOTAL, TotalExtras = extras, MontoTotal = total, TotalPagado = pagado, SaldoPendiente = saldo, EstadoPago = pagado == 0 ? "SinPagos" : saldo == 0 ? "Pagado" : "Señado", CantidadPagosActivos = activos.Count, UltimoPagoFecha = activos.Select(p => (DateTime?)p.FECHA_REGISTRO).Max() };
+    }
+
+    private async Task SincronizarEstadoFinancieroAsync(Evento evento, CancellationToken cancellationToken)
+    {
+        if (evento.ESTADO == EventoEstados.Cancelado) return;
+        var resumen = await ObtenerResumenFinancieroInternoAsync(evento, cancellationToken);
+        if (resumen.TotalPagado == 0) evento.MarcarReservado();
+        else if (resumen.SaldoPendiente == 0) evento.MarcarPagado();
+        else evento.MarcarSenado();
+        await _repository.GuardarCambiosAsync(cancellationToken);
     }
 
     private async Task<PagoEventoDto> MapPagoAsync(PagoEvento pago, int eventoId, CancellationToken cancellationToken)
