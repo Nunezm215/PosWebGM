@@ -1,0 +1,2 @@
+namespace PosWeb.Contracts;
+public class PagoEventoDto { public int Id { get; set; } public int EventoId { get; set; } public int MedioPagoId { get; set; } public string? MedioPago { get; set; } public decimal Monto { get; set; } public DateTime FechaRegistro { get; set; } public string? Observacion { get; set; } public string? ReferenciaExterna { get; set; } public bool Anulado { get; set; } public DateTime? FechaAnulacion { get; set; } public string? MotivoAnulacion { get; set; } public string TipoPago { get; set; } = "Seña"; }

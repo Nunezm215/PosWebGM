@@ -19,4 +19,8 @@ public interface IEventoService
     Task AnularCargoExtraAsync(int eventoId, int cargoId, AnularCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);
     Task<decimal> CalcularTotalExtrasAsync(int eventoId, CancellationToken cancellationToken = default);
     Task<decimal> CalcularMontoTotalConExtrasAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task<PagoEventoDto> RegistrarPagoEventoAsync(int eventoId, CrearPagoEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PagoEventoDto>> ListarPagosEventoAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task AnularPagoEventoAsync(int eventoId, int pagoId, AnularPagoEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);
+    Task<ResumenFinancieroEventoDto> ObtenerResumenFinancieroAsync(int eventoId, CancellationToken cancellationToken = default);
 }

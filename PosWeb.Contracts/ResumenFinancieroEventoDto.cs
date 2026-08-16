@@ -1,0 +1,2 @@
+namespace PosWeb.Contracts;
+public class ResumenFinancieroEventoDto { public int EventoId { get; set; } public decimal MontoBase { get; set; } public decimal TotalExtras { get; set; } public decimal MontoTotal { get; set; } public decimal TotalPagado { get; set; } public decimal SaldoPendiente { get; set; } public string EstadoPago { get; set; } = "SinPagos"; public int CantidadPagosActivos { get; set; } public DateTime? UltimoPagoFecha { get; set; } }

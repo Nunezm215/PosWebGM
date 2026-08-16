@@ -15,4 +15,9 @@ public interface IEventoRepository
     Task<CargoExtraEvento?> ObtenerCargoExtraAsync(int cargoId, CancellationToken cancellationToken = default);
     Task AgregarCargoExtraAsync(CargoExtraEvento cargo, CancellationToken cancellationToken = default);
     Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PagoEvento>> ListarPagosEventoAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task<PagoEvento?> ObtenerPagoEventoAsync(int pagoId, CancellationToken cancellationToken = default);
+    Task<PagoEvento?> ObtenerPagoPorClaveIdempotenciaAsync(string clave, CancellationToken cancellationToken = default);
+    Task<MedioPago?> ObtenerMedioPagoAsync(int medioPagoId, CancellationToken cancellationToken = default);
+    Task AgregarPagoEventoAsync(PagoEvento pago, CancellationToken cancellationToken = default);
 }

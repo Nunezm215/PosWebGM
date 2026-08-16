@@ -6,6 +6,7 @@ namespace PosWeb.Application.Eventos;
 public class EventoService : IEventoService
 {
     private readonly IEventoRepository _repository;
+    private static readonly SemaphoreSlim PagoMutex = new(1, 1);
 
     public EventoService(IEventoRepository repository)
     {
@@ -212,6 +213,72 @@ public class EventoService : IEventoService
         var evento = await ObtenerEventoRequerido(eventoId, cancellationToken);
         return evento.MONTO_TOTAL + await CalcularTotalExtrasAsync(eventoId, cancellationToken);
     }
+
+    public async Task<PagoEventoDto> RegistrarPagoEventoAsync(int eventoId, CrearPagoEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default)
+    {
+        if (request is null) throw new ArgumentNullException(nameof(request));
+        if (request.Monto <= 0) throw new ArgumentException("El monto debe ser mayor a cero", nameof(request.Monto));
+        if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido", nameof(usuarioId));
+        var clave = string.IsNullOrWhiteSpace(request.ClaveIdempotencia) ? null : request.ClaveIdempotencia.Trim();
+        if (clave?.Length > 150) throw new ArgumentException("La clave de idempotencia excede el máximo permitido");
+
+        await PagoMutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (clave is not null)
+            {
+                var existente = await _repository.ObtenerPagoPorClaveIdempotenciaAsync(clave, cancellationToken);
+                if (existente is not null) return await MapPagoAsync(existente, eventoId, cancellationToken);
+            }
+            var evento = await ObtenerEventoRequerido(eventoId, cancellationToken);
+            if (evento.ESTADO == EventoEstados.Cancelado) throw new InvalidOperationException("No se pueden registrar pagos en un evento cancelado");
+            var medio = await _repository.ObtenerMedioPagoAsync(request.MedioPagoId, cancellationToken) ?? throw new InvalidOperationException("Medio de pago no encontrado");
+            if (!medio.ACTIVO) throw new InvalidOperationException("El medio de pago está inactivo");
+            var resumen = await ObtenerResumenFinancieroInternoAsync(evento, cancellationToken);
+            if (request.Monto > resumen.SaldoPendiente) throw new InvalidOperationException("El pago supera el saldo pendiente");
+            var pago = new PagoEvento(eventoId, request.MedioPagoId, request.Monto, usuarioId, observacion: NormalizarOpcional(request.Observacion, 500), claveIdempotencia: clave, referenciaExterna: NormalizarOpcional(request.ReferenciaExterna, 200));
+            await _repository.AgregarPagoEventoAsync(pago, cancellationToken);
+            return await MapPagoAsync(pago, eventoId, cancellationToken);
+        }
+        finally { PagoMutex.Release(); }
+    }
+
+    public async Task<IReadOnlyList<PagoEventoDto>> ListarPagosEventoAsync(int eventoId, CancellationToken cancellationToken = default)
+    {
+        await ObtenerEventoRequerido(eventoId, cancellationToken);
+        var pagos = await _repository.ListarPagosEventoAsync(eventoId, cancellationToken);
+        return await Task.WhenAll(pagos.Select(p => MapPagoAsync(p, eventoId, cancellationToken)));
+    }
+
+    public async Task AnularPagoEventoAsync(int eventoId, int pagoId, AnularPagoEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default)
+    {
+        await ObtenerEventoRequerido(eventoId, cancellationToken);
+        var pago = await _repository.ObtenerPagoEventoAsync(pagoId, cancellationToken) ?? throw new InvalidOperationException("Pago no encontrado");
+        if (pago.ID_EVENTO != eventoId) throw new ArgumentException("El pago no pertenece al evento");
+        if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido");
+        pago.Anular(usuarioId, Requerido(request?.Motivo, "El motivo de anulación es requerido", 500));
+        await _repository.GuardarCambiosAsync(cancellationToken);
+    }
+
+    public async Task<ResumenFinancieroEventoDto> ObtenerResumenFinancieroAsync(int eventoId, CancellationToken cancellationToken = default)
+        => await ObtenerResumenFinancieroInternoAsync(await ObtenerEventoRequerido(eventoId, cancellationToken), cancellationToken);
+
+    private async Task<ResumenFinancieroEventoDto> ObtenerResumenFinancieroInternoAsync(Evento evento, CancellationToken cancellationToken)
+    {
+        var extras = (await _repository.ListarCargosExtraAsync(evento.ID_EVENTO, cancellationToken)).Where(c => !c.ANULADO).Sum(c => c.MONTO);
+        var activos = (await _repository.ListarPagosEventoAsync(evento.ID_EVENTO, cancellationToken)).Where(p => !p.ANULADO).ToList();
+        var total = evento.MONTO_TOTAL + extras; var pagado = activos.Sum(p => p.MONTO); var saldo = total - pagado;
+        return new ResumenFinancieroEventoDto { EventoId = evento.ID_EVENTO, MontoBase = evento.MONTO_TOTAL, TotalExtras = extras, MontoTotal = total, TotalPagado = pagado, SaldoPendiente = saldo, EstadoPago = pagado == 0 ? "SinPagos" : saldo == 0 ? "Pagado" : "Señado", CantidadPagosActivos = activos.Count, UltimoPagoFecha = activos.Select(p => (DateTime?)p.FECHA_REGISTRO).Max() };
+    }
+
+    private async Task<PagoEventoDto> MapPagoAsync(PagoEvento pago, int eventoId, CancellationToken cancellationToken)
+    {
+        var resumen = await ObtenerResumenFinancieroAsync(eventoId, cancellationToken);
+        var medio = await _repository.ObtenerMedioPagoAsync(pago.ID_MEDIO_PAGO, cancellationToken);
+        return new PagoEventoDto { Id = pago.ID_PAGO_EVENTO, EventoId = pago.ID_EVENTO, MedioPagoId = pago.ID_MEDIO_PAGO, MedioPago = medio?.DESC_MEDIO_PAGO, Monto = pago.MONTO, FechaRegistro = pago.FECHA_REGISTRO, Observacion = pago.OBSERVACION, ReferenciaExterna = pago.REFERENCIA_EXTERNA, Anulado = pago.ANULADO, FechaAnulacion = pago.FECHA_ANULACION, MotivoAnulacion = pago.MOTIVO_ANULACION, TipoPago = resumen.SaldoPendiente == 0 ? "PagoTotal" : "Seña" };
+    }
+
+    private static string? NormalizarOpcional(string? value, int maxLength) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().Length <= maxLength ? value.Trim() : throw new ArgumentException("El texto excede el máximo permitido");
 
     private static void ValidarRequest(CrearEventoRequestDto request)
     {

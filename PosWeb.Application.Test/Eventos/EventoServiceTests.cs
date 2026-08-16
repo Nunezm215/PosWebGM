@@ -476,11 +476,28 @@ public class EventoServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => activo.AgregarCargoExtraAsync(2, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 0m }, 99));
     }
 
+    [Fact]
+    public async Task Pago_evento_calcula_saldo_y_tipo_derivado()
+    {
+        var evento = new Evento(10, 99, 1, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), "Evento", 10, 500000m);
+        evento.AsignarId(1);
+        var service = new EventoService(new EventoRepositoryFake(new[] { evento }));
+
+        var pago = await service.RegistrarPagoEventoAsync(1, new CrearPagoEventoRequestDto { MedioPagoId = 1, Monto = 100000m, Observacion = " nota " }, 99);
+        var resumen = await service.ObtenerResumenFinancieroAsync(1);
+
+        Assert.Equal("Seña", pago.TipoPago);
+        Assert.Equal(400000m, resumen.SaldoPendiente);
+        Assert.Equal("Señado", resumen.EstadoPago);
+        Assert.Equal("nota", pago.Observacion);
+    }
+
     private sealed class EventoRepositoryFake : IEventoRepository
     {
         private readonly List<Evento> _eventos;
         private readonly Dictionary<int, Cliente> _clientes;
         private readonly List<CargoExtraEvento> _cargos = new();
+        private readonly List<PagoEvento> _pagos = new();
         private int _nextId;
         private int _nextCargoId = 1;
 
@@ -589,5 +606,20 @@ public class EventoServiceTests
         }
 
         public Task GuardarCambiosAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<PagoEvento>> ListarPagosEventoAsync(int eventoId, CancellationToken cancellationToken = default)
+            => Task.FromResult((IReadOnlyList<PagoEvento>)_pagos.Where(p => p.ID_EVENTO == eventoId).OrderBy(p => p.FECHA_REGISTRO).ToList());
+        public Task<PagoEvento?> ObtenerPagoEventoAsync(int pagoId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_pagos.FirstOrDefault(p => p.ID_PAGO_EVENTO == pagoId));
+        public Task<PagoEvento?> ObtenerPagoPorClaveIdempotenciaAsync(string clave, CancellationToken cancellationToken = default)
+            => Task.FromResult(_pagos.FirstOrDefault(p => p.CLAVE_IDEMPOTENCIA == clave));
+        public Task<MedioPago?> ObtenerMedioPagoAsync(int medioPagoId, CancellationToken cancellationToken = default)
+            => Task.FromResult<MedioPago?>(medioPagoId == 1 ? new MedioPago(1, "EFECTIVO", "Efectivo", true) : null);
+        public Task AgregarPagoEventoAsync(PagoEvento pago, CancellationToken cancellationToken = default)
+        {
+            typeof(PagoEvento).GetProperty("ID_PAGO_EVENTO")!.SetValue(pago, _pagos.Count + 1);
+            _pagos.Add(pago);
+            return Task.CompletedTask;
+        }
     }
 }

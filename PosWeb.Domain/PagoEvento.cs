@@ -35,4 +35,13 @@ public class PagoEvento
         CLAVE_IDEMPOTENCIA = claveIdempotencia;
         REFERENCIA_EXTERNA = referenciaExterna;
     }
+
+    public void Anular(int usuarioId, string motivo)
+    {
+        if (ANULADO) throw new InvalidOperationException("El pago ya fue anulado");
+        ANULADO = true;
+        ID_USUARIO_ANULA = usuarioId;
+        FECHA_ANULACION = DateTime.UtcNow;
+        MOTIVO_ANULACION = motivo;
+    }
 }

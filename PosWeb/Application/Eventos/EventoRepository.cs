@@ -127,6 +127,13 @@ public class EventoRepository : IEventoRepository
     public Task GuardarCambiosAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<PagoEvento>> ListarPagosEventoAsync(int eventoId, CancellationToken cancellationToken = default)
+        => await _context.PagoEvento.Where(p => p.ID_EVENTO == eventoId).OrderBy(p => p.FECHA_REGISTRO).ThenBy(p => p.ID_PAGO_EVENTO).ToListAsync(cancellationToken);
+    public Task<PagoEvento?> ObtenerPagoEventoAsync(int pagoId, CancellationToken cancellationToken = default) => _context.PagoEvento.FirstOrDefaultAsync(p => p.ID_PAGO_EVENTO == pagoId, cancellationToken);
+    public Task<PagoEvento?> ObtenerPagoPorClaveIdempotenciaAsync(string clave, CancellationToken cancellationToken = default) => _context.PagoEvento.FirstOrDefaultAsync(p => p.CLAVE_IDEMPOTENCIA == clave, cancellationToken);
+    public Task<MedioPago?> ObtenerMedioPagoAsync(int medioPagoId, CancellationToken cancellationToken = default) => _context.MedioPago.FirstOrDefaultAsync(m => m.ID_MEDIO_PAGO == medioPagoId, cancellationToken);
+    public async Task AgregarPagoEventoAsync(PagoEvento pago, CancellationToken cancellationToken = default) { await _context.PagoEvento.AddAsync(pago, cancellationToken); await _context.SaveChangesAsync(cancellationToken); }
+
     private static string Normalize(string value)
         => value.Trim().ToLowerInvariant();
 
