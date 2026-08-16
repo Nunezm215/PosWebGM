@@ -492,6 +492,40 @@ public class EventoServiceTests
         Assert.Equal("nota", pago.Observacion);
     }
 
+    [Fact]
+    public async Task Pago_puede_anularse_el_mismo_dia_contable_argentino()
+    {
+        var (service, pago) = await CrearPagoParaAnulacionAsync(new DateTimeOffset(2026, 8, 17, 1, 30, 0, TimeSpan.Zero));
+        await service.AnularPagoEventoAsync(1, pago.ID_PAGO_EVENTO, new AnularPagoEventoRequestDto { Motivo = "Correccion" }, 99);
+        Assert.True(pago.ANULADO);
+    }
+
+    [Fact]
+    public async Task Pago_de_dia_contable_anterior_no_se_anula_ni_modifica_datos()
+    {
+        var (service, pago) = await CrearPagoParaAnulacionAsync(new DateTimeOffset(2026, 8, 17, 3, 1, 0, TimeSpan.Zero));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.AnularPagoEventoAsync(1, pago.ID_PAGO_EVENTO, new AnularPagoEventoRequestDto { Motivo = "Correccion" }, 99));
+        Assert.Equal("El pago solo puede anularse el mismo día en que fue registrado.", error.Message);
+        Assert.False(pago.ANULADO); Assert.Null(pago.FECHA_ANULACION); Assert.Null(pago.ID_USUARIO_ANULA); Assert.Null(pago.MOTIVO_ANULACION);
+    }
+
+    private static async Task<(EventoService service, PagoEvento pago)> CrearPagoParaAnulacionAsync(DateTimeOffset ahora)
+    {
+        var evento = new Evento(10, 99, 1, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), "Evento", 10, 500000m);
+        evento.AsignarId(1);
+        var repo = new EventoRepositoryFake(new[] { evento });
+        var service = new EventoService(repo, new RelojFijo(ahora));
+        await service.RegistrarPagoEventoAsync(1, new CrearPagoEventoRequestDto { MedioPagoId = 1, Monto = 100000m }, 99);
+        var pago = repo.PrimerPago!;
+        typeof(PagoEvento).GetProperty("FECHA_REGISTRO")!.SetValue(pago, new DateTime(2026, 8, 17, 1, 30, 0, DateTimeKind.Utc));
+        return (service, pago);
+    }
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
     private sealed class EventoRepositoryFake : IEventoRepository
     {
         private readonly List<Evento> _eventos;
@@ -621,5 +655,6 @@ public class EventoServiceTests
             _pagos.Add(pago);
             return Task.CompletedTask;
         }
+        public PagoEvento? PrimerPago => _pagos.FirstOrDefault();
     }
 }

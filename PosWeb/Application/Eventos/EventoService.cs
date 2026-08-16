@@ -6,11 +6,13 @@ namespace PosWeb.Application.Eventos;
 public class EventoService : IEventoService
 {
     private readonly IEventoRepository _repository;
+    private readonly TimeProvider _timeProvider;
     private static readonly SemaphoreSlim PagoMutex = new(1, 1);
 
-    public EventoService(IEventoRepository repository)
+    public EventoService(IEventoRepository repository, TimeProvider? timeProvider = null)
     {
         _repository = repository;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<EventoDto> CrearEventoAsync(CrearEventoRequestDto request, int usuarioCreadorId, int sucursalId, CancellationToken cancellationToken = default)
@@ -259,6 +261,8 @@ public class EventoService : IEventoService
         var pago = await _repository.ObtenerPagoEventoAsync(pagoId, cancellationToken) ?? throw new InvalidOperationException("Pago no encontrado");
         if (pago.ID_EVENTO != eventoId) throw new ArgumentException("El pago no pertenece al evento");
         if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido");
+        if (FechaContableArgentina.DesdeUtc(pago.FECHA_REGISTRO) != FechaContableArgentina.Actual(_timeProvider))
+            throw new InvalidOperationException("El pago solo puede anularse el mismo día en que fue registrado.");
         pago.Anular(usuarioId, Requerido(request?.Motivo, "El motivo de anulación es requerido", 500));
         await _repository.GuardarCambiosAsync(cancellationToken);
         await SincronizarEstadoFinancieroAsync(await ObtenerEventoRequerido(eventoId, cancellationToken), cancellationToken);
