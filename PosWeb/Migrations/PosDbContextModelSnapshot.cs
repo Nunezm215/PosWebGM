@@ -627,6 +627,10 @@ namespace PosWeb.Migrations
                         .HasColumnType("int")
                         .HasColumnName("ID_CAJA");
 
+                    b.Property<int?>("ID_SUCURSAL")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_SUCURSAL");
+
                     b.Property<int?>("ID_USUARIO")
                         .HasColumnType("int")
                         .HasColumnName("ID_USUARIO");
@@ -638,6 +642,8 @@ namespace PosWeb.Migrations
                     b.HasKey("ID_GASTO");
 
                     b.HasIndex("ID_CAJA");
+
+                    b.HasIndex("ID_SUCURSAL");
 
                     b.ToTable("GASTO", (string)null);
                 });
@@ -1839,6 +1845,13 @@ namespace PosWeb.Migrations
                         .WithMany()
                         .HasForeignKey("ID_CAJA")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PosWeb.Domain.Sucursal", "Sucursal")
+                        .WithMany()
+                        .HasForeignKey("ID_SUCURSAL")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Sucursal");
                 });
 
             modelBuilder.Entity("PosWeb.Domain.Oferta", b =>

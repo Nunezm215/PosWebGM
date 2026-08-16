@@ -4,6 +4,8 @@ public class Gasto
 {
     public int ID_GASTO { get; private set; }
     public int? ID_CAJA { get; private set; }
+    public int? ID_SUCURSAL { get; private set; }
+    public Sucursal? Sucursal { get; private set; }
     public decimal MONTO { get; private set; }
     public DateTime FECHA_GASTO { get; private set; }
     public string DETALLE { get; private set; } = null!;

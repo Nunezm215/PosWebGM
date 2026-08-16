@@ -722,6 +722,16 @@ public partial class PosDbContext
             entity.Property(g => g.ID_CAJA)
                 .HasColumnName("ID_CAJA");
 
+            entity.Property(g => g.ID_SUCURSAL)
+                .HasColumnName("ID_SUCURSAL");
+
+            entity.HasIndex(g => g.ID_SUCURSAL);
+
+            entity.HasOne(g => g.Sucursal)
+                .WithMany()
+                .HasForeignKey(g => g.ID_SUCURSAL)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.Property(g => g.ANULADO)
                 .HasColumnName("ANULADO");
 
