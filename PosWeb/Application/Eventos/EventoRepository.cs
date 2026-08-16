@@ -112,6 +112,21 @@ public class EventoRepository : IEventoRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CargoExtraEvento>> ListarCargosExtraAsync(int eventoId, CancellationToken cancellationToken = default)
+        => await _context.CargoExtraEvento.Where(c => c.ID_EVENTO == eventoId).OrderBy(c => c.FECHA_REGISTRO).ThenBy(c => c.ID_CARGO_EXTRA_EVENTO).ToListAsync(cancellationToken);
+
+    public Task<CargoExtraEvento?> ObtenerCargoExtraAsync(int cargoId, CancellationToken cancellationToken = default)
+        => _context.CargoExtraEvento.FirstOrDefaultAsync(c => c.ID_CARGO_EXTRA_EVENTO == cargoId, cancellationToken);
+
+    public async Task AgregarCargoExtraAsync(CargoExtraEvento cargo, CancellationToken cancellationToken = default)
+    {
+        await _context.CargoExtraEvento.AddAsync(cargo, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task GuardarCambiosAsync(CancellationToken cancellationToken = default)
+        => _context.SaveChangesAsync(cancellationToken);
+
     private static string Normalize(string value)
         => value.Trim().ToLowerInvariant();
 

@@ -11,4 +11,8 @@ public interface IEventoRepository
     Task<Evento?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default);
     Task AgregarAsync(Evento evento, CancellationToken cancellationToken = default);
     Task ActualizarAsync(Evento evento, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CargoExtraEvento>> ListarCargosExtraAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task<CargoExtraEvento?> ObtenerCargoExtraAsync(int cargoId, CancellationToken cancellationToken = default);
+    Task AgregarCargoExtraAsync(CargoExtraEvento cargo, CancellationToken cancellationToken = default);
+    Task GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

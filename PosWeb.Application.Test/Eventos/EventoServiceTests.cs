@@ -431,11 +431,58 @@ public class EventoServiceTests
         Assert.Single(limitado);
     }
 
+    [Fact]
+    public async Task Cargo_extra_suma_total_sin_modificar_monto_base()
+    {
+        var evento = CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0));
+        var repo = new EventoRepositoryFake(new[] { evento });
+        var service = new EventoService(repo);
+        await service.AgregarCargoExtraAsync(1, new CrearCargoExtraEventoRequestDto { Descripcion = " Pool ", Monto = 50000m }, 99);
+
+        var cargo = Assert.Single(await service.ListarCargosExtraAsync(1));
+        Assert.Equal("Pool", cargo.Descripcion);
+        Assert.False(cargo.Anulado);
+        Assert.Equal(50000m, await service.CalcularTotalExtrasAsync(1));
+        Assert.Equal(50001m, await service.CalcularMontoTotalConExtrasAsync(1));
+        Assert.Equal(1m, evento.MONTO_TOTAL);
+    }
+
+    [Fact]
+    public async Task Cargo_extra_anulado_no_suma_y_conserva_auditoria()
+    {
+        var repo = new EventoRepositoryFake(new[] { CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)) });
+        var service = new EventoService(repo);
+        var cargo = await service.AgregarCargoExtraAsync(1, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 50000m }, 99);
+        await service.AnularCargoExtraAsync(1, cargo.Id, new AnularCargoExtraEventoRequestDto { Motivo = "No se contrató" }, 77);
+
+        var anulado = Assert.Single(await service.ListarCargosExtraAsync(1));
+        Assert.True(anulado.Anulado);
+        Assert.NotNull(anulado.FechaAnulacion);
+        Assert.Equal("No se contrató", anulado.MotivoAnulacion);
+        Assert.Equal(0m, await service.CalcularTotalExtrasAsync(1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AnularCargoExtraAsync(1, cargo.Id, new AnularCargoExtraEventoRequestDto { Motivo = "Otra vez" }, 77));
+    }
+
+    [Fact]
+    public async Task Cargo_extra_valida_monto_descripcion_y_evento_cancelado()
+    {
+        var cancelado = CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), EventoEstados.Cancelado);
+        var service = new EventoService(new EventoRepositoryFake(new[] { cancelado }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AgregarCargoExtraAsync(1, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 1m }, 99));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.AgregarCargoExtraAsync(99, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 1m }, 99));
+
+        var activo = new EventoService(new EventoRepositoryFake(new[] { CrearEventoExistente(2, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)) }));
+        await Assert.ThrowsAsync<ArgumentException>(() => activo.AgregarCargoExtraAsync(2, new CrearCargoExtraEventoRequestDto { Descripcion = "", Monto = 1m }, 99));
+        await Assert.ThrowsAsync<ArgumentException>(() => activo.AgregarCargoExtraAsync(2, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 0m }, 99));
+    }
+
     private sealed class EventoRepositoryFake : IEventoRepository
     {
         private readonly List<Evento> _eventos;
         private readonly Dictionary<int, Cliente> _clientes;
+        private readonly List<CargoExtraEvento> _cargos = new();
         private int _nextId;
+        private int _nextCargoId = 1;
 
         public EventoRepositoryFake(IEnumerable<Evento>? seed = null)
             : this(seed, Enumerable.Empty<Cliente>())
@@ -527,5 +574,20 @@ public class EventoServiceTests
                 _eventos[index] = evento;
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<CargoExtraEvento>> ListarCargosExtraAsync(int eventoId, CancellationToken cancellationToken = default)
+            => Task.FromResult((IReadOnlyList<CargoExtraEvento>)_cargos.Where(c => c.ID_EVENTO == eventoId).OrderBy(c => c.FECHA_REGISTRO).ThenBy(c => c.ID_CARGO_EXTRA_EVENTO).ToList());
+
+        public Task<CargoExtraEvento?> ObtenerCargoExtraAsync(int cargoId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_cargos.FirstOrDefault(c => c.ID_CARGO_EXTRA_EVENTO == cargoId));
+
+        public Task AgregarCargoExtraAsync(CargoExtraEvento cargo, CancellationToken cancellationToken = default)
+        {
+            typeof(CargoExtraEvento).GetProperty("ID_CARGO_EXTRA_EVENTO")!.SetValue(cargo, _nextCargoId++);
+            _cargos.Add(cargo);
+            return Task.CompletedTask;
+        }
+
+        public Task GuardarCambiosAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

@@ -37,4 +37,14 @@ public class CargoExtraEvento
         ID_USUARIO_REGISTRA = usuarioRegistraId;
         FECHA_REGISTRO = fechaRegistro ?? DateTime.UtcNow;
     }
+
+    public void Anular(int usuarioAnulaId, string motivo, DateTime? fechaAnulacion = null)
+    {
+        if (ANULADO) throw new InvalidOperationException("El cargo extra ya fue anulado");
+
+        ANULADO = true;
+        ID_USUARIO_ANULA = usuarioAnulaId;
+        FECHA_ANULACION = fechaAnulacion ?? DateTime.UtcNow;
+        MOTIVO_ANULACION = motivo;
+    }
 }

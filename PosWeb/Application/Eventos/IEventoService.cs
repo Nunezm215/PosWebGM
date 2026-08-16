@@ -14,4 +14,9 @@ public interface IEventoService
     Task<IReadOnlyList<BuscarEventoResponseDto>> BuscarGlobalAsync(int sucursalId, string query, int limit, CancellationToken cancellationToken = default);
     Task<EventoDto> CancelarAsync(int eventoId, CancellationToken cancellationToken = default);
     Task<EventoDto> CambiarEstadoAsync(int eventoId, string estado, CancellationToken cancellationToken = default);
+    Task<CargoExtraEventoDto> AgregarCargoExtraAsync(int eventoId, CrearCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CargoExtraEventoDto>> ListarCargosExtraAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task AnularCargoExtraAsync(int eventoId, int cargoId, AnularCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);
+    Task<decimal> CalcularTotalExtrasAsync(int eventoId, CancellationToken cancellationToken = default);
+    Task<decimal> CalcularMontoTotalConExtrasAsync(int eventoId, CancellationToken cancellationToken = default);
 }

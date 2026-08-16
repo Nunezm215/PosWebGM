@@ -171,6 +171,48 @@ public class EventoService : IEventoService
         return Map(evento);
     }
 
+    public async Task<CargoExtraEventoDto> AgregarCargoExtraAsync(int eventoId, CrearCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default)
+    {
+        var evento = await ObtenerEventoRequerido(eventoId, cancellationToken);
+        if (evento.ESTADO == EventoEstados.Cancelado) throw new InvalidOperationException("No se pueden agregar cargos extra a un evento cancelado");
+        var descripcion = Requerido(request?.Descripcion, "La descripción es requerida", 200);
+        if (request!.Monto <= 0) throw new ArgumentException("El monto debe ser mayor a cero", nameof(request.Monto));
+        if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido", nameof(usuarioId));
+
+        var cargo = new CargoExtraEvento(eventoId, descripcion, request.Monto, usuarioId);
+        await _repository.AgregarCargoExtraAsync(cargo, cancellationToken);
+        return Map(cargo);
+    }
+
+    public async Task<IReadOnlyList<CargoExtraEventoDto>> ListarCargosExtraAsync(int eventoId, CancellationToken cancellationToken = default)
+    {
+        await ObtenerEventoRequerido(eventoId, cancellationToken);
+        return (await _repository.ListarCargosExtraAsync(eventoId, cancellationToken)).Select(Map).ToList();
+    }
+
+    public async Task AnularCargoExtraAsync(int eventoId, int cargoId, AnularCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default)
+    {
+        await ObtenerEventoRequerido(eventoId, cancellationToken);
+        var cargo = await _repository.ObtenerCargoExtraAsync(cargoId, cancellationToken) ?? throw new InvalidOperationException("Cargo extra no encontrado");
+        if (cargo.ID_EVENTO != eventoId) throw new ArgumentException("El cargo extra no pertenece al evento");
+        var motivo = Requerido(request?.Motivo, "El motivo de anulación es requerido", 500);
+        if (usuarioId <= 0) throw new ArgumentException("El usuario es requerido", nameof(usuarioId));
+        cargo.Anular(usuarioId, motivo);
+        await _repository.GuardarCambiosAsync(cancellationToken);
+    }
+
+    public async Task<decimal> CalcularTotalExtrasAsync(int eventoId, CancellationToken cancellationToken = default)
+    {
+        await ObtenerEventoRequerido(eventoId, cancellationToken);
+        return (await _repository.ListarCargosExtraAsync(eventoId, cancellationToken)).Where(c => !c.ANULADO).Sum(c => c.MONTO);
+    }
+
+    public async Task<decimal> CalcularMontoTotalConExtrasAsync(int eventoId, CancellationToken cancellationToken = default)
+    {
+        var evento = await ObtenerEventoRequerido(eventoId, cancellationToken);
+        return evento.MONTO_TOTAL + await CalcularTotalExtrasAsync(eventoId, cancellationToken);
+    }
+
     private static void ValidarRequest(CrearEventoRequestDto request)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
@@ -187,6 +229,28 @@ public class EventoService : IEventoService
             request.Observaciones,
             fechaCreacion: DateTime.UtcNow);
     }
+
+    private async Task<Evento> ObtenerEventoRequerido(int eventoId, CancellationToken cancellationToken)
+        => await _repository.ObtenerPorIdAsync(eventoId, cancellationToken) ?? throw new InvalidOperationException("Evento no encontrado");
+
+    private static string Requerido(string? value, string message, int maxLength)
+    {
+        var normalizado = value?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizado) || normalizado.Length > maxLength) throw new ArgumentException(message);
+        return normalizado;
+    }
+
+    private static CargoExtraEventoDto Map(CargoExtraEvento cargo) => new()
+    {
+        Id = cargo.ID_CARGO_EXTRA_EVENTO,
+        EventoId = cargo.ID_EVENTO,
+        Descripcion = cargo.DESCRIPCION,
+        Monto = cargo.MONTO,
+        FechaRegistro = cargo.FECHA_REGISTRO,
+        Anulado = cargo.ANULADO,
+        FechaAnulacion = cargo.FECHA_ANULACION,
+        MotivoAnulacion = cargo.MOTIVO_ANULACION,
+    };
 
     private static void ValidarRequest(EditarEventoRequestDto request)
     {
