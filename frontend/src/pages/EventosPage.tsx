@@ -1405,8 +1405,13 @@ export default function EventosPage() {
                       <div className="text-xs text-gray-600 truncate">
                         Reservado por: {evento.reservadoPor?.trim() || `Cliente #${evento.clienteId}`}
                       </div>
-                      <div className="text-xs text-gray-700">
-                        {formatBusquedaGlobalFecha(evento.fecha)} · {evento.estado}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-700">
+                        <span>{formatBusquedaGlobalFecha(evento.fecha)} · {evento.estado}</span>
+                        {isBeforeToday(evento.fecha.slice(0, 10)) && (
+                          <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-semibold tracking-wide text-white">
+                            PASADO
+                          </span>
+                        )}
                       </div>
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusBadgeStyles(evento.estado)}`}>

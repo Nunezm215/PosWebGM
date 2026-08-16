@@ -2133,6 +2133,39 @@ describe('EventosPage', () => {
     expect(screen.getByText('22/09/2026 · Reservado')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '18:00 Reunión' })).toBeInTheDocument()
     expect(screen.getByText('10/06/2026 · Cancelado')).toBeInTheDocument()
+    expect(screen.getByText('PASADO')).toBeInTheDocument()
+  }, 30000)
+
+  it('marks only past global results without changing their real state', async () => {
+    const yesterday = dateKeyFromToday(-1)
+    const today = dateKeyFromToday()
+    const tomorrow = dateKeyFromToday(1)
+    const pastReserved = { id: 81, clienteId: 1, reservadoPor: 'Juan Pérez', fecha: yesterday, horaInicio: '09:00:00', horaFin: '10:00:00', tipoEvento: 'Reservado pasado', estado: 'Reservado', cantidadInvitados: 20 }
+
+    apiState.buscar.mockResolvedValueOnce([
+      pastReserved,
+      { id: 82, clienteId: 2, reservadoPor: 'María Gómez', fecha: yesterday, horaInicio: '10:00:00', horaFin: '11:00:00', tipoEvento: 'Señado pasado', estado: 'Señado', cantidadInvitados: 20 },
+      { id: 83, clienteId: 3, reservadoPor: 'Pedro Díaz', fecha: yesterday, horaInicio: '11:00:00', horaFin: '12:00:00', tipoEvento: 'Pagado pasado', estado: 'Pagado', cantidadInvitados: 20 },
+      { id: 84, clienteId: 4, reservadoPor: 'Ana López', fecha: yesterday, horaInicio: '12:00:00', horaFin: '13:00:00', tipoEvento: 'Cancelado pasado', estado: 'Cancelado', cantidadInvitados: 20 },
+      { id: 85, clienteId: 5, reservadoPor: 'Hoy Cliente', fecha: today, horaInicio: '08:00:00', horaFin: '09:00:00', tipoEvento: 'Evento de hoy', estado: 'Reservado', cantidadInvitados: 20 },
+      { id: 86, clienteId: 6, reservadoPor: 'Futuro Cliente', fecha: tomorrow, horaInicio: '08:00:00', horaFin: '09:00:00', tipoEvento: 'Evento futuro', estado: 'Reservado', cantidadInvitados: 20 },
+    ])
+
+    const user = userEvent.setup()
+    await renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Buscar evento' })
+    await user.type(search, 'pasado')
+    await pause(350)
+
+    expect(await screen.findByText(`${yesterday.slice(8, 10)}/${yesterday.slice(5, 7)}/${yesterday.slice(0, 4)} · Reservado`)).toBeInTheDocument()
+    expect(screen.getByText(`${yesterday.slice(8, 10)}/${yesterday.slice(5, 7)}/${yesterday.slice(0, 4)} · Señado`)).toBeInTheDocument()
+    expect(screen.getByText(`${yesterday.slice(8, 10)}/${yesterday.slice(5, 7)}/${yesterday.slice(0, 4)} · Pagado`)).toBeInTheDocument()
+    expect(screen.getByText(`${yesterday.slice(8, 10)}/${yesterday.slice(5, 7)}/${yesterday.slice(0, 4)} · Cancelado`)).toBeInTheDocument()
+    expect(screen.getByText(`${today.slice(8, 10)}/${today.slice(5, 7)}/${today.slice(0, 4)} · Reservado`)).toBeInTheDocument()
+    expect(screen.getByText(`${tomorrow.slice(8, 10)}/${tomorrow.slice(5, 7)}/${tomorrow.slice(0, 4)} · Reservado`)).toBeInTheDocument()
+    expect(screen.getAllByText('PASADO')).toHaveLength(4)
+    expect(pastReserved).toEqual(expect.objectContaining({ fecha: yesterday, estado: 'Reservado' }))
+    expect(pastReserved).not.toHaveProperty('pasado')
   }, 30000)
 
   it('shows empty and error states for the global search and clears back to upcoming events', async () => {
