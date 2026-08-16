@@ -1,4 +1,4 @@
-import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto } from '../types'
+import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto } from '../types'
 
 function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -194,11 +194,15 @@ export const api = {
 
   // Eventos
   eventos: {
-    listarPorRango: (desde: string, hasta: string) => {
-      const params = new URLSearchParams({ desde, hasta })
-      return request<EventoDto[]>(`/eventos/rango?${params.toString()}`)
-    },
-    obtenerPorId: (id: number) => request<EventoDto>(`/eventos/${id}`),
+      listarPorRango: (desde: string, hasta: string) => {
+        const params = new URLSearchParams({ desde, hasta })
+        return request<EventoDto[]>(`/eventos/rango?${params.toString()}`)
+      },
+      buscar: (q: string, limit: number = 10) => {
+        const params = new URLSearchParams({ q: q.trim(), limit: String(limit) })
+        return request<BuscarEventoResponseDto[]>(`/eventos/buscar?${params.toString()}`)
+      },
+      obtenerPorId: (id: number) => request<EventoDto>(`/eventos/${id}`),
     consultarDisponibilidad: (params: { fecha: string; horaInicio: string; horaFin: string; eventoIdExcluir?: number }) => {
       const qs = new URLSearchParams({
         fecha: params.fecha,

@@ -285,6 +285,18 @@ export interface EventoDto {
   fechaCreacion: string
 }
 
+export interface BuscarEventoResponseDto {
+  id: number
+  clienteId: number
+  reservadoPor: string
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  tipoEvento: string
+  estado: string
+  cantidadInvitados: number
+}
+
 export interface DisponibilidadEventoResponseDto {
   disponible: boolean
   proximaHoraDisponible?: string | null

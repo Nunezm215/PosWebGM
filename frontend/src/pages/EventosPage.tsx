@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
-import type { ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
+import type { BuscarEventoResponseDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
@@ -360,8 +360,13 @@ export default function EventosPage() {
   const [proximosLoading, setProximosLoading] = useState(true)
   const [proximosError, setProximosError] = useState<string | null>(null)
   const [busquedaProximos, setBusquedaProximos] = useState('')
+  const [busquedaGlobalResultados, setBusquedaGlobalResultados] = useState<BuscarEventoResponseDto[]>([])
+  const [busquedaGlobalLoading, setBusquedaGlobalLoading] = useState(false)
+  const [busquedaGlobalError, setBusquedaGlobalError] = useState('')
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const monthPickerRef = useRef<HTMLDivElement | null>(null)
+  const busquedaGlobalRequestIdRef = useRef(0)
+  const busquedaGlobalTimeoutRef = useRef<number | null>(null)
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
   const monthOptions = useMemo(() => buildMonthOptions(monthAnchor), [monthAnchor])
@@ -544,8 +549,60 @@ export default function EventosPage() {
       .slice(0, 10)
   }, [busquedaProximos, clientesPorId, proximosEventos, reloadKey])
 
+  const busquedaGlobalActiva = Boolean(normalizeSearchText(busquedaProximos))
+
+  useEffect(() => {
+    const query = busquedaProximos.trim()
+
+    if (busquedaGlobalTimeoutRef.current !== null) {
+      window.clearTimeout(busquedaGlobalTimeoutRef.current)
+      busquedaGlobalTimeoutRef.current = null
+    }
+
+    if (!query) {
+      busquedaGlobalRequestIdRef.current += 1
+      setBusquedaGlobalResultados([])
+      setBusquedaGlobalLoading(false)
+      setBusquedaGlobalError('')
+      return
+    }
+
+    setBusquedaGlobalResultados([])
+    setBusquedaGlobalLoading(true)
+    setBusquedaGlobalError('')
+
+    const requestId = ++busquedaGlobalRequestIdRef.current
+    busquedaGlobalTimeoutRef.current = window.setTimeout(() => {
+      api.eventos.buscar(query, 10)
+        .then(resultados => {
+          if (requestId !== busquedaGlobalRequestIdRef.current) return
+          setBusquedaGlobalResultados(resultados)
+        })
+        .catch(() => {
+          if (requestId !== busquedaGlobalRequestIdRef.current) return
+          setBusquedaGlobalResultados([])
+          setBusquedaGlobalError('No se pudo buscar eventos.')
+        })
+        .finally(() => {
+          if (requestId !== busquedaGlobalRequestIdRef.current) return
+          setBusquedaGlobalLoading(false)
+        })
+    }, 300)
+
+    return () => {
+      if (busquedaGlobalTimeoutRef.current !== null) {
+        window.clearTimeout(busquedaGlobalTimeoutRef.current)
+        busquedaGlobalTimeoutRef.current = null
+      }
+    }
+  }, [busquedaProximos])
+
   function getClienteLabel(clienteId: number) {
     return clientesPorId[clienteId]?.trim() || `Cliente #${clienteId}`
+  }
+
+  function formatBusquedaGlobalFecha(fecha: string) {
+    return formatDate(fecha)
   }
 
   const monthTitle = formatMonthTitle(monthAnchor)
@@ -1295,25 +1352,71 @@ export default function EventosPage() {
             />
 
             <div className="mt-4 space-y-3">
-              {proximosError && (
+              {!busquedaGlobalActiva && proximosError && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
                   No se pudieron cargar los próximos eventos.
                 </div>
               )}
 
-              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && busquedaProximos.trim() && (
+              {busquedaGlobalActiva && busquedaGlobalLoading && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                  Buscando eventos...
+                </div>
+              )}
+
+              {busquedaGlobalActiva && !busquedaGlobalLoading && busquedaGlobalError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+                  No se pudo buscar eventos.
+                </div>
+              )}
+
+              {busquedaGlobalActiva && !busquedaGlobalLoading && !busquedaGlobalError && busquedaGlobalResultados.length === 0 && (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
                   No se encontraron eventos.
                 </div>
               )}
 
-              {!proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && !busquedaProximos.trim() && (
+              {!busquedaGlobalActiva && !proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && !busquedaProximos.trim() && (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
                   No hay próximos eventos.
                 </div>
               )}
 
-              {eventosProximosVisibles.map(evento => (
+              {!busquedaGlobalActiva && !proximosLoading && !proximosError && eventosProximosVisibles.length === 0 && busquedaProximos.trim() && (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                  No se encontraron eventos.
+                </div>
+              )}
+
+              {busquedaGlobalActiva ? busquedaGlobalResultados.map(evento => (
+                <button
+                  key={evento.id}
+                  type="button"
+                  onClick={() => openEvent(evento.id)}
+                  className={`w-full rounded-2xl border px-3 py-3 text-left shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md ${statusStyles(evento.estado)}`}
+                  aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="text-sm font-semibold text-gray-900 truncate">
+                        {formatTime(evento.horaInicio)} - {formatTime(evento.horaFin)}
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {evento.tipoEvento}
+                      </div>
+                      <div className="text-xs text-gray-600 truncate">
+                        Reservado por: {evento.reservadoPor?.trim() || `Cliente #${evento.clienteId}`}
+                      </div>
+                      <div className="text-xs text-gray-700">
+                        {formatBusquedaGlobalFecha(evento.fecha)} · {evento.estado}
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                      {evento.estado}
+                    </span>
+                  </div>
+                </button>
+              )) : eventosProximosVisibles.map(evento => (
                 <button
                   key={evento.id}
                   type="button"
