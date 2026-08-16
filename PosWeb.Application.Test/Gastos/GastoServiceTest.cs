@@ -37,6 +37,73 @@ public class GastoServiceTest
         return new GastoService(context);
     }
 
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    [Fact]
+    public void CrearSimple_SinCaja_AsignaSucursalUsuarioFechaUtcYTrim()
+    {
+        var context = CrearContexto(nameof(CrearSimple_SinCaja_AsignaSucursalUsuarioFechaUtcYTrim));
+        var ahora = new DateTimeOffset(2026, 8, 17, 1, 30, 0, TimeSpan.Zero);
+        var service = new GastoService(context, new RelojFijo(ahora));
+        var usuario = context.Usuario.First();
+        var sucursal = context.Sucursal.First();
+
+        service.CrearSimple(35000m, "  Compra de hielo  ", usuario.ID_USUARIO);
+
+        var gasto = context.Gasto.Single();
+        Assert.Null(gasto.ID_CAJA);
+        Assert.Equal(sucursal.ID_SUCURSAL, gasto.ID_SUCURSAL);
+        Assert.Equal(usuario.ID_USUARIO, gasto.ID_USUARIO);
+        Assert.Equal(ahora.UtcDateTime, gasto.FECHA_GASTO);
+        Assert.Equal("Compra de hielo", gasto.DETALLE);
+    }
+
+    [Fact]
+    public void CrearSimple_Rechaza_CeroOMultiplesSucursalesActivas()
+    {
+        var sinSucursal = new PosDbContextLocal(new DbContextOptionsBuilder<PosDbContextLocal>().UseInMemoryDatabase(nameof(CrearSimple_Rechaza_CeroOMultiplesSucursalesActivas)).Options);
+        Assert.Throws<InvalidOperationException>(() => new GastoService(sinSucursal).CrearSimple(1m, "Detalle", 1));
+
+        var context = CrearContexto("multiples-sucursales");
+        context.Sucursal.Add(new Sucursal("002", "Otra", 1)); context.SaveChanges();
+        Assert.Throws<InvalidOperationException>(() => new GastoService(context).CrearSimple(1m, "Detalle", context.Usuario.First().ID_USUARIO));
+    }
+
+    [Fact]
+    public void AnularSimple_MismoDiaArgentina_GuardaAuditoriaUtcYMotivoTrim()
+    {
+        var context = CrearContexto(nameof(AnularSimple_MismoDiaArgentina_GuardaAuditoriaUtcYMotivoTrim));
+        var ahora = new DateTimeOffset(2026, 8, 17, 1, 30, 0, TimeSpan.Zero);
+        var service = new GastoService(context, new RelojFijo(ahora));
+        var usuario = context.Usuario.First();
+        service.CrearSimple(10m, "Hielo", usuario.ID_USUARIO);
+        var gasto = context.Gasto.Single();
+
+        service.Anular(gasto.ID_GASTO, usuario.ID_USUARIO, "  Correccion  ");
+
+        Assert.True(gasto.ANULADO); Assert.Equal(usuario.ID_USUARIO, gasto.ID_USUARIO_ANULA);
+        Assert.Equal(ahora.UtcDateTime, gasto.FECHA_ANULACION); Assert.Equal("Correccion", gasto.MOTIVO_ANULACION);
+    }
+
+    [Fact]
+    public void AnularSimple_DiaSiguienteArgentina_RechazaSinModificarEntidad()
+    {
+        var context = CrearContexto(nameof(AnularSimple_DiaSiguienteArgentina_RechazaSinModificarEntidad));
+        var usuario = context.Usuario.First();
+        var creador = new GastoService(context, new RelojFijo(new DateTimeOffset(2026, 8, 17, 1, 30, 0, TimeSpan.Zero)));
+        creador.CrearSimple(10m, "Hielo", usuario.ID_USUARIO);
+        var gasto = context.Gasto.Single();
+        var anulador = new GastoService(context, new RelojFijo(new DateTimeOffset(2026, 8, 17, 3, 1, 0, TimeSpan.Zero)));
+
+        var error = Assert.Throws<InvalidOperationException>(() => anulador.Anular(gasto.ID_GASTO, usuario.ID_USUARIO, "Correccion"));
+
+        Assert.Equal("El gasto solo puede anularse el mismo día en que fue registrado.", error.Message);
+        Assert.False(gasto.ANULADO); Assert.Null(gasto.FECHA_ANULACION); Assert.Null(gasto.ID_USUARIO_ANULA); Assert.Null(gasto.MOTIVO_ANULACION);
+    }
+
     private static Caja CrearCajaAbierta(PosDbContextLocal context, int usuarioId)
     {
         var caja = new Caja(1, 1000, usuarioId);

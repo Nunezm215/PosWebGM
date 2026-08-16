@@ -3,16 +3,30 @@ using PosWeb.Application.Exceptions;
 using PosWeb.Contracts;
 using PosWeb.Data;
 using PosWeb.Domain;
+using PosWeb.Application.Eventos;
 
 namespace PosWeb.Application.Gastos;
 
 public class GastoService
 {
     private readonly PosDbContextLocal _context;
+    private readonly TimeProvider _timeProvider;
 
-    public GastoService(PosDbContextLocal context)
+    public GastoService(PosDbContextLocal context, TimeProvider? timeProvider = null)
     {
         _context = context;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public GastoDto CrearSimple(decimal monto, string detalle, int userId)
+    {
+        if (monto <= 0) throw new ArgumentException("El monto debe ser positivo", nameof(monto));
+        if (string.IsNullOrWhiteSpace(detalle) || detalle.Trim().Length > 200) throw new ArgumentException("El detalle es requerido y no puede superar los 200 caracteres", nameof(detalle));
+        var sucursales = _context.Sucursal.Where(s => s.ACTIVO).ToList();
+        if (sucursales.Count != 1) throw new InvalidOperationException("Se esperaba una única sucursal activa.");
+        var gasto = Gasto.CrearSimple(sucursales[0].ID_SUCURSAL, monto, detalle, userId, _timeProvider.GetUtcNow().UtcDateTime);
+        _context.Gasto.Add(gasto); _context.SaveChanges();
+        return MapToDto(gasto, GetUsuarioNombre(userId));
     }
 
     public GastoDto Crear(decimal monto, string detalle, int userId, string? fuentePago = null, decimal? montoPagadoCaja = null)
@@ -122,6 +136,14 @@ public class GastoService
 
         gasto.Anular();
         _context.SaveChanges();
+    }
+
+    public void Anular(int gastoId, int usuarioId, string motivo)
+    {
+        var gasto = _context.Gasto.Find(gastoId) ?? throw new ArgumentException("Gasto no encontrado");
+        if (string.IsNullOrWhiteSpace(motivo) || motivo.Trim().Length > 500) throw new ArgumentException("El motivo de anulación es requerido y no puede superar los 500 caracteres");
+        if (FechaContableArgentina.DesdeUtc(gasto.FECHA_GASTO) != FechaContableArgentina.Actual(_timeProvider)) throw new InvalidOperationException("El gasto solo puede anularse el mismo día en que fue registrado.");
+        gasto.Anular(usuarioId, motivo.Trim(), _timeProvider.GetUtcNow().UtcDateTime); _context.SaveChanges();
     }
 
     private static GastoDto MapToDto(Gasto gasto, string usuarioNombre = "")

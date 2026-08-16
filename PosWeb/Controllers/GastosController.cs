@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using PosWeb.Application.Exceptions;
 using PosWeb.Application.Gastos;
 using PosWeb.Contracts;
+using PosWeb.Domain;
 
 namespace PosWeb.Controllers;
 
@@ -41,6 +42,15 @@ public class GastosController : ControllerBase
         {
             return StatusCode(500, new { error = ex.Message });
         }
+    }
+
+    [HttpPost("simple")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public IActionResult CrearSimple([FromBody] CrearGastoSimpleRequestDto request)
+    {
+        try { return Created("/api/gastos", _gastoService.CrearSimple(request.Monto, request.Detalle, GetUserId())); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
     [HttpGet]

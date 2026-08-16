@@ -33,6 +33,20 @@ public class Gasto
         ID_USUARIO = userId;
     }
 
+    public static Gasto CrearSimple(int sucursalId, decimal monto, string detalle, int usuarioId, DateTime fechaUtc)
+    {
+        var gasto = new Gasto(null, monto, detalle.Trim(), usuarioId);
+        gasto.ID_SUCURSAL = sucursalId;
+        gasto.FECHA_GASTO = DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc);
+        return gasto;
+    }
+
+    public void Anular(int usuarioId, string motivo, DateTime fechaUtc)
+    {
+        if (ANULADO) throw new InvalidOperationException("El gasto ya fue anulado");
+        ANULADO = true; ID_USUARIO_ANULA = usuarioId; MOTIVO_ANULACION = motivo; FECHA_ANULACION = DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc);
+    }
+
     public void Anular()
     {
         if (ANULADO)

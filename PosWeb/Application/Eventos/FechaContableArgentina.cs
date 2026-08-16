@@ -1,13 +1,13 @@
 namespace PosWeb.Application.Eventos;
 
-internal static class FechaContableArgentina
+public static class FechaContableArgentina
 {
     private static readonly TimeZoneInfo Zona = ObtenerZona();
 
-    internal static DateOnly DesdeUtc(DateTime fechaUtc)
+    public static DateOnly DesdeUtc(DateTime fechaUtc)
         => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc), Zona));
 
-    internal static DateOnly Actual(TimeProvider timeProvider) => DesdeUtc(timeProvider.GetUtcNow().UtcDateTime);
+    public static DateOnly Actual(TimeProvider timeProvider) => DesdeUtc(timeProvider.GetUtcNow().UtcDateTime);
 
     private static TimeZoneInfo ObtenerZona()
     {
