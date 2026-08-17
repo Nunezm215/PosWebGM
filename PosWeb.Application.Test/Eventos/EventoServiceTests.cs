@@ -78,6 +78,18 @@ public class EventoServiceTests
     }
 
     [Fact]
+    public async Task ListarAsync_conservaIdYNombreDelUsuarioCreador()
+    {
+        var evento = CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0));
+        var usuario = new Usuario("Pedro", BCrypt.Net.BCrypt.HashPassword("123456"), Roles.UsuarioComun);
+        PosWeb.Testing.TestHelpers.SetId(usuario, 99, "ID_USUARIO");
+        typeof(Evento).GetProperty("UsuarioCreador")!.SetValue(evento, usuario);
+        var resultado = await new EventoService(new EventoRepositoryFake([evento])).ListarAsync();
+        Assert.Equal(99, resultado.Single().UsuarioCreadorId);
+        Assert.Equal("Pedro", resultado.Single().UsuarioCreadorNombre);
+    }
+
+    [Fact]
     public async Task CrearEventoAsync_con_fecha_ayer_rechaza()
     {
         var repo = new EventoRepositoryFake();

@@ -61,6 +61,67 @@ public class UsuariosController : ControllerBase
         return Ok(usuarios);
     }
 
+    [HttpGet("{id:int}")]
+    public IActionResult Obtener(int id)
+    {
+        var usuario = _context.Usuario.FirstOrDefault(u => u.ID_USUARIO == id);
+        return usuario == null ? NotFound() : Ok(CrearDto(usuario));
+    }
+
+    [HttpPost]
+    public IActionResult Crear([FromBody] CrearUsuarioRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            return BadRequest("Password requerido (mínimo 6 caracteres)");
+        if (!Roles.Todos.Contains(request.Rol)) return BadRequest("Rol inválido");
+
+        var nombreUsuario = request.Usuario.Trim();
+        if (_context.Usuario.Any(u => u.NOMBRE_USUARIO == nombreUsuario)) return Conflict("El usuario ya existe");
+
+        try
+        {
+            var responsableId = request.Rol == Roles.UsuarioComun ? UsuarioActualId() : null;
+            var usuario = new Usuario(nombreUsuario, BCrypt.Net.BCrypt.HashPassword(request.Password), request.Rol, request.Mail, usuarioResponsableId: responsableId);
+            if (!string.IsNullOrWhiteSpace(request.Pin)) usuario.SetPin(request.Pin);
+            _context.Usuario.Add(usuario);
+            _context.SaveChanges();
+            if (request.Rol == Roles.Admin)
+            {
+                _context.Suscripcion.Add(Suscripcion.CrearBasica(usuario.ID_USUARIO));
+                _context.SaveChanges();
+            }
+            return CreatedAtAction(nameof(Obtener), new { id = usuario.ID_USUARIO }, CrearDto(usuario));
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+    }
+
+    [HttpPut("{id:int}")]
+    public IActionResult Editar(int id, [FromBody] EditarUsuarioRequestDto request)
+    {
+        var usuario = _context.Usuario.FirstOrDefault(u => u.ID_USUARIO == id);
+        if (usuario == null) return NotFound();
+        if (!Roles.Todos.Contains(request.Rol)) return BadRequest("Rol inválido");
+        if (usuario.ACTIVO && EsRolGestion(usuario.ROL) && !EsRolGestion(request.Rol) && !HayOtroUsuarioGestionableActivo(id))
+            return BadRequest("Debe permanecer al menos un Admin o SuperAdmin activo");
+        if (_context.Usuario.Any(u => u.ID_USUARIO != id && u.NOMBRE_USUARIO == request.Usuario.Trim())) return Conflict("El usuario ya existe");
+
+        try
+        {
+            usuario.CambiarNombreUsuario(request.Usuario.Trim());
+            usuario.SetMail(request.Mail);
+            usuario.CambiarRol(request.Rol);
+            if (!string.IsNullOrWhiteSpace(request.Password))
+            {
+                if (request.Password.Length < 6) return BadRequest("Password requerido (mínimo 6 caracteres)");
+                usuario.SetPasswordHash(BCrypt.Net.BCrypt.HashPassword(request.Password));
+            }
+            if (!string.IsNullOrWhiteSpace(request.Pin)) usuario.SetPin(request.Pin);
+            _context.SaveChanges();
+            return Ok(CrearDto(usuario));
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+    }
+
     [HttpPut("{id:int}/suscripcion")]
     public IActionResult CambiarSuscripcion(int id, [FromBody] CambiarSuscripcionRequest request)
     {
@@ -112,11 +173,6 @@ public class UsuariosController : ControllerBase
             return NotFound($"El usuario con ID {id} no existe");
         }
 
-        if (usuario.ROL != Roles.UsuarioComun)
-        {
-            return BadRequest("Solo se pueden dar de baja usuarios comunes");
-        }
-
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (int.TryParse(userIdValue, out var currentUserId) && currentUserId == usuario.ID_USUARIO)
         {
@@ -128,11 +184,25 @@ public class UsuariosController : ControllerBase
             return NoContent();
         }
 
+        if (EsRolGestion(usuario.ROL) && !HayOtroUsuarioGestionableActivo(id))
+        {
+            return BadRequest("Debe permanecer al menos un Admin o SuperAdmin activo");
+        }
+
         usuario.Desactivar();
         _context.SaveChanges();
 
         return NoContent();
     }
+
+    private int? UsuarioActualId() => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+    private bool HayOtroUsuarioGestionableActivo(int id) => _context.Usuario.Any(u => u.ID_USUARIO != id && u.ACTIVO && EsRolGestion(u.ROL));
+    private static bool EsRolGestion(string rol) => rol == Roles.Admin || rol == Roles.SuperAdmin;
+    private static UsuarioDto CrearDto(Usuario usuario) => new()
+    {
+        Id = usuario.ID_USUARIO, NombreUsuario = usuario.NOMBRE_USUARIO, Mail = usuario.MAIL, Rol = usuario.ROL,
+        UsuarioResponsableId = usuario.ID_USUARIO_RESP, Activo = usuario.ACTIVO, PinConfigurado = usuario.TienePin()
+    };
 
     private static bool TieneAccesoHabilitado(
         Usuario usuario,

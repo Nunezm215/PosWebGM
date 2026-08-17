@@ -262,6 +262,22 @@ export interface UsuarioListadoDto {
   pinConfigurado: boolean
 }
 
+export interface CrearUsuarioRequest {
+  usuario: string
+  password: string
+  pin?: string
+  mail?: string
+  rol: 'SuperAdmin' | 'Admin' | 'UsuarioComun'
+}
+
+export interface EditarUsuarioRequest {
+  usuario: string
+  password?: string
+  pin?: string
+  mail?: string
+  rol: 'SuperAdmin' | 'Admin' | 'UsuarioComun'
+}
+
 export interface CambiarSuscripcionResponse {
   id: number
   suscripcionActiva: boolean
@@ -273,6 +289,7 @@ export interface EventoDto {
   id: number
   clienteId: number
   usuarioCreadorId: number
+  usuarioCreadorNombre?: string | null
   sucursalId: number
   fecha: string
   horaInicio: string

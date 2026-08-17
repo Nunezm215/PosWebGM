@@ -3,390 +3,51 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import type { UsuarioListadoDto } from '../types'
+import type { CrearUsuarioRequest, EditarUsuarioRequest, UsuarioListadoDto } from '../types'
+import Dialog from '../components/ui/Dialog'
+
+const roles = ['SuperAdmin', 'Admin', 'UsuarioComun'] as const
+const emptyForm = (): CrearUsuarioRequest => ({ usuario: '', password: '', pin: '', mail: '', rol: 'UsuarioComun' })
 
 export default function AltaUsuarioPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-
-  const [usuario, setUsuario] = useState('')
-  const [password, setPassword] = useState('')
-  const [mail, setMail] = useState('')
-  const [rol, setRol] = useState<'UsuarioComun' | 'Admin'>('UsuarioComun')
-  const [empresaId, setEmpresaId] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [loadingList, setLoadingList] = useState(true)
   const { notifyError, notifySuccess } = useNotification()
-  const [_formError, _setFormError] = useState('')
-  const [_listError, setListError] = useState('')
-  const [_success, setSuccess] = useState('')
-  const [desactivandoId, setDesactivandoId] = useState<number | null>(null)
-  const [cambiandoSuscripcionId, setCambiandoSuscripcionId] = useState<number | null>(null)
   const [usuarios, setUsuarios] = useState<UsuarioListadoDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<UsuarioListadoDto | null>(null)
+  const [form, setForm] = useState<CrearUsuarioRequest>(emptyForm)
 
-  useEffect(() => {
-    if (user?.rol === 'UsuarioComun') {
-      navigate('/ventas', { replace: true })
-      return
-    }
-
-    void loadUsuarios()
-  }, [user, navigate])
-
-  async function loadUsuarios() {
-    setLoadingList(true)
+  const autorizado = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
+  const cargar = async () => { setLoading(true); try { setUsuarios(await api.usuarios.listar()) } catch (error) { notifyError(error instanceof Error ? error.message : 'No se pudieron cargar los usuarios.') } finally { setLoading(false) } }
+  useEffect(() => { if (!autorizado) { navigate('/ventas', { replace: true }); return }; void cargar() }, [autorizado, navigate])
+  const cerrar = () => { if (!saving) { setCreating(false); setEditing(null); setForm(emptyForm()) } }
+  const abrirCrear = () => { setForm(emptyForm()); setCreating(true) }
+  const abrirEditar = (usuario: UsuarioListadoDto) => { setForm({ usuario: usuario.nombreUsuario, password: '', pin: '', mail: usuario.mail ?? '', rol: usuario.rol as CrearUsuarioRequest['rol'] }); setEditing(usuario) }
+  const guardar = async () => {
+    if (!form.usuario.trim() || (!editing && !form.password)) { notifyError('Usuario y contraseña son requeridos.'); return }
+    setSaving(true)
     try {
-      const result = await api.usuarios.listar()
-      setUsuarios(result)
-    } catch (err: any) {
-      const msg = err.message || 'Error al cargar usuarios'
-      notifyError(msg)
-    } finally {
-      setLoadingList(false)
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      await api.auth.register({
-        usuario,
-        password,
-        mail,
-        rol,
-        empresaId: rol === 'Admin' && empresaId ? parseInt(empresaId) : null,
-      })
-      notifySuccess(`Usuario ${rol === 'Admin' ? 'admin' : 'común'} creado correctamente.`)
-      setUsuario('')
-      setPassword('')
-      setMail('')
-      setRol('UsuarioComun')
-      setEmpresaId('')
-      await loadUsuarios()
-    } catch (err: any) {
-      const msg = err.message || 'Error al crear usuario'
-      try {
-        const parts = msg.split(': ')
-        const jsonPart = parts[parts.length - 1]
-        const parsed = JSON.parse(jsonPart)
-        notifyError(parsed.error || msg)
-      } catch {
-        notifyError(msg)
+      if (editing) {
+        const request: EditarUsuarioRequest = { ...form, usuario: form.usuario.trim(), password: form.password || undefined, pin: form.pin || undefined }
+        await api.usuarios.actualizar(editing.id, request)
+        notifySuccess('Usuario actualizado correctamente.')
+      } else {
+        await api.usuarios.crear({ ...form, usuario: form.usuario.trim(), pin: form.pin || undefined })
+        notifySuccess('Usuario creado correctamente.')
       }
-    } finally {
-      setLoading(false)
-    }
+      cerrar(); await cargar()
+    } catch (error) { notifyError(error instanceof Error ? error.message : 'No se pudo guardar el usuario.') } finally { setSaving(false) }
   }
-
-  async function handleDesactivarUsuario(usuarioId: number, nombreUsuario: string) {
-    const confirmacion = window.confirm(`¿Dar de baja a ${nombreUsuario}?`)
-    if (!confirmacion) {
-      return
-    }
-
-    setListError('')
-    setSuccess('')
-    setDesactivandoId(usuarioId)
-
-    try {
-      await api.usuarios.desactivar(usuarioId)
-      setSuccess(`Usuario ${nombreUsuario} dado de baja correctamente.`)
-      await loadUsuarios()
-    } catch (err: any) {
-      const msg = err.message || 'Error al dar de baja al usuario'
-      try {
-        const parts = msg.split(': ')
-        const jsonPart = parts[parts.length - 1]
-        const parsed = JSON.parse(jsonPart)
-        setListError(parsed.error || msg)
-      } catch {
-        setListError(msg)
-      }
-    } finally {
-      setDesactivandoId(null)
-    }
+  const desactivar = async (usuario: UsuarioListadoDto) => {
+    if (!window.confirm(`¿Desactivar a ${usuario.nombreUsuario}?`)) return
+    try { await api.usuarios.desactivar(usuario.id); notifySuccess('Usuario desactivado correctamente.'); await cargar() } catch (error) { notifyError(error instanceof Error ? error.message : 'No se pudo desactivar el usuario.') }
   }
+  if (!autorizado) return null
 
-  async function handleCambiarSuscripcion(usuarioId: number, nombreUsuario: string, activa: boolean) {
-    const textoAccion = activa ? 'reactivar' : 'suspender'
-    const confirmacion = window.confirm(`¿${textoAccion} la suscripción de ${nombreUsuario} y sus dependientes?`)
-    if (!confirmacion) {
-      return
-    }
-
-    setListError('')
-    setSuccess('')
-    setCambiandoSuscripcionId(usuarioId)
-
-    try {
-      await api.usuarios.cambiarSuscripcion(usuarioId, activa)
-      setSuccess(`Suscripción de ${nombreUsuario} ${activa ? 'reactivada' : 'suspendida'} correctamente.`)
-      await loadUsuarios()
-    } catch (err: any) {
-      const msg = err.message || 'Error al cambiar la suscripción'
-      try {
-        const parts = msg.split(': ')
-        const jsonPart = parts[parts.length - 1]
-        const parsed = JSON.parse(jsonPart)
-        setListError(parsed.error || msg)
-      } catch {
-        setListError(msg)
-      }
-    } finally {
-      setCambiandoSuscripcionId(null)
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="max-w-2xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Alta de usuario</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Crea usuarios comunes o administradores y guarda a quién responden.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-slate-900">Nuevo usuario</h2>
-            <span className="text-xs font-medium bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full">
-              Rol seleccionado: {rol === 'Admin' ? 'Admin' : 'UsuarioComun'}
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Usuario</label>
-            <input
-              type="text"
-              value={usuario}
-              onChange={e => setUsuario(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-              minLength={6}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Mail</label>
-            <input
-              type="email"
-              value={mail}
-              onChange={e => setMail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
-            <select
-              value={rol}
-              onChange={e => setRol(e.target.value as 'UsuarioComun' | 'Admin')}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="UsuarioComun">Usuario común</option>
-              <option value="Admin">Admin</option>
-            </select>
-          </div>
-
-          {rol === 'Admin' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Empresa ID</label>
-              <input
-                type="number"
-                value={empresaId}
-                onChange={e => setEmpresaId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Opcional"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-indigo-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Creando...' : 'Crear usuario'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/ventas')}
-              className="flex-1 border border-slate-300 text-slate-700 py-2.5 rounded-lg font-medium text-sm hover:bg-slate-50 transition-colors"
-            >
-              Volver
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="bg-white rounded-xl p-6 shadow-xl">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Usuarios registrados</h2>
-            <p className="text-sm text-slate-500">Listado actualizado desde la base de datos.</p>
-          </div>
-          <button
-            type="button"
-            onClick={loadUsuarios}
-            disabled={loadingList}
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
-          >
-            {loadingList ? 'Actualizando...' : 'Refrescar'}
-          </button>
-        </div>
-
-        {loadingList ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-            Cargando usuarios...
-          </div>
-        ) : usuarios.length === 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-            No hay usuarios cargados.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead>
-                <tr className="text-left text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Usuario</th>
-                  <th className="py-2 pr-4 font-medium">Mail</th>
-                  <th className="py-2 pr-4 font-medium">Rol</th>
-                  <th className="py-2 pr-4 font-medium">Responde a</th>
-                  <th className="py-2 pr-4 font-medium">Empresa</th>
-                  <th className="py-2 pr-4 font-medium">Estado</th>
-                  <th className="py-2 pr-4 font-medium">Nivel</th>
-                  <th className="py-2 pr-4 font-medium">Costo</th>
-                  <th className="py-2 pr-4 font-medium">Suscripción</th>
-                  <th className="py-2 pr-4 font-medium">Acceso</th>
-                  <th className="py-2 pr-4 font-medium">PIN</th>
-                  <th className="py-2 pr-4 font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {usuarios.map(usuarioItem => (
-                  <tr key={usuarioItem.id}>
-                    <td className="py-3 pr-4 font-medium text-slate-900">{usuarioItem.nombreUsuario}</td>
-                    <td className="py-3 pr-4 text-slate-600">{usuarioItem.mail || '-'}</td>
-                    <td className="py-3 pr-4">
-                      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                        {usuarioItem.rol}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-slate-600">
-                      {usuarioItem.usuarioResponsableNombre || '-'}
-                    </td>
-                    <td className="py-3 pr-4 text-slate-600">
-                      {usuarioItem.empresaId ?? '-'}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                          usuarioItem.activo
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-700'
-                        }`}
-                      >
-                        {usuarioItem.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-slate-600">
-                      {usuarioItem.suscripcionNivel || '-'}
-                    </td>
-                    <td className="py-3 pr-4 text-slate-600">
-                      {usuarioItem.costoMensual != null ? `$${usuarioItem.costoMensual.toFixed(2)}` : '-'}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                          usuarioItem.suscripcionActiva
-                            ? 'bg-blue-50 text-blue-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {usuarioItem.suscripcionActiva ? 'Activa' : 'Suspendida'}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                          usuarioItem.accesoHabilitado
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-700'
-                        }`}
-                      >
-                        {usuarioItem.accesoHabilitado ? 'Habilitado' : 'Bloqueado'}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-slate-600">
-                      {usuarioItem.pinConfigurado ? 'Configurado' : 'No configurado'}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <div className="flex flex-wrap gap-2">
-                        {usuarioItem.activo && usuarioItem.rol === 'UsuarioComun' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDesactivarUsuario(usuarioItem.id, usuarioItem.nombreUsuario)}
-                            disabled={desactivandoId === usuarioItem.id}
-                            className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-                          >
-                            {desactivandoId === usuarioItem.id ? 'Dando de baja...' : 'Dar de baja'}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">Sin baja</span>
-                        )}
-
-                        {usuarioItem.activo && usuarioItem.rol === 'Admin' ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCambiarSuscripcion(
-                                usuarioItem.id,
-                                usuarioItem.nombreUsuario,
-                                !usuarioItem.suscripcionActiva
-                              )
-                            }
-                            disabled={cambiandoSuscripcionId === usuarioItem.id}
-                            className={`inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-                              usuarioItem.suscripcionActiva
-                                ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            }`}
-                          >
-                            {cambiandoSuscripcionId === usuarioItem.id
-                              ? 'Actualizando...'
-                              : usuarioItem.suscripcionActiva
-                                ? 'Suspender suscripción'
-                                : 'Reactivar suscripción'}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold text-slate-900">Usuarios</h1><p className="mt-1 text-sm text-slate-500">Administrá accesos, roles y credenciales del equipo.</p></div><button className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white" onClick={abrirCrear}>Crear usuario</button></div><section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-slate-900">Usuarios registrados</h2><button className="text-sm font-medium text-indigo-600" onClick={cargar} disabled={loading}>{loading ? 'Actualizando...' : 'Refrescar'}</button></div>{loading ? <p className="text-sm text-slate-500">Cargando usuarios...</p> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="border-b bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr>{['Usuario', 'Mail', 'Rol', 'Estado', 'PIN', 'Acciones'].map(header => <th key={header} className="px-3 py-3">{header}</th>)}</tr></thead><tbody>{usuarios.map(usuario => <tr key={usuario.id} className="border-b border-slate-100"><td className="px-3 py-3 font-medium text-slate-900">{usuario.nombreUsuario}</td><td className="px-3 py-3 text-slate-600">{usuario.mail || '-'}</td><td className="px-3 py-3">{usuario.rol}</td><td className="px-3 py-3">{usuario.activo ? 'Activo' : 'Inactivo'}</td><td className="px-3 py-3 text-slate-600">{usuario.pinConfigurado ? 'Configurado' : 'No configurado'}</td><td className="px-3 py-3"><div className="flex gap-2"><button className="text-indigo-600" onClick={() => abrirEditar(usuario)}>Editar</button>{usuario.activo && <button className="text-red-700" onClick={() => desactivar(usuario)}>Desactivar</button>}</div></td></tr>)}</tbody></table></div>}</section><Dialog open={creating || !!editing} onClose={cerrar} title={editing ? 'Editar usuario' : 'Crear usuario'} width="sm" footer={<><button className="rounded-lg border px-3 py-2" onClick={cerrar} disabled={saving}>Cancelar</button><button className="rounded-lg bg-indigo-600 px-3 py-2 text-white" onClick={guardar} disabled={saving}>{saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear usuario'}</button></>}><div className="space-y-3"><Field label="Usuario" value={form.usuario} onChange={usuario => setForm({ ...form, usuario })} /><Field label={editing ? 'Contraseña (dejar vacío para conservar)' : 'Contraseña'} type="password" value={form.password} onChange={password => setForm({ ...form, password })} /><Field label={editing ? 'PIN (dejar vacío para conservar)' : 'PIN (opcional)'} type="password" value={form.pin ?? ''} onChange={pin => setForm({ ...form, pin })} /><Field label="Mail" type="email" value={form.mail ?? ''} onChange={mail => setForm({ ...form, mail })} /><label className="block text-sm font-medium text-slate-700">Rol<select className="mt-1 w-full rounded-lg border border-slate-300 p-2" value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value as CrearUsuarioRequest['rol'] })}>{roles.map(rol => <option key={rol} value={rol}>{rol}</option>)}</select></label></div></Dialog></div>
 }
+
+function Field({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) { return <label className="block text-sm font-medium text-slate-700">{label}<input className="mt-1 w-full rounded-lg border border-slate-300 p-2" type={type} value={value} onChange={e => onChange(e.target.value)} /></label> }

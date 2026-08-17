@@ -8,7 +8,6 @@ namespace PosWeb.Controllers;
 
 [ApiController]
 [Route("api/clientes")]
-[Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
 public class ClientesController : ControllerBase
 {
     private readonly ClienteService _clienteService;
@@ -19,6 +18,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin},{Roles.UsuarioComun}")]
     public IActionResult Listar([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool incluirInactivos = false)
     {
         var result = _clienteService.Listar(q, page, pageSize, incluirInactivos);
@@ -26,6 +26,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin},{Roles.UsuarioComun}")]
     public IActionResult Obtener(int id)
     {
         var result = _clienteService.Obtener(id);
@@ -37,6 +38,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("proximos-cumpleanios")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public ActionResult<IReadOnlyList<ProximoCumpleaniosResponseDto>> ListarProximosCumpleanios([FromQuery] int dias = 90)
     {
         if (dias < 0 || dias > 365)
@@ -49,6 +51,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPost("oportunidades-cumpleanios/atender")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult MarcarOportunidadCumpleaniosAtendida([FromBody] MarcarOportunidadCumpleaniosAtendidaRequestDto dto)
     {
         try
@@ -67,10 +70,12 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("oportunidades-cumpleanios/atendidas")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public ActionResult<IReadOnlyList<OportunidadCumpleaniosAtendidaResponseDto>> ListarOportunidadesCumpleaniosAtendidas()
         => Ok(_clienteService.ListarOportunidadesCumpleaniosAtendidas());
 
     [HttpDelete("oportunidades-cumpleanios/atendidas")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult DeshacerOportunidadCumpleaniosAtendida([FromBody] MarcarOportunidadCumpleaniosAtendidaRequestDto dto)
     {
         try
@@ -85,6 +90,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin},{Roles.UsuarioComun}")]
     public IActionResult Crear([FromBody] ClienteDto dto)
     {
         var result = _clienteService.Crear(dto);
@@ -92,6 +98,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult Actualizar(int id, [FromBody] ClienteDto dto)
     {
         var result = _clienteService.Actualizar(id, dto);
@@ -99,6 +106,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult Desactivar(int id)
     {
         _clienteService.Desactivar(id);
@@ -106,6 +114,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPost("{id}/reactivar")]
+    [Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult Reactivar(int id)
     {
         _clienteService.Reactivar(id);

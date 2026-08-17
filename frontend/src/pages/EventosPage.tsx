@@ -2159,7 +2159,7 @@ export default function EventosPage() {
               label="Reservado por"
               value={clienteDetalle?.nombre?.trim() || `Cliente #${selectedEvento.clienteId}`}
             />
-            <DetailRow label="Usuario creador" value={`Usuario #${selectedEvento.usuarioCreadorId}`} />
+            <DetailRow label="Usuario creador" value={selectedEvento.usuarioCreadorNombre || `Usuario #${selectedEvento.usuarioCreadorId}`} />
             <div className="pt-3 mt-2 border-t border-gray-100">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contacto</p>
               {clienteDetalleLoading && (

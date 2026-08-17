@@ -5,6 +5,7 @@ public class EventoDto
     public int Id { get; set; }
     public int ClienteId { get; set; }
     public int UsuarioCreadorId { get; set; }
+    public string? UsuarioCreadorNombre { get; set; }
     public int SucursalId { get; set; }
     public DateOnly Fecha { get; set; }
     public TimeOnly HoraInicio { get; set; }

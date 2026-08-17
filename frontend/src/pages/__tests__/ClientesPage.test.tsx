@@ -11,6 +11,7 @@ const apiState = vi.hoisted(() => ({
   desactivar: vi.fn(),
   reactivar: vi.fn(),
 }))
+const authState = vi.hoisted(() => ({ user: { rol: 'Admin' } }))
 
 vi.mock('../../api/client', () => ({
   api: {
@@ -35,9 +36,11 @@ vi.mock('../../context/NotificationContext', () => ({
     dismiss: vi.fn(),
   }),
 }))
+vi.mock('../../context/AuthContext', () => ({ useAuth: () => authState }))
 
 describe('ClientesPage', () => {
   beforeEach(() => {
+    authState.user = { rol: 'Admin' }
     apiState.listar.mockReset()
     apiState.obtener.mockReset()
     apiState.crear.mockReset()
@@ -707,5 +710,15 @@ describe('ClientesPage', () => {
 
     expect(within(dialog).getByLabelText(/Nombre \*/)).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/Fecha de nacimiento \*/)).toBeInTheDocument()
+  })
+
+  it('UsuarioComun puede ver y crear clientes sin acciones administrativas', async () => {
+    authState.user = { rol: 'UsuarioComun' }
+    apiState.listar.mockResolvedValueOnce({ items: [{ id: 1, nombre: 'Cliente Visible', activo: true }], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 })
+    await renderPage()
+    expect(await screen.findByText('Cliente Visible')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nuevo cliente' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Desactivar' })).not.toBeInTheDocument()
   })
 })

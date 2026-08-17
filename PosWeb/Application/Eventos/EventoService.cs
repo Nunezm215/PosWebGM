@@ -37,7 +37,7 @@ public class EventoService : IEventoService
             throw new InvalidOperationException("El evento no está disponible en ese horario");
 
         await _repository.AgregarAsync(evento, cancellationToken);
-        return Map(evento);
+        return Map(await _repository.ObtenerPorIdAsync(evento.ID_EVENTO, cancellationToken) ?? evento);
     }
 
     public async Task<EventoDto> EditarEventoAsync(int eventoId, EditarEventoRequestDto request, CancellationToken cancellationToken = default)
@@ -369,6 +369,7 @@ public class EventoService : IEventoService
             Id = evento.ID_EVENTO,
             ClienteId = evento.ID_CLIENTE,
             UsuarioCreadorId = evento.ID_USUARIO_CREADOR,
+            UsuarioCreadorNombre = evento.UsuarioCreador?.NOMBRE_USUARIO,
             SucursalId = evento.ID_SUCURSAL,
             Fecha = evento.FECHA,
             HoraInicio = evento.HORA_INICIO,

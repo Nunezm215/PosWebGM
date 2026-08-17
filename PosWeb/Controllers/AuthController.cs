@@ -42,7 +42,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = $"{Roles.SuperAdmin},{Roles.Admin}")]
     public IActionResult Register([FromBody] RegisterRequestDto request)
     {
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);

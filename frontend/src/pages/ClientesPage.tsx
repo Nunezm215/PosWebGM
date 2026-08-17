@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
+import { useAuth } from '../context/AuthContext'
 import type { ClienteDto, FamiliarClienteDto } from '../types'
 import Button from '../components/ui/Button'
 import Dialog from '../components/ui/Dialog'
@@ -59,6 +60,8 @@ function normalizeFamiliars(familiares?: FamiliarClienteDto[] | null): FamiliarC
 
 export default function ClientesPage() {
   const { notifyError } = useNotification()
+  const { user } = useAuth()
+  const puedeAdministrar = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
   const searchRef = useRef<HTMLInputElement>(null!)
 
   // ── Hooks ──────────────────────────────────────────────────────────
@@ -242,7 +245,7 @@ export default function ClientesPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600 bg-gray-50">Teléfono</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 bg-gray-50">Mail</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600 bg-gray-50">Estado</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600 bg-gray-50">Acción</th>
+                     {puedeAdministrar && <th className="text-right px-4 py-3 font-medium text-gray-600 bg-gray-50">Acción</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -257,7 +260,7 @@ export default function ClientesPage() {
                           {c.activo !== false ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right space-x-1">
+                       {puedeAdministrar && <td className="px-4 py-3 text-right space-x-1">
                         <Button variant="ghost" size="sm" onClick={async () => {
                           try {
                             const item = await api.clientes.obtener(c.id!)
@@ -285,7 +288,7 @@ export default function ClientesPage() {
                             catch (err: any) { notifyError(err.message || 'Error') }
                           }}>Reactivar</Button>
                         )}
-                      </td>
+                       </td>}
                     </tr>
                   ))}
                 </tbody>

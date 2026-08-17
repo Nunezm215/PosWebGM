@@ -606,6 +606,7 @@ describe('EventosPage', () => {
         id: 1,
         clienteId: 1,
         usuarioCreadorId: 1,
+        usuarioCreadorNombre: 'Pedro',
         sucursalId: 1,
         fecha: '2026-08-15',
         horaInicio: '18:00:00',
@@ -1818,6 +1819,7 @@ describe('EventosPage', () => {
         id: 1,
         clienteId: 1,
         usuarioCreadorId: 1,
+        usuarioCreadorNombre: 'Pedro',
         sucursalId: 1,
         fecha: '2026-08-15',
         horaInicio: '18:00:00',
@@ -1842,6 +1844,8 @@ describe('EventosPage', () => {
     expect(within(dialog).getByText('Reservado por')).toBeInTheDocument()
     expect(within(dialog).getByText('Juan Pérez')).toBeInTheDocument()
     expect(within(dialog).getByText('Reservado')).toBeInTheDocument()
+    expect(within(dialog).getByText('Pedro')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Usuario #1')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
     expect(await within(dialog).findByText('Contacto')).toBeInTheDocument()
     expect(await within(dialog).findByText('+54 11-1234-5678')).toBeInTheDocument()
