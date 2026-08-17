@@ -30,6 +30,7 @@ export default function CajaPage() {
   const [monto, setMonto] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [abriendoPdf, setAbriendoPdf] = useState(false)
+  const [abriendoPdfMensual, setAbriendoPdfMensual] = useState(false)
   const [historialOpen, setHistorialOpen] = useState(false)
   const [resumenOpen, setResumenOpen] = useState(false)
   const [resumenMes, setResumenMes] = useState(currentMonth())
@@ -140,6 +141,24 @@ export default function CajaPage() {
     setResumenOpen(true)
   }
 
+  const abrirPdfMensual = async () => {
+    const ventana = window.open('', '_blank')
+    setAbriendoPdfMensual(true)
+    try {
+      const [anio, mes] = resumenMes.split('-').map(Number)
+      const { blob } = await api.cajaDiaria.obtenerPdfMensual(anio, mes)
+      const url = URL.createObjectURL(blob)
+      if (ventana) ventana.location.href = url
+      else window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e) {
+      ventana?.close()
+      setResumenError(e instanceof Error ? e.message : 'No se pudo generar el PDF mensual.')
+    } finally {
+      setAbriendoPdfMensual(false)
+    }
+  }
+
   const cerrarResumen = () => {
     setResumenOpen(false)
     setResumenError('')
@@ -227,7 +246,16 @@ export default function CajaPage() {
                   className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
                 />
               </label>
-              <p className="text-sm text-slate-500">Disponible hasta {monthLabel(maxResumenMes)}.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-slate-500">Disponible hasta {monthLabel(maxResumenMes)}.</p>
+                <button
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={abrirPdfMensual}
+                  disabled={abriendoPdfMensual || resumenLoading}
+                >
+                  {abriendoPdfMensual ? 'Abriendo PDF...' : 'Abrir PDF mensual'}
+                </button>
+              </div>
             </div>
 
             {resumenLoading && <p className="text-sm text-slate-500">Cargando resumen...</p>}

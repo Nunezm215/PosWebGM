@@ -432,6 +432,7 @@ export const api = {
     obtener: (fecha: string) => request<CajaDiariaDto>(`/caja-diaria?fecha=${encodeURIComponent(fecha)}`),
     historial: (desde: string, hasta: string) => request<CajaDiariaResumenDto[]>(`/caja-diaria/historial?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
     obtenerMensual: (anio: number, mes: number) => request<CajaMensualDto>(`/caja-diaria/mensual?anio=${anio}&mes=${mes}`),
+    obtenerPdfMensual: (anio: number, mes: number) => requestBlob(`/caja-diaria/mensual/pdf?anio=${anio}&mes=${mes}`),
     obtenerPdf: (fecha: string) => requestBlob(`/caja-diaria/pdf?fecha=${encodeURIComponent(fecha)}`),
   },
 

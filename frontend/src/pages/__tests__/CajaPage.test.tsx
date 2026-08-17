@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   obtener: vi.fn(),
   historial: vi.fn(),
   obtenerPdf: vi.fn(),
+  obtenerPdfMensual: vi.fn(),
   crearSimple: vi.fn(),
   obtenerMensual: vi.fn(),
 }))
@@ -96,6 +97,7 @@ describe('CajaPage', () => {
     state.obtener.mockReset().mockResolvedValue(caja)
     state.historial.mockReset().mockResolvedValue([{ fecha: '2026-08-16', totalIngresos: 0, totalEgresos: 0, resultado: 0, cantidadEventosRealizados: 0 }])
     state.obtenerPdf.mockReset().mockResolvedValue({ blob: new Blob(['pdf']) })
+    state.obtenerPdfMensual.mockReset().mockResolvedValue({ blob: new Blob(['pdf-mensual']) })
     state.crearSimple.mockReset().mockResolvedValue({})
     state.obtenerMensual.mockReset().mockImplementation(async (_anio: number, mes: number) => (mes === 7 ? cajaMensualJulio : cajaMensualAgosto))
     vi.stubGlobal('open', vi.fn().mockReturnValue({ location: { href: '' }, close: vi.fn() }))
@@ -155,6 +157,78 @@ describe('CajaPage', () => {
     expect(await withinModal.findByText('Sin actividad registrada en este mes.')).toBeInTheDocument()
     expect(withinModal.getByText('01/08/2026 al 17/08/2026')).toBeInTheDocument()
     expect(screen.queryByText('16/8/2026')).not.toBeInTheDocument()
+  })
+
+  it('no solicita pdf mensual al cargar, abrir modal o cambiar mes', async () => {
+    await renderPage()
+
+    expect(state.obtenerPdfMensual).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Ver resumen mensual'))
+    await screen.findByRole('dialog', { name: 'Resumen mensual de Caja' })
+    expect(state.obtenerPdfMensual).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Mes y año'), { target: { value: '2026-07' } })
+    await waitFor(() => expect(state.obtenerMensual).toHaveBeenCalledWith(2026, 7))
+    expect(state.obtenerPdfMensual).not.toHaveBeenCalled()
+  })
+
+  it('abre el pdf mensual del mes seleccionado usando blob, popup seguro y loading', async () => {
+    const popup = { location: { href: '' }, close: vi.fn() }
+    const timeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    const deferred = (() => {
+      let resolve!: (value: { blob: Blob }) => void
+      const promise = new Promise<{ blob: Blob }>(r => { resolve = r })
+      return { promise, resolve }
+    })()
+    state.obtenerPdfMensual.mockReturnValueOnce(deferred.promise)
+    const open = vi.fn().mockReturnValue(popup)
+    vi.stubGlobal('open', open)
+
+    await renderPage()
+    fireEvent.click(screen.getByText('Ver resumen mensual'))
+    await screen.findByRole('dialog', { name: 'Resumen mensual de Caja' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir PDF mensual' }))
+
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledWith('', '_blank')
+    expect(screen.getByRole('button', { name: 'Abriendo PDF...' })).toBeDisabled()
+    expect(state.obtenerPdfMensual).toHaveBeenCalledWith(2026, 8)
+
+    deferred.resolve({ blob: new Blob(['pdf-mensual']) })
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
+    expect(popup.location.href).toBe('blob:pdf')
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60000)
+  })
+
+  it('cambia a julio y abre el pdf mensual de julio', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByText('Ver resumen mensual'))
+    await screen.findByRole('dialog', { name: 'Resumen mensual de Caja' })
+
+    fireEvent.change(screen.getByLabelText('Mes y año'), { target: { value: '2026-07' } })
+    await waitFor(() => expect(state.obtenerMensual).toHaveBeenCalledWith(2026, 7))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir PDF mensual' }))
+
+    await waitFor(() => expect(state.obtenerPdfMensual).toHaveBeenCalledWith(2026, 7))
+  })
+
+  it('cierra la pestaña temporal y conserva el modal ante error del pdf mensual', async () => {
+    const popup = { location: { href: '' }, close: vi.fn() }
+    vi.stubGlobal('open', vi.fn().mockReturnValue(popup))
+    state.obtenerPdfMensual.mockRejectedValueOnce(new Error('PDF mensual falló'))
+
+    await renderPage()
+    fireEvent.click(screen.getByText('Ver resumen mensual'))
+    await screen.findByRole('dialog', { name: 'Resumen mensual de Caja' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir PDF mensual' }))
+
+    await waitFor(() => expect(popup.close).toHaveBeenCalled())
+    expect(await screen.findByText('PDF mensual falló')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Resumen mensual de Caja' })).toBeInTheDocument()
   })
 
   it('muestra error del resumen mensual sin romper la caja', async () => {
