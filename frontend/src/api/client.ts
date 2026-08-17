@@ -428,6 +428,7 @@ export const api = {
   cajaDiaria: {
     obtener: (fecha: string) => request<CajaDiariaDto>(`/caja-diaria?fecha=${encodeURIComponent(fecha)}`),
     historial: (desde: string, hasta: string) => request<CajaDiariaResumenDto[]>(`/caja-diaria/historial?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
+    obtenerPdf: (fecha: string) => requestBlob(`/caja-diaria/pdf?fecha=${encodeURIComponent(fecha)}`),
   },
 
 // Proveedores
