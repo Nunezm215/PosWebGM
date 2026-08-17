@@ -434,6 +434,26 @@ export interface EgresoCajaDiariaDto { fecha: string; detalle: string; monto: nu
 export interface EventoRealizadoCajaDto { horaInicio: string; tipoEvento: string; nombreCliente: string; estado: string }
 export interface MedioPagoCajaDto { descripcion: string; total: number; cantidadPagos: number }
 
+export interface CajaMensualMedioDto {
+  medioPagoId: number
+  descripcion: string
+  total: number
+  cantidadPagos: number
+}
+
+export interface CajaMensualDto {
+  anio: number
+  mes: number
+  desde: string
+  hasta: string
+  totalIngresos: number
+  totalEgresos: number
+  resultado: number
+  eventosRealizados: number
+  ingresosPorMedio: CajaMensualMedioDto[]
+  dias: CajaDiariaResumenDto[]
+}
+
 // --- PagoVenta types ---
 export interface PagoVentaDto {
   medioPagoId: number
