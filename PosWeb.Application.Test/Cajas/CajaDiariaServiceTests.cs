@@ -31,6 +31,109 @@ public class CajaDiariaServiceTests
         Assert.Equal(0, resultado.CantidadEventosRealizados); Assert.Empty(resultado.Ingresos); Assert.Empty(resultado.Egresos); Assert.Empty(resultado.EventosRealizados);
     }
 
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    [Fact]
+    public async Task ObtenerMensualAsync_MesActualHastaHoy_UsaRangoArgentinaCorrecto()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var context = await CrearContextoAsync(connection);
+        var ahora = new DateTimeOffset(2026, 8, 17, 18, 0, 0, TimeSpan.Zero);
+        var service = new CajaDiariaService(context, new RelojFijo(ahora));
+
+        var resultado = await service.ObtenerMensualAsync(2026, 8);
+
+        Assert.Equal(new DateOnly(2026, 8, 1), resultado.Desde);
+        Assert.Equal(new DateOnly(2026, 8, 17), resultado.Hasta);
+        Assert.Equal(17, resultado.Dias.Count);
+        Assert.Equal(new DateOnly(2026, 8, 1), resultado.Dias.First().Fecha);
+        Assert.Equal(new DateOnly(2026, 8, 17), resultado.Dias.Last().Fecha);
+        Assert.DoesNotContain(resultado.Dias, d => d.Fecha == new DateOnly(2026, 8, 18));
+    }
+
+    [Fact]
+    public async Task ObtenerMensualAsync_MesAnterior_DevuelveMesCompleto()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var context = await CrearContextoAsync(connection);
+        var ahora = new DateTimeOffset(2026, 8, 17, 18, 0, 0, TimeSpan.Zero);
+        var service = new CajaDiariaService(context, new RelojFijo(ahora));
+
+        var resultado = await service.ObtenerMensualAsync(2026, 7);
+
+        Assert.Equal(new DateOnly(2026, 7, 1), resultado.Desde);
+        Assert.Equal(new DateOnly(2026, 7, 31), resultado.Hasta);
+        Assert.Equal(31, resultado.Dias.Count);
+        Assert.Equal(new DateOnly(2026, 7, 1), resultado.Dias.First().Fecha);
+        Assert.Equal(new DateOnly(2026, 7, 31), resultado.Dias.Last().Fecha);
+        Assert.Contains(resultado.Dias, d => d.Fecha == new DateOnly(2026, 7, 31));
+        Assert.DoesNotContain(resultado.Dias, d => d.Fecha == new DateOnly(2026, 8, 1));
+    }
+
+    [Fact]
+    public async Task ObtenerMensualAsync_MesFuturo_RechazaConsulta()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var context = await CrearContextoAsync(connection);
+        var ahora = new DateTimeOffset(2026, 8, 17, 18, 0, 0, TimeSpan.Zero);
+        var service = new CajaDiariaService(context, new RelojFijo(ahora));
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => service.ObtenerMensualAsync(2026, 9));
+
+        Assert.Equal("No se puede consultar un mes futuro.", error.Message);
+    }
+
+    [Fact]
+    public async Task ObtenerMensualAsync_SumaActivosYExcluyeAnulados()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var context = await CrearContextoAsync(connection);
+        var ahora = new DateTimeOffset(2026, 8, 17, 18, 0, 0, TimeSpan.Zero);
+        var service = new CajaDiariaService(context, new RelojFijo(ahora));
+        var sucursalId = await context.Sucursal.Select(s => s.ID_SUCURSAL).SingleAsync();
+        var usuarioId = await context.Usuario.Select(u => u.ID_USUARIO).FirstAsync();
+        var cliente = new Cliente("Cliente Test", "DNI", "12345678", null, null, "1122334455", "Domicilio Test", "cliente@test.com");
+        context.Cliente.Add(cliente);
+        await context.SaveChangesAsync();
+        var eventoActivo1 = new Evento(cliente.ID_CLIENTE, usuarioId, sucursalId, new DateOnly(2026, 8, 17), new TimeOnly(18, 0), new TimeOnly(21, 0), "Cumpleanos", 10, 100000m);
+        var eventoActivo2 = new Evento(cliente.ID_CLIENTE, usuarioId, sucursalId, new DateOnly(2026, 8, 17), new TimeOnly(21, 0), new TimeOnly(23, 0), "Cumpleanos", 10, 250000m);
+        var eventoAnulado = new Evento(cliente.ID_CLIENTE, usuarioId, sucursalId, new DateOnly(2026, 8, 17), new TimeOnly(23, 0), new TimeOnly(23, 59), "Cumpleanos", 10, 900000m);
+        eventoAnulado.Cancelar();
+        context.Evento.AddRange(eventoActivo1, eventoActivo2, eventoAnulado);
+        await context.SaveChangesAsync();
+
+        var pagoActivo1 = new PagoEvento(eventoActivo1.ID_EVENTO, 1, 100000m, usuarioId, fechaRegistro: ahora.UtcDateTime);
+        var pagoActivo2 = new PagoEvento(eventoActivo2.ID_EVENTO, 1, 250000m, usuarioId, fechaRegistro: ahora.UtcDateTime);
+        var pagoAnulado = new PagoEvento(eventoAnulado.ID_EVENTO, 1, 900000m, usuarioId, fechaRegistro: ahora.UtcDateTime);
+        pagoAnulado.Anular(usuarioId, "Sin efecto");
+        context.PagoEvento.AddRange(pagoActivo1, pagoActivo2, pagoAnulado);
+
+        var gastoActivo = Gasto.CrearSimple(sucursalId, 50000m, "Gasto activo", usuarioId, ahora.UtcDateTime);
+        var gastoAnulado = Gasto.CrearSimple(sucursalId, 700000m, "Gasto anulado", usuarioId, ahora.UtcDateTime);
+        gastoAnulado.Anular();
+        context.Gasto.AddRange(gastoActivo, gastoAnulado);
+        await context.SaveChangesAsync();
+
+        var resultado = await service.ObtenerMensualAsync(2026, 8);
+
+        Assert.Equal(350000m, resultado.TotalIngresos);
+        Assert.Equal(50000m, resultado.TotalEgresos);
+        Assert.Equal(300000m, resultado.Resultado);
+        Assert.Single(resultado.IngresosPorMedio);
+        Assert.Equal(1, resultado.IngresosPorMedio[0].MedioPagoId);
+        Assert.Equal(2, resultado.IngresosPorMedio[0].CantidadPagos);
+        Assert.Equal(350000m, resultado.IngresosPorMedio[0].Total);
+        Assert.DoesNotContain(resultado.IngresosPorMedio, x => x.Total == 900000m);
+        Assert.DoesNotContain(resultado.IngresosPorMedio, x => x.Total == 700000m);
+    }
+
     [Fact]
     public async Task Historial_vacio_incluye_todos_los_dias_en_orden_y_valida_rango()
     {

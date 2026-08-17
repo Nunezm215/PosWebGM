@@ -4,7 +4,7 @@ using PosWeb.Contracts;
 using PosWeb.Data;
 using PosWeb.Domain;
 namespace PosWeb.Application.Cajas;
-public class CajaDiariaService(PosDbContextLocal context) : ICajaDiariaService
+public class CajaDiariaService(PosDbContextLocal context, TimeProvider? timeProvider = null) : ICajaDiariaService
 {
  public async Task<CajaDiariaDto> ObtenerAsync(DateOnly fecha, CancellationToken ct = default)
  {
@@ -22,5 +22,17 @@ public class CajaDiariaService(PosDbContextLocal context) : ICajaDiariaService
   var eventos=await context.Evento.Where(e=>e.ID_SUCURSAL==id).ToListAsync(ct); var ids=eventos.Select(e=>e.ID_EVENTO).ToList(); var pagos=await context.PagoEvento.Where(p=>!p.ANULADO&&ids.Contains(p.ID_EVENTO)).ToListAsync(ct); var gastos=await context.Gasto.Where(g=>!g.ANULADO&&g.ID_SUCURSAL==id).ToListAsync(ct);
   var ingresos=pagos.GroupBy(p=>FechaContableArgentina.DesdeUtc(p.FECHA_REGISTRO)).ToDictionary(g=>g.Key,g=>g.Sum(x=>x.MONTO)); var egresos=gastos.GroupBy(g=>FechaContableArgentina.DesdeUtc(g.FECHA_GASTO)).ToDictionary(g=>g.Key,g=>g.Sum(x=>x.MONTO)); var realizados=eventos.Where(e=>e.ESTADO!=EventoEstados.Cancelado&&e.FECHA>=desde&&e.FECHA<=hasta).GroupBy(e=>e.FECHA).ToDictionary(g=>g.Key,g=>g.Count());
   var resultado=new List<CajaDiariaResumenDto>(); for(var dia=desde;dia<=hasta;dia=dia.AddDays(1)){ingresos.TryGetValue(dia,out var i);egresos.TryGetValue(dia,out var e);realizados.TryGetValue(dia,out var c);resultado.Add(new CajaDiariaResumenDto{Fecha=dia,TotalIngresos=i,TotalEgresos=e,Resultado=i-e,CantidadEventosRealizados=c});} return resultado;
+  }
+ public async Task<CajaMensualDto> ObtenerMensualAsync(int anio, int mes, CancellationToken ct = default)
+ {
+  if(mes<1||mes>12) throw new ArgumentException("El mes debe estar entre 1 y 12.");
+  var hoy=FechaContableArgentina.DesdeUtc((timeProvider??TimeProvider.System).GetUtcNow().UtcDateTime);
+  var desde=new DateOnly(anio,mes,1); if(desde>hoy) throw new ArgumentException("No se puede consultar un mes futuro.");
+  var hasta=anio==hoy.Year&&mes==hoy.Month?hoy:new DateOnly(anio,mes,DateTime.DaysInMonth(anio,mes));
+  var dias=(await ObtenerHistorialAsync(desde,hasta,ct)).ToList();
+  var sucursales=await context.Sucursal.Where(s=>s.ACTIVO).ToListAsync(ct); if(sucursales.Count!=1) throw new InvalidOperationException("Se esperaba una única sucursal activa."); var id=sucursales[0].ID_SUCURSAL;
+  var eventos=await context.Evento.Where(e=>e.ID_SUCURSAL==id).ToListAsync(ct); var ids=eventos.Select(e=>e.ID_EVENTO).ToList(); var medios=await context.MedioPago.ToListAsync(ct); var pagos=await context.PagoEvento.Where(p=>!p.ANULADO&&ids.Contains(p.ID_EVENTO)).ToListAsync(ct);
+  var porMedio=pagos.Where(p=>{var f=FechaContableArgentina.DesdeUtc(p.FECHA_REGISTRO);return f>=desde&&f<=hasta;}).GroupBy(p=>p.ID_MEDIO_PAGO).Select(g=>new MedioPagoCajaDto{MedioPagoId=g.Key,Descripcion=medios.FirstOrDefault(m=>m.ID_MEDIO_PAGO==g.Key)?.DESC_MEDIO_PAGO??"",CantidadPagos=g.Count(),Total=g.Sum(p=>p.MONTO)}).ToList();
+  return new CajaMensualDto{Anio=anio,Mes=mes,Desde=desde,Hasta=hasta,Dias=dias,TotalIngresos=dias.Sum(d=>d.TotalIngresos),TotalEgresos=dias.Sum(d=>d.TotalEgresos),Resultado=dias.Sum(d=>d.Resultado),EventosRealizados=dias.Sum(d=>d.CantidadEventosRealizados),IngresosPorMedio=porMedio};
  }
 }

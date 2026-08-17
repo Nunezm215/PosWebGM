@@ -34,4 +34,12 @@ public class CajaDiariaController(ICajaDiariaService service, ICajaDiariaPdfServ
         try { return File(await pdfService.GenerarAsync(fecha.Value, cancellationToken), "application/pdf", $"Caja-{fecha:yyyy-MM-dd}.pdf"); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }
+
+    [HttpGet("mensual")]
+    public async Task<IActionResult> Mensual([FromQuery] int anio, [FromQuery] int mes, CancellationToken cancellationToken)
+    {
+        try { return Ok(await service.ObtenerMensualAsync(anio, mes, cancellationToken)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
 }

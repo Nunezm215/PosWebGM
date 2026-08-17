@@ -36,6 +36,7 @@ public class CajaDiariaPdfServiceTests
         public DateOnly? Fecha { get; private set; }
         public Task<CajaDiariaDto> ObtenerAsync(DateOnly fecha, CancellationToken cancellationToken = default) { Fecha = fecha; return Task.FromResult(new CajaDiariaDto { Fecha = fecha }); }
         public Task<IReadOnlyList<CajaDiariaResumenDto>> ObtenerHistorialAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CajaDiariaResumenDto>>([]);
+        public Task<CajaMensualDto> ObtenerMensualAsync(int anio, int mes, CancellationToken cancellationToken = default) => Task.FromResult(new CajaMensualDto { Anio = anio, Mes = mes });
     }
     private sealed class PdfFake : ICajaDiariaPdfService { public Task<byte[]> GenerarAsync(DateOnly fecha, CancellationToken cancellationToken = default) => Task.FromResult(System.Text.Encoding.ASCII.GetBytes("%PDF-test")); }
 }
