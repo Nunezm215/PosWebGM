@@ -98,6 +98,33 @@ Abrir http://localhost:5173
 | `cd frontend && npm run dev` | Frontend web (http://localhost:5173) |
 | `cd frontend && npm run tauri dev` | App desktop (requiere Rust) |
 
+## Backup / Restore
+
+Backup MySQL manual:
+
+```powershell
+$env:POSWEB_DB_HOST = 'localhost'
+$env:POSWEB_DB_USER = 'root'
+$env:POSWEB_DB_PASSWORD = '<sin hardcodear>'
+$env:POSWEB_DB_NAME = 'posweb'
+$env:POSWEB_BACKUP_DIR = "$env:LOCALAPPDATA\PosWeb\backups"
+.
+scripts\backup-db.ps1
+```
+
+Restore de prueba:
+
+```powershell
+$env:POSWEB_DB_HOST = 'localhost'
+$env:POSWEB_DB_USER = 'root'
+$env:POSWEB_DB_PASSWORD = '<sin hardcodear>'
+$env:POSWEB_DB_NAME = 'posweb'
+.
+scripts\restore-db.ps1 -SqlFile "C:\ruta\al\backup.sql" -TargetDatabase "PosWeb_restore_test"
+```
+
+Advertencia: no restaurar sobre producción. El script solo permite destinos que terminen en `_test`, `_restore` o `_backupcheck`.
+
 ## Configuración de producción
 
 Variables mínimas que deben existir en el VPS:
@@ -106,6 +133,10 @@ Variables mínimas que deben existir en el VPS:
 - `Cors__AllowedOrigins__0` (y más índices si agregás otros orígenes)
 
 Si frontend y backend quedan bajo el mismo origen, CORS puede simplificarse después.
+
+### Automatización futura
+
+Los scripts están preparados para ejecutarse luego con Task Scheduler, cron o un timer del sistema, apuntando a una carpeta de backups fuera del repo, por ejemplo `/var/backups/posweb` en VPS.
 
 ## Arquitectura
 
