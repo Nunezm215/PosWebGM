@@ -18,7 +18,6 @@ const menuByRole = {
     { to: '/clientes', label: 'Clientes', icon: '👤' },
     { to: '/oportunidades', label: 'Oportunidades', icon: <Gift size={16} strokeWidth={2} /> as ReactNode },
     { to: '/caja', label: 'Caja', icon: '💰' },
-    { to: '/gastos', label: 'Gastos', icon: '💸' },
     { to: '/usuarios/alta', label: 'Usuarios', icon: '👥' },
     { to: '/configuracion', label: 'Configuración', icon: '⚙️' },
   ],

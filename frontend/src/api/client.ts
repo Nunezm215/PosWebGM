@@ -465,11 +465,14 @@ export const api = {
 // Gastos
     gastos: {
       listar: (cajaId: number) => request<GastoListResponse>(`/gastos?cajaId=${cajaId}`),
-      historial: (excluirCajaId?: number, fechaDesde?: string, fechaHasta?: string) => {
+      historial: (excluirCajaId?: number, fechaDesde?: string, fechaHasta?: string, texto?: string, estado?: 'todos' | 'activos' | 'anulados', q?: string) => {
         const params = new URLSearchParams();
         if (excluirCajaId) params.set('excluirCajaId', String(excluirCajaId));
         if (fechaDesde) params.set('fechaDesde', fechaDesde);
         if (fechaHasta) params.set('fechaHasta', fechaHasta);
+        if (texto?.trim()) params.set('texto', texto.trim());
+        if (estado && estado !== 'todos') params.set('estado', estado);
+        if (q?.trim()) params.set('q', q.trim());
         const query = params.toString() ? `?${params.toString()}` : '';
         return request<GastoListResponse>(`/gastos/historial${query}`);
       },

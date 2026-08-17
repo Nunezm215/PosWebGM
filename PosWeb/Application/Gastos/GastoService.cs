@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using PosWeb.Application.Exceptions;
 using PosWeb.Contracts;
@@ -97,9 +98,15 @@ public class GastoService
         return gastos.Select(g => MapToDto(g, g.ID_USUARIO.HasValue && usuarios.TryGetValue(g.ID_USUARIO.Value, out var nombre) ? nombre : "")).ToList();
     }
 
-    public List<GastoDto> ObtenerHistorial(int? excluirCajaId = null, DateTime? fechaDesde = null, DateTime? fechaHasta = null)
+    public List<GastoDto> ObtenerHistorial(
+        int? excluirCajaId = null,
+        DateTime? fechaDesde = null,
+        DateTime? fechaHasta = null,
+        string? texto = null,
+        string? estado = null,
+        string? q = null)
     {
-        IQueryable<Gasto> query = _context.Gasto;
+        IQueryable<Gasto> query = _context.Gasto.AsNoTracking();
 
         if (excluirCajaId.HasValue)
             query = query.Where(g => g.ID_CAJA != excluirCajaId.Value);
@@ -116,8 +123,19 @@ public class GastoService
             query = query.Where(g => g.FECHA_GASTO < hasta);
         }
 
+        var estadoNormalizado = estado?.Trim().ToLowerInvariant();
+        if (estadoNormalizado == "activos")
+        {
+            query = query.Where(g => !g.ANULADO);
+        }
+        else if (estadoNormalizado == "anulados")
+        {
+            query = query.Where(g => g.ANULADO);
+        }
+
         var gastos = query
             .OrderByDescending(g => g.FECHA_GASTO)
+            .ThenByDescending(g => g.ID_GASTO)
             .ToList();
 
         var usuarioIds = gastos.Select(g => g.ID_USUARIO).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
@@ -125,7 +143,17 @@ public class GastoService
             .Where(u => usuarioIds.Contains(u.ID_USUARIO))
             .ToDictionary(u => u.ID_USUARIO, u => u.NOMBRE_USUARIO);
 
-        return gastos.Select(g => MapToDto(g, g.ID_USUARIO.HasValue && usuarios.TryGetValue(g.ID_USUARIO.Value, out var nombre) ? nombre : "")).ToList();
+        var resultados = gastos
+            .Select(g => MapToDto(g, g.ID_USUARIO.HasValue && usuarios.TryGetValue(g.ID_USUARIO.Value, out var nombre) ? nombre : ""))
+            .ToList();
+
+        var busqueda = string.IsNullOrWhiteSpace(q) ? texto : q;
+        if (!string.IsNullOrWhiteSpace(busqueda))
+        {
+            resultados = resultados.Where(g => CoincideBusquedaGlobal(g, busqueda)).ToList();
+        }
+
+        return resultados;
     }
 
     public void Anular(int gastoId)
@@ -166,5 +194,82 @@ public class GastoService
             .Where(u => u.ID_USUARIO == userId)
             .Select(u => u.NOMBRE_USUARIO)
             .FirstOrDefault() ?? "";
+    }
+
+    private static bool CoincideBusquedaGlobal(GastoDto gasto, string q)
+    {
+        var consulta = q.Trim();
+        if (consulta.Length == 0)
+        {
+            return true;
+        }
+
+        var consultaLower = consulta.ToLowerInvariant();
+
+        if (gasto.Detalle.Contains(consulta, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(gasto.UsuarioNombre) && gasto.UsuarioNombre.Contains(consulta, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (EsEstadoSolicitado(consultaLower, gasto.Anulado))
+            return true;
+
+        if (TryParseMonto(consulta, out var monto) && gasto.Monto == monto)
+            return true;
+
+        if (TryParseFechaExacta(consulta, out var fechaExacta) && DateOnly.FromDateTime(gasto.Fecha).Equals(fechaExacta))
+            return true;
+
+        if (TryParseDiaMes(consulta, out var dia, out var mes))
+        {
+            var fecha = DateOnly.FromDateTime(gasto.Fecha);
+            if (fecha.Day == dia && fecha.Month == mes)
+                return true;
+        }
+
+        var fechaTexto = gasto.Fecha.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("es-AR"));
+        if (fechaTexto.Contains(consulta, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    private static bool EsEstadoSolicitado(string consultaLower, bool anulado)
+    {
+        return (consultaLower is "activo" or "activos") && !anulado
+            || (consultaLower is "anulado" or "anulados") && anulado;
+    }
+
+    private static bool TryParseMonto(string consulta, out decimal monto)
+    {
+        var cultura = CultureInfo.GetCultureInfo("es-AR");
+        return decimal.TryParse(consulta, NumberStyles.Number, cultura, out monto);
+    }
+
+    private static bool TryParseFechaExacta(string consulta, out DateOnly fecha)
+    {
+        var cultura = CultureInfo.GetCultureInfo("es-AR");
+        var formatos = new[] { "dd/MM/yyyy", "d/M/yyyy", "dd/MM/yy", "d/M/yy" };
+        if (DateOnly.TryParseExact(consulta, formatos, cultura, DateTimeStyles.None, out fecha))
+            return true;
+
+        fecha = default;
+        return false;
+    }
+
+    private static bool TryParseDiaMes(string consulta, out int dia, out int mes)
+    {
+        var cultura = CultureInfo.GetCultureInfo("es-AR");
+        if (DateOnly.TryParseExact(consulta, new[] { "dd/MM", "d/M" }, cultura, DateTimeStyles.None, out var fecha))
+        {
+            dia = fecha.Day;
+            mes = fecha.Month;
+            return true;
+        }
+
+        dia = 0;
+        mes = 0;
+        return false;
     }
 }

@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import { PageShell } from '../components/shared'
 import Dialog from '../components/ui/Dialog'
+import { useAuth } from '../context/AuthContext'
 import { formatCurrency } from '../formats'
-import type { CajaDiariaDto, CajaDiariaResumenDto, CajaMensualDto } from '../types'
+import type { CajaDiariaDto, CajaDiariaResumenDto, CajaMensualDto, GastoDto } from '../types'
 import { CalendarDays, CircleDollarSign, CreditCard, ReceiptText, TrendingDown, TrendingUp, Wallet, type LucideIcon } from 'lucide-react'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -19,8 +20,12 @@ const monthLabel = (value: string) => {
 }
 const periodLabel = (desde: string, hasta: string) => `${dateLabelLong(desde)} al ${dateLabelLong(hasta)}`
 const tieneActividad = (dia: CajaDiariaResumenDto) => dia.totalIngresos !== 0 || dia.totalEgresos !== 0 || dia.cantidadEventosRealizados !== 0
+const dateTimeLabel = (value: string) => new Date(value).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
 
 export default function CajaPage() {
+  const { user } = useAuth()
+  const puedeVerGastos = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
+
   const [fecha, setFecha] = useState(today)
   const [caja, setCaja] = useState<CajaDiariaDto | null>(null)
   const [historial, setHistorial] = useState<CajaDiariaResumenDto[]>([])
@@ -37,6 +42,11 @@ export default function CajaPage() {
   const [resumen, setResumen] = useState<CajaMensualDto | null>(null)
   const [resumenLoading, setResumenLoading] = useState(false)
   const [resumenError, setResumenError] = useState('')
+  const [gastosOpen, setGastosOpen] = useState(false)
+  const [gastosLoading, setGastosLoading] = useState(false)
+  const [gastosError, setGastosError] = useState('')
+  const [gastos, setGastos] = useState<GastoDto[]>([])
+  const [gastoQuery, setGastoQuery] = useState('')
 
   const maxResumenMes = currentMonth()
 
@@ -85,6 +95,11 @@ export default function CajaPage() {
     if (!resumenOpen) return
     void cargarResumenMensual(resumenMes)
   }, [resumenOpen, resumenMes])
+
+  useEffect(() => {
+    if (!gastosOpen) return
+    void buscarGastos('')
+  }, [gastosOpen])
 
   const cerrarGasto = () => {
     if (!guardando) {
@@ -141,6 +156,35 @@ export default function CajaPage() {
     setResumenOpen(true)
   }
 
+  const abrirGastos = () => {
+    setGastosError('')
+    setGastoQuery('')
+    setGastosOpen(true)
+  }
+
+  const buscarGastos = async (q: string = gastoQuery) => {
+    setGastosLoading(true)
+    setGastosError('')
+    try {
+      const res = await api.gastos.historial(undefined, undefined, undefined, undefined, undefined, q)
+      setGastos(res.items)
+    } catch (e) {
+      setGastosError(e instanceof Error ? e.message : 'No se pudieron cargar los gastos.')
+    } finally {
+      setGastosLoading(false)
+    }
+  }
+
+  const limpiarGastos = () => {
+    setGastoQuery('')
+    void buscarGastos('')
+  }
+
+  const cerrarGastos = () => {
+    setGastosOpen(false)
+    setGastosError('')
+  }
+
   const abrirPdfMensual = async () => {
     const ventana = window.open('', '_blank')
     setAbriendoPdfMensual(true)
@@ -187,6 +231,7 @@ export default function CajaPage() {
             <div className="flex flex-wrap gap-2">
               <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setHistorialOpen(true)}>Ver historial</button>
               <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={abrirResumen}>Ver resumen mensual</button>
+              {puedeVerGastos && <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={abrirGastos}>Ver gastos</button>}
               <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={abrirPdf} disabled={abriendoPdf}>{abriendoPdf ? 'Abriendo PDF...' : 'Abrir PDF del día'}</button>
               <button className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={() => setGastoOpen(true)}>Registrar gasto</button>
             </div>
@@ -286,6 +331,104 @@ export default function CajaPage() {
                     empty="Sin actividad registrada en este mes."
                   />
                 </Section>
+              </div>
+            )}
+          </div>
+        </Dialog>
+
+        <Dialog
+          open={gastosOpen}
+          onClose={cerrarGastos}
+          title="Gastos"
+          description="Consulta y busca gastos registrados"
+          width="xl"
+          footer={<button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium" onClick={cerrarGastos} disabled={gastosLoading}>Cerrar</button>}
+        >
+          <div className="space-y-4">
+            <form
+              className="flex flex-col gap-2 sm:flex-row"
+              onSubmit={e => {
+                e.preventDefault()
+                void buscarGastos(gastoQuery)
+              }}
+            >
+              <label className="sr-only" htmlFor="buscar-gasto-global">Buscar gasto</label>
+              <input
+                id="buscar-gasto-global"
+                aria-label="Buscar gasto"
+                value={gastoQuery}
+                onChange={e => setGastoQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void buscarGastos(gastoQuery) } }}
+                placeholder="Buscar por detalle, fecha, monto, usuario o estado"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+              />
+              <div className="flex gap-2 sm:shrink-0">
+                <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" disabled={gastosLoading}>{gastosLoading ? 'Buscando...' : 'Buscar'}</button>
+                <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium" onClick={limpiarGastos} disabled={gastosLoading}>Limpiar</button>
+              </div>
+            </form>
+
+            {gastosLoading && <p className="text-sm text-slate-500">Cargando gastos...</p>}
+            {!gastosLoading && gastosError && <p className="text-sm text-red-700">{gastosError}</p>}
+
+            {!gastosLoading && !gastosError && (
+              <div className="max-h-[52vh] overflow-y-auto pr-1">
+                {gastos.length === 0 ? (
+                  <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm italic text-slate-500">No se encontraron gastos.</p>
+                ) : (
+                  <>
+                    <div className="hidden md:block">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="sticky top-0 border-b border-slate-200 bg-white text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th className="px-3 py-3">Fecha</th>
+                            <th className="px-3 py-3">Detalle</th>
+                            <th className="px-3 py-3">Usuario</th>
+                            <th className="px-3 py-3">Estado</th>
+                            <th className="px-3 py-3 text-right">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {gastos.map(gasto => (
+                            <tr key={gasto.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                              <td className="px-3 py-3 text-slate-700">{dateTimeLabel(gasto.fecha)}</td>
+                              <td className="px-3 py-3 text-slate-700">{gasto.detalle}</td>
+                              <td className="px-3 py-3 text-slate-700">{gasto.usuarioNombre || '—'}</td>
+                              <td className="px-3 py-3">
+                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${gasto.anulado ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                  {gasto.anulado ? 'Anulado' : 'Activo'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-right font-semibold text-slate-900">{formatCurrency(gasto.monto)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="space-y-2 md:hidden">
+                      {gastos.map(gasto => (
+                        <article key={gasto.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800">{gasto.detalle}</p>
+                              <p className="text-xs text-slate-500">{dateTimeLabel(gasto.fecha)}</p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${gasto.anulado ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {gasto.anulado ? 'Anulado' : 'Activo'}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                            <span className="text-slate-500">Usuario</span>
+                            <span className="text-right text-slate-700">{gasto.usuarioNombre || '—'}</span>
+                            <span className="text-slate-500">Monto</span>
+                            <span className="text-right font-semibold text-slate-900">{formatCurrency(gasto.monto)}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

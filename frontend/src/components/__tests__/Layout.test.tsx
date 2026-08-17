@@ -70,7 +70,6 @@ describe('Layout navigation', () => {
     expect(screen.getByText('Clientes')).toBeInTheDocument()
     expect(screen.getByText('Oportunidades')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
-    expect(screen.getByText('Gastos')).toBeInTheDocument()
     expect(screen.getByText('Usuarios')).toBeInTheDocument()
     expect(screen.getByText('Configuración')).toBeInTheDocument()
 
@@ -82,6 +81,7 @@ describe('Layout navigation', () => {
     expect(screen.queryByText('Deudas')).not.toBeInTheDocument()
     expect(screen.queryByText('Pedidos')).not.toBeInTheDocument()
     expect(screen.queryByText('Ofertas')).not.toBeInTheDocument()
+    expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
     expect(screen.queryByText('PW')).not.toBeInTheDocument()
     expect(screen.queryByText('Punto de Venta')).not.toBeInTheDocument()
   })
@@ -112,8 +112,12 @@ describe('Layout navigation', () => {
     renderLayout()
 
     expect(screen.getByText('Eventos')).toBeInTheDocument()
+    expect(screen.getByText('Clientes')).toBeInTheDocument()
     expect(screen.getByText('Oportunidades')).toBeInTheDocument()
     expect(screen.getByText('Caja')).toBeInTheDocument()
+    expect(screen.queryByText('Gastos')).not.toBeInTheDocument()
+    expect(screen.getByText('Usuarios')).toBeInTheDocument()
+    expect(screen.getByText('Configuración')).toBeInTheDocument()
   })
 
   it('keeps logout available', () => {

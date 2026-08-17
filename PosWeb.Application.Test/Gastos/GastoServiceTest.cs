@@ -5,6 +5,7 @@ using PosWeb.Contracts;
 using PosWeb.Data;
 using PosWeb.Domain;
 using PosWeb.Testing;
+using System.Reflection;
 
 namespace PosWeb.Application.Test.Gastos;
 
@@ -40,6 +41,13 @@ public class GastoServiceTest
     private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    private static void SetFecha(Gasto gasto, DateTime fecha)
+    {
+        typeof(Gasto)
+            .GetProperty("FECHA_GASTO", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .SetValue(gasto, fecha);
     }
 
     [Fact]
@@ -284,5 +292,129 @@ public class GastoServiceTest
 
         // Assert
         Assert.Empty(resultados);
+    }
+
+    [Fact]
+    public void ObtenerHistorial_FiltraTextoFechasEstadoYOrdenaPorMasRecientePrimero()
+    {
+        var context = CrearContexto(nameof(ObtenerHistorial_FiltraTextoFechasEstadoYOrdenaPorMasRecientePrimero));
+        var service = CrearService(context);
+        var usuario = context.Usuario.First();
+
+        var gastoMasReciente = new Gasto(null, 200m, "HIELO", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoMasReciente, 2, "ID_GASTO");
+        SetFecha(gastoMasReciente, new DateTime(2026, 8, 17, 11, 0, 0, DateTimeKind.Utc));
+
+        var gastoMismaFechaMenorId = new Gasto(null, 100m, "Hielo", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoMismaFechaMenorId, 1, "ID_GASTO");
+        SetFecha(gastoMismaFechaMenorId, new DateTime(2026, 8, 17, 11, 0, 0, DateTimeKind.Utc));
+
+        var gastoFueraDeRango = new Gasto(null, 50m, "Gas", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoFueraDeRango, 3, "ID_GASTO");
+        SetFecha(gastoFueraDeRango, new DateTime(2026, 8, 16, 9, 0, 0, DateTimeKind.Utc));
+
+        var gastoAnulado = new Gasto(null, 75m, "Hielo anulado", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoAnulado, 4, "ID_GASTO");
+        SetFecha(gastoAnulado, new DateTime(2026, 8, 15, 9, 0, 0, DateTimeKind.Utc));
+        gastoAnulado.Anular();
+
+        context.Gasto.AddRange(gastoMismaFechaMenorId, gastoMasReciente, gastoFueraDeRango, gastoAnulado);
+        context.SaveChanges();
+
+        var resultados = service.ObtenerHistorial(null, new DateTime(2026, 8, 17), new DateTime(2026, 8, 17), "hielo", "activos");
+
+        Assert.Equal(2, resultados.Count);
+        Assert.Equal(2, resultados[0].Id);
+        Assert.Equal(1, resultados[1].Id);
+        Assert.All(resultados, item =>
+        {
+            Assert.Equal("testuser", item.UsuarioNombre);
+            Assert.False(item.Anulado);
+            Assert.Contains("hielo", item.Detalle, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
+    public void ObtenerHistorial_ConEstadoAnulados_RetornaSoloAnulados()
+    {
+        var context = CrearContexto(nameof(ObtenerHistorial_ConEstadoAnulados_RetornaSoloAnulados));
+        var service = CrearService(context);
+        var usuario = context.Usuario.First();
+
+        var activo = new Gasto(null, 100m, "Activo", usuario.ID_USUARIO);
+        TestHelpers.SetId(activo, 1, "ID_GASTO");
+        SetFecha(activo, new DateTime(2026, 8, 17, 8, 0, 0, DateTimeKind.Utc));
+
+        var anulado = new Gasto(null, 200m, "Anulado", usuario.ID_USUARIO);
+        TestHelpers.SetId(anulado, 2, "ID_GASTO");
+        SetFecha(anulado, new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
+        anulado.Anular();
+
+        context.Gasto.AddRange(activo, anulado);
+        context.SaveChanges();
+
+        var resultados = service.ObtenerHistorial(estado: "anulados");
+
+        Assert.Single(resultados);
+        Assert.True(resultados[0].Anulado);
+        Assert.Equal(2, resultados[0].Id);
+    }
+
+    [Fact]
+    public void ObtenerHistorial_ConQGlobal_BuscaDetalleUsuarioMontoFechaEstadoYEstandarizaMayusculas()
+    {
+        var context = CrearContexto(nameof(ObtenerHistorial_ConQGlobal_BuscaDetalleUsuarioMontoFechaEstadoYEstandarizaMayusculas));
+        var service = CrearService(context);
+        var usuario = context.Usuario.First();
+        var matias = new Usuario("Matias", BCrypt.Net.BCrypt.HashPassword("123456"), Roles.UsuarioComun, "matias@test.com");
+        context.Usuario.Add(matias);
+        context.SaveChanges();
+
+        var gastoHielo = new Gasto(null, 150000m, "Compra de hielo", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoHielo, 1, "ID_GASTO");
+        SetFecha(gastoHielo, new DateTime(2026, 8, 17, 11, 0, 0, DateTimeKind.Utc));
+
+        var gastoMatias = new Gasto(null, 150000m, "Servicio", matias.ID_USUARIO);
+        TestHelpers.SetId(gastoMatias, 2, "ID_GASTO");
+        SetFecha(gastoMatias, new DateTime(2026, 8, 17, 12, 0, 0, DateTimeKind.Utc));
+
+        var gastoActivo = new Gasto(null, 12000m, "Gas", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoActivo, 3, "ID_GASTO");
+        SetFecha(gastoActivo, new DateTime(2026, 8, 16, 10, 0, 0, DateTimeKind.Utc));
+
+        var gastoAnulado = new Gasto(null, 9900m, "Anulado", usuario.ID_USUARIO);
+        TestHelpers.SetId(gastoAnulado, 4, "ID_GASTO");
+        SetFecha(gastoAnulado, new DateTime(2026, 8, 15, 9, 0, 0, DateTimeKind.Utc));
+        gastoAnulado.Anular();
+
+        context.Gasto.AddRange(gastoHielo, gastoMatias, gastoActivo, gastoAnulado);
+        context.SaveChanges();
+
+        var detalle = service.ObtenerHistorial(q: "HIELO");
+        Assert.Equal(new[] { 1 }, detalle.Select(x => x.Id));
+
+        var usuarioMatch = service.ObtenerHistorial(q: "matias");
+        Assert.Equal(new[] { 2 }, usuarioMatch.Select(x => x.Id));
+
+        var montoSinSeparadores = service.ObtenerHistorial(q: "150000");
+        Assert.Equal(new[] { 2, 1 }, montoSinSeparadores.Select(x => x.Id));
+
+        var montoConSeparadores = service.ObtenerHistorial(q: "150.000");
+        Assert.Equal(new[] { 2, 1 }, montoConSeparadores.Select(x => x.Id));
+
+        var fechaExacta = service.ObtenerHistorial(q: "17/08/2026");
+        Assert.Equal(new[] { 2, 1 }, fechaExacta.Select(x => x.Id));
+
+        var fechaDiaMes = service.ObtenerHistorial(q: "17/08");
+        Assert.Equal(new[] { 2, 1 }, fechaDiaMes.Select(x => x.Id));
+
+        var estadoActivo = service.ObtenerHistorial(q: "activo");
+        Assert.Equal(new[] { 3, 2, 1 }, estadoActivo.Select(x => x.Id));
+
+        var estadoAnulado = service.ObtenerHistorial(q: "anulado");
+        Assert.Equal(new[] { 4 }, estadoAnulado.Select(x => x.Id));
+
+        var vacio = service.ObtenerHistorial(q: "   ");
+        Assert.Equal(new[] { 4, 3, 2, 1 }, vacio.Select(x => x.Id));
     }
 }

@@ -8,9 +8,24 @@ const state = vi.hoisted(() => ({
   obtenerPdfMensual: vi.fn(),
   crearSimple: vi.fn(),
   obtenerMensual: vi.fn(),
+  gastosHistorial: vi.fn(),
 }))
 
-vi.mock('../../api/client', () => ({ api: { cajaDiaria: state, gastos: { crearSimple: state.crearSimple } } }))
+const authState = vi.hoisted(() => ({
+  user: { id: 1, nombre: 'Admin', rol: 'Admin' as string } as { id: number; nombre: string; rol: string } | null,
+}))
+
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({
+    user: authState.user,
+    isAuthenticated: authState.user !== null,
+    login: vi.fn(),
+    pinLogin: vi.fn(),
+    logout: vi.fn(),
+  }),
+}))
+
+vi.mock('../../api/client', () => ({ api: { cajaDiaria: state, gastos: { crearSimple: state.crearSimple, historial: state.gastosHistorial } } }))
 vi.mock('../../components/shared', () => ({ PageShell: ({ title, children, error }: { title: string; children: React.ReactNode; error?: string }) => <main><h1>{title}</h1>{error && <p>{error}</p>}{children}</main> }))
 vi.mock('../../components/ui/Dialog', () => ({ default: ({ open, title, children, footer }: { open: boolean; title: string; children: React.ReactNode; footer: React.ReactNode }) => open ? <div role="dialog" aria-label={title}><h2>{title}</h2>{children}{footer}</div> : null }))
 
@@ -92,14 +107,37 @@ const cajaMensualVacia = {
   ],
 }
 
+const gastosListado = [
+  {
+    id: 11,
+    cajaId: 3,
+    monto: 65000,
+    detalle: 'Hielo',
+    fecha: '2026-08-17T19:00:00',
+    anulado: false,
+    usuarioNombre: 'Admin',
+  },
+  {
+    id: 12,
+    cajaId: null,
+    monto: 12000,
+    detalle: 'Carga de gas',
+    fecha: '2026-08-16T10:30:00',
+    anulado: true,
+    usuarioNombre: 'Admin',
+  },
+]
+
 describe('CajaPage', () => {
   beforeEach(() => {
+    authState.user = { id: 1, nombre: 'Admin', rol: 'Admin' }
     state.obtener.mockReset().mockResolvedValue(caja)
     state.historial.mockReset().mockResolvedValue([{ fecha: '2026-08-16', totalIngresos: 0, totalEgresos: 0, resultado: 0, cantidadEventosRealizados: 0 }])
     state.obtenerPdf.mockReset().mockResolvedValue({ blob: new Blob(['pdf']) })
     state.obtenerPdfMensual.mockReset().mockResolvedValue({ blob: new Blob(['pdf-mensual']) })
     state.crearSimple.mockReset().mockResolvedValue({})
     state.obtenerMensual.mockReset().mockImplementation(async (_anio: number, mes: number) => (mes === 7 ? cajaMensualJulio : cajaMensualAgosto))
+    state.gastosHistorial.mockReset().mockResolvedValue({ items: gastosListado })
     vi.stubGlobal('open', vi.fn().mockReturnValue({ location: { href: '' }, close: vi.fn() }))
     URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
     URL.revokeObjectURL = vi.fn()
@@ -129,6 +167,100 @@ describe('CajaPage', () => {
     expect(withinModal.getAllByText('Transferencia').length).toBeGreaterThanOrEqual(2)
     expect(withinModal.getAllByText('17/8/2026').length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByText('16/8/2026')).not.toBeInTheDocument()
+  })
+
+  it('muestra el boton ver gastos para admin y abre el modal con resultados', async () => {
+    await renderPage()
+
+    expect(screen.getByText('Ver gastos')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Gastos' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Ver gastos'))
+
+    const modal = await screen.findByRole('dialog', { name: 'Gastos' })
+    const withinModal = within(modal)
+
+    expect(withinModal.getByLabelText('Buscar gasto')).toBeInTheDocument()
+    expect(withinModal.queryByLabelText('Texto gasto')).not.toBeInTheDocument()
+    expect(withinModal.queryByLabelText('Desde gasto')).not.toBeInTheDocument()
+    expect(withinModal.queryByLabelText('Hasta gasto')).not.toBeInTheDocument()
+    expect(withinModal.queryByLabelText('Estado gasto')).not.toBeInTheDocument()
+    await waitFor(() => expect(withinModal.getAllByText('Hielo').length).toBeGreaterThan(0))
+    expect(withinModal.getAllByText('Activo').length).toBeGreaterThan(0)
+    expect(withinModal.getAllByText('Anulado').length).toBeGreaterThan(0)
+  })
+
+  it('consulta gastos con q y limpia la busqueda', async () => {
+    await renderPage()
+
+    fireEvent.click(screen.getByText('Ver gastos'))
+    const modal = await screen.findByRole('dialog', { name: 'Gastos' })
+    const withinModal = within(modal)
+
+    fireEvent.change(withinModal.getByLabelText('Buscar gasto'), { target: { value: 'hielo' } })
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, 'hielo'))
+
+    fireEvent.click(withinModal.getByRole('button', { name: 'Limpiar' }))
+
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, ''))
+  })
+
+  it('muestra sin resultados, loading y error en gastos', async () => {
+    const deferred = (() => {
+      let resolve!: (value: { items: typeof gastosListado }) => void
+      const promise = new Promise<{ items: typeof gastosListado }>(r => { resolve = r })
+      return { promise, resolve }
+    })()
+    state.gastosHistorial.mockReturnValueOnce(deferred.promise)
+
+    await renderPage()
+    fireEvent.click(screen.getByText('Ver gastos'))
+
+    const modal = await screen.findByRole('dialog', { name: 'Gastos' })
+    const withinModal = within(modal)
+
+    expect(withinModal.getByText('Cargando gastos...')).toBeInTheDocument()
+
+    deferred.resolve({ items: [] })
+    await waitFor(() => expect(withinModal.getByText('No se encontraron gastos.')).toBeInTheDocument())
+
+    state.gastosHistorial.mockRejectedValueOnce(new Error('Fallo gastos'))
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+    expect(await withinModal.findByText('Fallo gastos')).toBeInTheDocument()
+  })
+
+  it('oculta ver gastos para UsuarioComun', async () => {
+    authState.user = { id: 2, nombre: 'Usuario', rol: 'UsuarioComun' }
+
+    await renderPage()
+
+    expect(screen.queryByText('Ver gastos')).not.toBeInTheDocument()
+  })
+
+  it('busca por monto, fecha, usuario y estado usando q', async () => {
+    await renderPage()
+
+    fireEvent.click(screen.getByText('Ver gastos'))
+    const modal = await screen.findByRole('dialog', { name: 'Gastos' })
+    const withinModal = within(modal)
+
+    fireEvent.change(withinModal.getByLabelText('Buscar gasto'), { target: { value: '150000' } })
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, '150000'))
+
+    fireEvent.change(withinModal.getByLabelText('Buscar gasto'), { target: { value: '17/08/2026' } })
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, '17/08/2026'))
+
+    fireEvent.change(withinModal.getByLabelText('Buscar gasto'), { target: { value: 'matias' } })
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, 'matias'))
+
+    fireEvent.change(withinModal.getByLabelText('Buscar gasto'), { target: { value: 'anulado' } })
+    fireEvent.click(withinModal.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(state.gastosHistorial).toHaveBeenLastCalledWith(undefined, undefined, undefined, undefined, undefined, 'anulado'))
   })
 
   it('cambia el mes y consulta el anio y mes correctos', async () => {

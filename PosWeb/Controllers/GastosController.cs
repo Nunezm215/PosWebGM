@@ -54,6 +54,7 @@ public class GastosController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
     public IActionResult ObtenerPorCaja([FromQuery] int cajaId)
     {
         var items = _gastoService.ObtenerPorCaja(cajaId);
@@ -61,12 +62,16 @@ public class GastosController : ControllerBase
     }
 
     [HttpGet("historial")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
     public IActionResult ObtenerHistorial(
         [FromQuery] int? excluirCajaId = null,
         [FromQuery] DateTime? fechaDesde = null,
-        [FromQuery] DateTime? fechaHasta = null)
+        [FromQuery] DateTime? fechaHasta = null,
+        [FromQuery] string? texto = null,
+        [FromQuery] string? estado = null,
+        [FromQuery] string? q = null)
     {
-        var items = _gastoService.ObtenerHistorial(excluirCajaId, fechaDesde, fechaHasta);
+        var items = _gastoService.ObtenerHistorial(excluirCajaId, fechaDesde, fechaHasta, texto, estado, q);
         return Ok(new { items });
     }
 
