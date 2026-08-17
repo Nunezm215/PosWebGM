@@ -410,6 +410,12 @@ export interface MedioPagoDto {
   pagaVuelto: boolean
   activo: boolean
 }
+export interface CajaDiariaDto { fecha: string; totalIngresos: number; totalEgresos: number; resultado: number; cantidadEventosRealizados: number; ingresos: IngresoCajaDiariaDto[]; egresos: EgresoCajaDiariaDto[]; eventosRealizados: EventoRealizadoCajaDto[]; desgloseMediosPago: MedioPagoCajaDto[] }
+export interface CajaDiariaResumenDto { fecha: string; totalIngresos: number; totalEgresos: number; resultado: number; cantidadEventosRealizados: number }
+export interface IngresoCajaDiariaDto { fechaRegistro: string; tipoEvento: string; nombreCliente: string; medioPago: string; monto: number; tipo: string; observacion?: string; referenciaExterna?: string }
+export interface EgresoCajaDiariaDto { fecha: string; detalle: string; monto: number; usuario?: string }
+export interface EventoRealizadoCajaDto { horaInicio: string; tipoEvento: string; nombreCliente: string; estado: string }
+export interface MedioPagoCajaDto { descripcion: string; total: number; cantidadPagos: number }
 
 // --- PagoVenta types ---
 export interface PagoVentaDto {

@@ -1,4 +1,4 @@
-import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto, MarcarOportunidadCumpleaniosAtendidaRequestDto, OportunidadCumpleaniosAtendidaResponseDto, CargoExtraEventoDto, CrearCargoExtraEventoRequestDto, AnularCargoExtraEventoRequestDto, PagoEventoDto, CrearPagoEventoRequestDto, AnularPagoEventoRequestDto, ResumenFinancieroEventoDto } from '../types'
+import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto, MarcarOportunidadCumpleaniosAtendidaRequestDto, OportunidadCumpleaniosAtendidaResponseDto, CargoExtraEventoDto, CrearCargoExtraEventoRequestDto, AnularCargoExtraEventoRequestDto, PagoEventoDto, CrearPagoEventoRequestDto, AnularPagoEventoRequestDto, ResumenFinancieroEventoDto, CajaDiariaDto, CajaDiariaResumenDto } from '../types'
 
 function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -425,6 +425,10 @@ export const api = {
       return request<{ items: CajaDto[] }>(`/cajas/historial?${params}`)
     },
   },
+  cajaDiaria: {
+    obtener: (fecha: string) => request<CajaDiariaDto>(`/caja-diaria?fecha=${encodeURIComponent(fecha)}`),
+    historial: (desde: string, hasta: string) => request<CajaDiariaResumenDto[]>(`/caja-diaria/historial?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
+  },
 
 // Proveedores
    proveedores: {
@@ -467,6 +471,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(dto),
       }),
+      crearSimple: (dto: { detalle: string; monto: number }) => request<GastoDto>('/gastos/simple', { method: 'POST', body: JSON.stringify(dto) }),
       anular: (id: number) => request<{ message: string }>(`/gastos/${id}/anular`, { method: 'POST' }),
     },
 
