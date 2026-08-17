@@ -8,7 +8,7 @@ namespace PosWeb.Controllers;
 [ApiController]
 [Route("api/caja-diaria")]
 [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
-public class CajaDiariaController(ICajaDiariaService service, ICajaDiariaPdfService pdfService) : ControllerBase
+public class CajaDiariaController(ICajaDiariaService service, ICajaDiariaPdfService pdfService, ICajaMensualPdfService mensualPdfService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Obtener([FromQuery] DateOnly? fecha, CancellationToken cancellationToken)
@@ -39,6 +39,14 @@ public class CajaDiariaController(ICajaDiariaService service, ICajaDiariaPdfServ
     public async Task<IActionResult> Mensual([FromQuery] int anio, [FromQuery] int mes, CancellationToken cancellationToken)
     {
         try { return Ok(await service.ObtenerMensualAsync(anio, mes, cancellationToken)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpGet("mensual/pdf")]
+    public async Task<IActionResult> MensualPdf([FromQuery] int anio, [FromQuery] int mes, CancellationToken cancellationToken)
+    {
+        try { return File(await mensualPdfService.GenerarAsync(anio, mes, cancellationToken), "application/pdf", $"Caja-Mensual-{anio:D4}-{mes:D2}.pdf"); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }

@@ -27,7 +27,7 @@ public class CajaDiariaPdfServiceTests
     public async Task Controller_devuelve_pdf_con_nombre_y_content_type()
     {
         var fecha = new DateOnly(2026, 8, 17);
-        var result = await new CajaDiariaController(new CajaDiariaFake(), new PdfFake()).Pdf(fecha, CancellationToken.None);
+        var result = await new CajaDiariaController(new CajaDiariaFake(), new PdfFake(), new MensualPdfFake()).Pdf(fecha, CancellationToken.None);
         var file = Assert.IsType<FileContentResult>(result); Assert.Equal("application/pdf", file.ContentType); Assert.Equal("Caja-2026-08-17.pdf", file.FileDownloadName);
     }
 
@@ -39,4 +39,5 @@ public class CajaDiariaPdfServiceTests
         public Task<CajaMensualDto> ObtenerMensualAsync(int anio, int mes, CancellationToken cancellationToken = default) => Task.FromResult(new CajaMensualDto { Anio = anio, Mes = mes });
     }
     private sealed class PdfFake : ICajaDiariaPdfService { public Task<byte[]> GenerarAsync(DateOnly fecha, CancellationToken cancellationToken = default) => Task.FromResult(System.Text.Encoding.ASCII.GetBytes("%PDF-test")); }
+    private sealed class MensualPdfFake : ICajaMensualPdfService { public Task<byte[]> GenerarAsync(int anio, int mes, CancellationToken cancellationToken = default) => Task.FromResult(System.Text.Encoding.ASCII.GetBytes("%PDF-test")); }
 }
