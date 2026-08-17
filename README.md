@@ -98,6 +98,15 @@ Abrir http://localhost:5173
 | `cd frontend && npm run dev` | Frontend web (http://localhost:5173) |
 | `cd frontend && npm run tauri dev` | App desktop (requiere Rust) |
 
+## Configuración de producción
+
+Variables mínimas que deben existir en el VPS:
+
+- `Jwt__Key`
+- `Cors__AllowedOrigins__0` (y más índices si agregás otros orígenes)
+
+Si frontend y backend quedan bajo el mismo origen, CORS puede simplificarse después.
+
 ## Arquitectura
 
 ```

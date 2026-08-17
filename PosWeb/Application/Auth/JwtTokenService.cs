@@ -2,22 +2,19 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using PosWeb.Configuration;
 using PosWeb.Domain;
 
 namespace PosWeb.Application.Auth;
 
 public class JwtTokenService
 {
-    private readonly IConfiguration _configuration;
     private readonly string _secret;
     private readonly int _expirationHours;
 
     public JwtTokenService(IConfiguration configuration)
     {
-        _configuration = configuration;
-        _secret = configuration["Jwt:Secret"]
-            ?? configuration["JWT_SECRET"]
-            ?? "PosWeb_DevSecret_ChangeInProduction_MinLength32Chars!";
+        _secret = BackendSecurityConfiguration.GetRequiredJwtKey(configuration);
         _expirationHours = int.TryParse(configuration["Jwt:ExpirationHours"], out var hours) ? hours : 12;
     }
 

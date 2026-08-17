@@ -28,7 +28,7 @@ public class UsuariosSubscriptionTest
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:Secret"] = "PosWeb_TestSecret_PosWeb_TestSecret_123!",
+                ["Jwt:Key"] = "PosWeb_TestSecret_PosWeb_TestSecret_123!",
                 ["Jwt:ExpirationHours"] = "1"
             })
             .Build();

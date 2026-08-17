@@ -27,6 +27,7 @@ using PosWeb.Application.Ofertas;
 using PosWeb.Application.Eventos;
 using PosWeb.Application.MercadoPago;
 using PosWeb.Data;
+using PosWeb.Configuration;
 using PosWeb.Middlewares;
 using PosWeb.Domain;
 using System.Security.Claims;
@@ -65,9 +66,7 @@ builder.Services.AddControllers()
     });
 
 // JWT Authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? builder.Configuration["JWT_SECRET"]
-    ?? "PosWeb_DevSecret_ChangeInProduction_MinLength32Chars!";
+var jwtSecret = BackendSecurityConfiguration.GetRequiredJwtKey(builder.Configuration);
 
 var jwtKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
 
@@ -170,13 +169,15 @@ builder.Services.AddHttpClient("MercadoPago", client =>
 builder.Services.AddHttpContextAccessor();
 
 // Configure CORS for frontend origins
+var allowedOrigins = BackendSecurityConfiguration.GetRequiredCorsAllowedOrigins(builder.Configuration);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendOrigins", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.WithOrigins(allowedOrigins)
+               .AllowAnyHeader()
+               .AllowAnyMethod();
     });
 });
 
@@ -289,6 +290,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("FrontendOrigins");
+
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
@@ -316,9 +319,6 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseAuthorization();
-
-// Add CORS middleware
-app.UseCors("FrontendOrigins");
 
 app.UseMiddleware<ExceptionMiddleware>();
 
