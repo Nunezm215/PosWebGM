@@ -116,6 +116,7 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<CajaService>();
 builder.Services.AddScoped<ICajaDiariaService, CajaDiariaService>();
+builder.Services.AddScoped<ICajaDiariaPdfService, CajaDiariaPdfService>();
 builder.Services.AddScoped<ClienteService>();
 builder.Services.AddScoped<MedioPagoService>();
 builder.Services.AddScoped<CompraService>();
