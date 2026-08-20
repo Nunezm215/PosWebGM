@@ -271,19 +271,6 @@ function statusBadgeStyles(estado: string, isPast = false) {
   }
 }
 
-function statusCompactLabel(estado: string) {
-  switch (estado) {
-    case 'Pagado':
-      return 'P'
-    case 'Señado':
-      return 'S'
-    case 'Cancelado':
-      return 'C'
-    default:
-      return 'R'
-  }
-}
-
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-gray-100 py-2 last:border-b-0">
@@ -1408,116 +1395,116 @@ export default function EventosPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="rounded-2xl bg-slate-100 p-2 shadow-sm">
+        <div className="min-w-0 rounded-2xl bg-slate-100 p-2 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs font-semibold text-slate-700" aria-label="Leyenda del calendario">
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-sky-500 bg-sky-200" aria-hidden="true" />Con reserva</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-slate-500 bg-slate-300" aria-hidden="true" />Reserva pasada</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2 border-blue-700 bg-white" aria-hidden="true" />Hoy</span>
           </div>
-          <div className="overflow-hidden rounded-xl border border-slate-300 bg-white">
-            <div className="grid grid-cols-7 border-b border-slate-300 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:text-xs">
-              {WEEKDAY_LABELS.map(day => (
-                <div key={day} className="px-2 py-2 text-center">{day}</div>
-              ))}
-            </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+            <div className="min-w-[700px] sm:min-w-0">
+              <div className="grid grid-cols-7 border-b border-slate-300 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:text-xs">
+                {WEEKDAY_LABELS.map(day => (
+                  <div key={day} className="px-2 py-2 text-center">{day}</div>
+                ))}
+              </div>
 
-            <div className="grid grid-cols-7 gap-px bg-slate-300">
-              {range.days.map(day => {
-                const key = toDateKey(day)
-                const eventosDia = eventosPorDia.get(key) ?? []
-                const tieneReservas = eventosDia.some(evento => evento.estado !== 'Cancelado')
-                const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
-                const isToday = key === todayDateKey
-                const isPast = key < todayDateKey
-                const dayCellClassName = [
-                  'min-h-[100px] overflow-hidden border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
-                  isCurrentMonth ? 'text-slate-900' : 'text-slate-400',
-                  isToday ? 'ring-[3px] ring-inset ring-blue-700' : '',
-                  tieneReservas
-                    ? isPast
-                      ? 'border-slate-500 bg-slate-300 text-slate-800 hover:bg-slate-400'
-                      : 'border-sky-500 bg-sky-200 text-sky-950 hover:bg-sky-300'
-                    : !isCurrentMonth
-                      ? 'bg-slate-50 hover:bg-slate-100'
-                      : isPast
-                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                        : 'bg-white hover:bg-slate-100',
-                ].join(' ')
+              <div className="grid grid-cols-7 gap-px bg-slate-300">
+                {range.days.map(day => {
+                  const key = toDateKey(day)
+                  const eventosDia = eventosPorDia.get(key) ?? []
+                  const tieneReservas = eventosDia.some(evento => evento.estado !== 'Cancelado')
+                  const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
+                  const isToday = key === todayDateKey
+                  const isPast = key < todayDateKey
+                  const dayCellClassName = [
+                    'min-h-[100px] overflow-hidden border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
+                    isCurrentMonth ? 'text-slate-900' : 'text-slate-400',
+                    isToday ? 'ring-[3px] ring-inset ring-blue-700' : '',
+                    tieneReservas
+                      ? isPast
+                        ? 'border-slate-500 bg-slate-300 text-slate-800 hover:bg-slate-400'
+                        : 'border-sky-500 bg-sky-200 text-sky-950 hover:bg-sky-300'
+                      : !isCurrentMonth
+                        ? 'bg-slate-50 hover:bg-slate-100'
+                        : isPast
+                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          : 'bg-white hover:bg-slate-100',
+                  ].join(' ')
 
-                return (
-                  <div
-                    key={key}
-                    role="button"
-                    aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
-                    tabIndex={0}
-                    data-has-events={tieneReservas}
-                    data-is-today={isToday}
-                    data-is-past={isPast}
-                    data-is-current-month={isCurrentMonth}
-                    onClick={() => openDay(key)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        openDay(key)
-                      }
-                    }}
-                    className={dayCellClassName}
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold ${tieneReservas ? isPast ? 'bg-slate-700 text-white' : 'bg-blue-950 text-white' : isCurrentMonth ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-400'}`}>
-                        {day.getDate()}
-                      </span>
-                      {isToday && (
-                        <span className="rounded-full bg-blue-700 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white">HOY</span>
-                      )}
-                    </div>
+                  return (
+                    <div
+                      key={key}
+                      role="button"
+                      aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
+                      tabIndex={0}
+                      data-has-events={tieneReservas}
+                      data-is-today={isToday}
+                      data-is-past={isPast}
+                      data-is-current-month={isCurrentMonth}
+                      onClick={() => openDay(key)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openDay(key)
+                        }
+                      }}
+                      className={dayCellClassName}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold ${tieneReservas ? isPast ? 'bg-slate-700 text-white' : 'bg-blue-950 text-white' : isCurrentMonth ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-400'}`}>
+                          {day.getDate()}
+                        </span>
+                        {isToday && (
+                          <span className="rounded-full bg-blue-700 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white">HOY</span>
+                        )}
+                      </div>
 
-                    <div className="space-y-1">
-                      {eventosDia.slice(0, 3).map(evento => (
-                        <button
-                          key={evento.id}
-                          type="button"
-                          onClick={event => {
-                            event.stopPropagation()
-                            openEvent(evento.id)
-                          }}
-                          className={`min-w-0 w-full overflow-hidden rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-colors hover:brightness-[0.98] sm:rounded-lg sm:px-2 sm:py-1.5 sm:text-xs ${statusStyles(evento.estado, isPast)}`}
-                          aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
-                        >
-                          <div className="flex min-w-0 items-center justify-between gap-1 sm:items-start sm:gap-2">
-                            <div className="flex min-w-0 flex-1 items-center gap-1 sm:block">
-                              <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none sm:hidden ${statusBadgeStyles(evento.estado, isPast)}`} aria-hidden="true">
-                                {statusCompactLabel(evento.estado)}
-                              </span>
-                              <div className="min-w-0">
+                      <div className="space-y-1">
+                        {eventosDia.slice(0, 3).map(evento => (
+                          <button
+                            key={evento.id}
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
+                              openEvent(evento.id)
+                            }}
+                            className={`min-w-0 w-full overflow-hidden rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-colors hover:brightness-[0.98] sm:rounded-lg sm:px-2 sm:py-1.5 sm:text-xs ${statusStyles(evento.estado, isPast)}`}
+                            aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                          >
+                            <div className="flex min-w-0 items-center justify-between gap-1 sm:items-start sm:gap-2">
+                              <div className="min-w-0 sm:flex-1">
                                 <div className="truncate font-semibold leading-tight sm:hidden">
-                                  {formatTime(evento.horaInicio)}
+                                  {evento.estado}
                                 </div>
-                                <div className="truncate font-semibold leading-tight hidden sm:block">
+                                <div className="hidden truncate font-semibold leading-tight sm:block">
                                   {formatTime(evento.horaInicio)} {evento.tipoEvento}
+                                </div>
+                                <div className="mt-0.5 truncate text-[10px] opacity-90 sm:hidden">
+                                  {formatTime(evento.horaInicio)}
                                 </div>
                                 <div className="mt-0.5 hidden items-center gap-1 text-[10px] opacity-90 sm:flex">
                                   <Clock3 size={10} />
                                   <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
                                 </div>
                               </div>
+                              <span className={`hidden shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold sm:inline-flex ${statusBadgeStyles(evento.estado, isPast)}`}>
+                                {evento.estado}
+                              </span>
                             </div>
-                            <span className={`hidden shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold sm:inline-flex ${statusBadgeStyles(evento.estado, isPast)}`}>
-                              {evento.estado}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
 
-                      {eventosDia.length > 3 && (
-                        <div className="px-1 text-[10px] font-medium text-slate-700">
-                          +{eventosDia.length - 3} más
-                        </div>
-                      )}
+                        {eventosDia.length > 3 && (
+                          <div className="px-1 text-[10px] font-medium text-slate-700">
+                            +{eventosDia.length - 3} más
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </div>
 
