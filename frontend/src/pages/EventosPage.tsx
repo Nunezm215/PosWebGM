@@ -7,6 +7,7 @@ import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
+import { formatDateTime as formatArgentinaDateTime } from '../formats'
 import { DEFAULT_PHONE_CODE, PHONE_CODE_OPTIONS, buildArgentinaPhone, buildTelHref, buildWhatsAppHref, getArgentinaPhoneLocalDigits, getArgentinaPhoneLocalError, getArgentinaPhoneLocalLabel, getArgentinaPhoneLocalPlaceholder, limitArgentinaPhoneLocalDigits } from '../utils/phone'
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -374,6 +375,8 @@ export default function EventosPage() {
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const [monthPickerYear, setMonthPickerYear] = useState(() => monthAnchor.getFullYear())
   const monthPickerRef = useRef<HTMLDivElement | null>(null)
+  const calendarScrollRef = useRef<HTMLDivElement | null>(null)
+  const autoScrolledMonthRef = useRef<string | null>(null)
   const busquedaGlobalRequestIdRef = useRef(0)
   const busquedaGlobalTimeoutRef = useRef<number | null>(null)
 
@@ -382,6 +385,34 @@ export default function EventosPage() {
     () => cargosExtra.filter(cargo => !cargo.anulado).reduce((total, cargo) => total + cargo.monto, 0),
     [cargosExtra],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia('(max-width: 639px)').matches) return
+
+    const today = new Date()
+    if (monthAnchor.getFullYear() !== today.getFullYear() || monthAnchor.getMonth() !== today.getMonth()) return
+
+    const monthKey = `${monthAnchor.getFullYear()}-${monthAnchor.getMonth()}`
+    if (autoScrolledMonthRef.current === monthKey) return
+
+    const container = calendarScrollRef.current
+    const target = container?.querySelector<HTMLElement>(`[data-day-key="${toDateKey(today)}"]`)
+    if (!container || !target) return
+
+    const raf = window.requestAnimationFrame(() => {
+      const containerRect = container.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      const delta = targetRect.left - containerRect.left
+      const nextLeft = Math.max(0, Math.min(container.scrollLeft + delta - 24, container.scrollWidth - container.clientWidth))
+
+      container.scrollTo({ left: nextLeft, behavior: 'auto' })
+      autoScrolledMonthRef.current = monthKey
+    })
+
+    return () => window.cancelAnimationFrame(raf)
+  }, [monthAnchor])
 
   useEffect(() => {
     let active = true
@@ -1401,7 +1432,7 @@ export default function EventosPage() {
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-slate-500 bg-slate-300" aria-hidden="true" />Reserva pasada</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2 border-blue-700 bg-white" aria-hidden="true" />Hoy</span>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+          <div ref={calendarScrollRef} className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
             <div className="min-w-[700px] sm:min-w-0">
               <div className="grid grid-cols-7 border-b border-slate-300 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:text-xs">
                 {WEEKDAY_LABELS.map(day => (
@@ -1438,6 +1469,7 @@ export default function EventosPage() {
                       role="button"
                       aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
                       tabIndex={0}
+                      data-day-key={key}
                       data-has-events={tieneReservas}
                       data-is-today={isToday}
                       data-is-past={isPast}
@@ -2234,7 +2266,7 @@ export default function EventosPage() {
                 </>}
               </div>
               {pagosError && <p className="mt-3 text-sm text-red-700">{pagosError}</p>}
-              {!pagosError && <div className="mt-3 space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Historial de pagos</p>{pagos.length === 0 ? <p className="text-sm text-gray-500">No hay pagos registrados.</p> : pagos.map(pago => <div key={pago.id} className="rounded-lg border border-gray-200 px-3 py-2 text-sm"><div className="flex justify-between gap-3"><span className="font-semibold">{pago.tipoPago === 'PagoTotal' ? 'Pago total' : pago.tipoPago} · {pago.medioPago}</span><span className="font-semibold">{formatCurrency(pago.monto)}</span></div><p className="text-xs text-gray-500">{new Date(pago.fechaRegistro).toLocaleString('es-AR')}</p>{pago.observacion && <p className="text-xs">{pago.observacion}</p>}{pago.referenciaExterna && <p className="text-xs">Ref: {pago.referenciaExterna}</p>}{pago.anulado ? <p className="mt-1 text-xs font-bold text-slate-600">ANULADO {pago.motivoAnulacion ? `· ${pago.motivoAnulacion}` : ''}</p> : canManageEvents && <Button variant="secondary" size="sm" onClick={() => { setPagoAnular(pago); setPagoMotivo(''); setPagoAnularError('') }}>Anular</Button>}</div>)}</div>}
+              {!pagosError && <div className="mt-3 space-y-2"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Historial de pagos</p>{pagos.length === 0 ? <p className="text-sm text-gray-500">No hay pagos registrados.</p> : pagos.map(pago => <div key={pago.id} className="rounded-lg border border-gray-200 px-3 py-2 text-sm"><div className="flex justify-between gap-3"><span className="font-semibold">{pago.tipoPago === 'PagoTotal' ? 'Pago total' : pago.tipoPago} · {pago.medioPago}</span><span className="font-semibold">{formatCurrency(pago.monto)}</span></div><p className="text-xs text-gray-500">{formatArgentinaDateTime(pago.fechaRegistro)}</p>{pago.observacion && <p className="text-xs">{pago.observacion}</p>}{pago.referenciaExterna && <p className="text-xs">Ref: {pago.referenciaExterna}</p>}{pago.anulado ? <p className="mt-1 text-xs font-bold text-slate-600">ANULADO {pago.motivoAnulacion ? `· ${pago.motivoAnulacion}` : ''}</p> : canManageEvents && <Button variant="secondary" size="sm" onClick={() => { setPagoAnular(pago); setPagoMotivo(''); setPagoAnularError('') }}>Anular</Button>}</div>)}</div>}
               {cargosExtraLoading && <p className="mt-3 text-sm text-gray-500">Cargando extras...</p>}
               {cargosExtraError && <p className="mt-3 text-sm text-red-700">{cargosExtraError}</p>}
               {!cargosExtraLoading && !cargosExtraError && (

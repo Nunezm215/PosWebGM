@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { ProductoDto, ProductoDetailDto } from '../types';
 import { api } from '../api/client';
+import { formatDate } from '../formats';
 
 function formatCurrency(n: number): string {
   return '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -186,10 +187,10 @@ export default function ProductLookupModal({ open, onClose }: Props) {
                 {detailProd.contenido != null && (
                   <div className="flex justify-between"><span className="text-gray-500">Contenido</span><span className="font-medium text-gray-700">{detailProd.contenido}</span></div>
                 )}
-                <div className="flex justify-between"><span className="text-gray-500">Alta</span><span className="text-gray-700">{detailProd.fechaAlta ? new Date(detailProd.fechaAlta).toLocaleDateString('es-AR') : '—'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Última mod.</span><span className="text-gray-700">{detailProd.fechaUltimaMod ? new Date(detailProd.fechaUltimaMod).toLocaleDateString('es-AR') : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Alta</span><span className="text-gray-700">{detailProd.fechaAlta ? formatDate(detailProd.fechaAlta) : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Última mod.</span><span className="text-gray-700">{detailProd.fechaUltimaMod ? formatDate(detailProd.fechaUltimaMod) : '—'}</span></div>
                 {detailProd.fechaBaja && (
-                  <div className="flex justify-between col-span-2"><span className="text-red-500">Fecha baja</span><span className="text-red-600">{new Date(detailProd.fechaBaja).toLocaleDateString('es-AR')}</span></div>
+                  <div className="flex justify-between col-span-2"><span className="text-red-500">Fecha baja</span><span className="text-red-600">{formatDate(detailProd.fechaBaja)}</span></div>
                 )}
               </div>
               {detailProd.descAdicional && (

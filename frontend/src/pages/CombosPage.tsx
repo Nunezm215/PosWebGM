@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
+import { formatDate } from '../formats'
 import { COMBO_PREFIX } from '../lib/constants'
 import DiasSemanaSelector from '../components/shared/DiasSemanaSelector'
 import type { ComboDto, ProductoDto, ComboUpsertDto, ComboItemDto, OfertaDto, OfertaUpsertDto } from '../types'
@@ -429,9 +430,9 @@ export default function CombosPage() {
                         : <span className={vigente ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{vigente ? 'Vigente' : 'Expirada'}</span>
                       }
                       <span>·</span>
-                      <span>{new Date(oferta.fechaInicio).toLocaleDateString()}</span>
+                      <span>{formatDate(oferta.fechaInicio)}</span>
                       <span>→</span>
-                      <span>{fin.toLocaleDateString()}</span>
+                      <span>{formatDate(oferta.fechaFin)}</span>
                     </div>
                   </div>
 

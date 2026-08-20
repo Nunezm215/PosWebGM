@@ -5,6 +5,7 @@ import { useNotification } from '../context/NotificationContext'
 import type { VentaHistorialDto, VentaDetalleDto, PagedResult, SucursalDto } from '../types'
 import { Clock, ChevronDown } from 'lucide-react'
 import Button from '../components/ui/Button'
+import { formatDateInput, formatDateTime } from '../formats'
 
 function isWithinLastMonth(dateStr: string): boolean {
   const date = new Date(dateStr)
@@ -14,7 +15,7 @@ function isWithinLastMonth(dateStr: string): boolean {
 }
 
 function toDateInputValue(date: Date): string {
-  return date.toISOString().split('T')[0]
+  return formatDateInput(date)
 }
 
 function defaultDesde(): string {
@@ -267,7 +268,7 @@ export default function HistorialVentasPage() {
                         #{venta.ventaId}
                       </td>
                       <td className="px-4 py-3 text-gray-700 text-xs">
-                        {new Date(venta.fecha).toLocaleString('es-AR')}
+                        {formatDateTime(venta.fecha)}
                       </td>
                       <td className="px-4 py-3 text-gray-700 text-xs">
                         {venta.sucursalNombre}

@@ -3,15 +3,15 @@ import { api } from '../api/client'
 import { PageShell } from '../components/shared'
 import Dialog from '../components/ui/Dialog'
 import { useAuth } from '../context/AuthContext'
-import { formatCurrency } from '../formats'
+import { formatCurrency, formatDateInput, formatDateTime, formatTime } from '../formats'
 import type { CajaDiariaDto, CajaDiariaResumenDto, CajaMensualDto, GastoDto } from '../types'
 import { CalendarDays, CircleDollarSign, CreditCard, ReceiptText, TrendingDown, TrendingUp, Wallet, type LucideIcon } from 'lucide-react'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => formatDateInput(new Date())
 const currentMonth = () => today().slice(0, 7)
 const dateLabel = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('es-AR')
 const dateLabelLong = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-const timeLabel = (value: string) => new Date(value).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+const timeLabel = (value: string) => formatTime(value)
 const monthLabel = (value: string) => {
   const [anio, mes] = value.split('-').map(Number)
   if (!anio || !mes) return value
@@ -20,7 +20,7 @@ const monthLabel = (value: string) => {
 }
 const periodLabel = (desde: string, hasta: string) => `${dateLabelLong(desde)} al ${dateLabelLong(hasta)}`
 const tieneActividad = (dia: CajaDiariaResumenDto) => dia.totalIngresos !== 0 || dia.totalEgresos !== 0 || dia.cantidadEventosRealizados !== 0
-const dateTimeLabel = (value: string) => new Date(value).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+const dateTimeLabel = (value: string) => formatDateTime(value)
 
 export default function CajaPage() {
   const { user } = useAuth()
@@ -57,9 +57,10 @@ export default function CajaPage() {
       desde.setDate(desde.getDate() - 29)
       const [detalleCaja, items] = await Promise.all([
         api.cajaDiaria.obtener(dia),
-        api.cajaDiaria.historial(desde.toISOString().slice(0, 10), dia),
+        api.cajaDiaria.historial(formatDateInput(desde), dia),
       ])
       setCaja(detalleCaja)
+      if (detalleCaja.fecha !== dia) setFecha(detalleCaja.fecha)
       setHistorial([...items].reverse())
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar la caja.')

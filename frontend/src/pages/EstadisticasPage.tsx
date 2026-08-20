@@ -5,14 +5,10 @@ import { useNotification } from '../context/NotificationContext'
 import type { SucursalDto, EstadisticasDto } from '../types'
 import { Download } from 'lucide-react'
 import Button from '../components/ui/Button'
+import { formatDate, formatDateInput } from '../formats'
 
 function formatCurrency(n: number) {
   return '$' + n.toFixed(2)
-}
-
-function formatDate(d: string) {
-  const date = new Date(d)
-  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function exportarCSV(data: EstadisticasDto) {
@@ -48,8 +44,8 @@ export default function EstadisticasPage() {
   const { sucursal: ctxSucursal } = useOutletContext<{ sucursal: SucursalDto | null }>()
   const { notifyError } = useNotification()
 
-  const hoy = new Date().toISOString().slice(0, 10)
-  const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const hoy = formatDateInput(new Date())
+  const hace30 = formatDateInput(new Date(Date.now() - 30 * 86400000))
 
   const [sucursales, setSucursales] = useState<SucursalDto[]>([])
   const [sucursalId, setSucursalId] = useState<number | null>(ctxSucursal?.id ?? null)

@@ -4,16 +4,14 @@ import { api } from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { PageShell } from '../components/shared';
-import { formatCurrency } from '../formats';
+import { formatCurrency, formatDate as formatDateArgentina, formatDateInput, formatDateTime as formatDateTimeArgentina } from '../formats';
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatDateArgentina(iso);
 }
 
 function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatDateTimeArgentina(iso);
 }
 
 type ModoDeuda = 'proveedores' | 'clientes';
@@ -113,7 +111,7 @@ export default function DeudaPage() {
 
   function aplicarPeriodo(p: string) {
     const hoy = new Date();
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const fmt = (d: Date) => formatDateInput(d);
     let desde = ''; let hasta = '';
     switch (p) {
       case 'hoy': desde = fmt(hoy); hasta = fmt(hoy); break;

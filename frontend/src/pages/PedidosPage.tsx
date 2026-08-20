@@ -2,12 +2,11 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import type { PedidoListDto, PedidoDetailDto, RecibirPedidoRequestDto, RecibirItemDto, ProveedorDto, ProductoDto } from '../types';
 import { api } from '../api/client';
 import { useNotification } from '../context/NotificationContext';
-import { formatCurrency } from '../formats';
+import { formatCurrency, formatDate as formatDateArgentina } from '../formats';
 import Dialog from '../components/ui/Dialog';
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatDateArgentina(iso);
 }
 
 function estadoBadge(estado: string) {
