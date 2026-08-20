@@ -271,6 +271,19 @@ function statusBadgeStyles(estado: string, isPast = false) {
   }
 }
 
+function statusCompactLabel(estado: string) {
+  switch (estado) {
+    case 'Pagado':
+      return 'P'
+    case 'Señado':
+      return 'S'
+    case 'Cancelado':
+      return 'C'
+    default:
+      return 'R'
+  }
+}
+
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-gray-100 py-2 last:border-b-0">
@@ -1471,20 +1484,25 @@ export default function EventosPage() {
                           className={`min-w-0 w-full overflow-hidden rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-colors hover:brightness-[0.98] sm:rounded-lg sm:px-2 sm:py-1.5 sm:text-xs ${statusStyles(evento.estado, isPast)}`}
                           aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
                         >
-                          <div className="flex min-w-0 items-start justify-between gap-1 sm:gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold leading-tight">
-                                {formatTime(evento.horaInicio)} {evento.tipoEvento}
-                              </div>
-                              <div className="mt-0.5 hidden items-center gap-1 text-[10px] opacity-90 sm:flex">
-                                <Clock3 size={10} />
-                                <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
-                              </div>
-                              <div className="mt-0.5 truncate text-[9px] opacity-90 sm:hidden">
-                                {formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}
+                          <div className="flex min-w-0 items-center justify-between gap-1 sm:items-start sm:gap-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-1 sm:block">
+                              <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none sm:hidden ${statusBadgeStyles(evento.estado, isPast)}`} aria-hidden="true">
+                                {statusCompactLabel(evento.estado)}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="truncate font-semibold leading-tight sm:hidden">
+                                  {formatTime(evento.horaInicio)}
+                                </div>
+                                <div className="truncate font-semibold leading-tight hidden sm:block">
+                                  {formatTime(evento.horaInicio)} {evento.tipoEvento}
+                                </div>
+                                <div className="mt-0.5 hidden items-center gap-1 text-[10px] opacity-90 sm:flex">
+                                  <Clock3 size={10} />
+                                  <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
+                                </div>
                               </div>
                             </div>
-                            <span className={`shrink-0 rounded-full px-1 py-0.5 text-[8px] font-semibold sm:px-1.5 sm:text-[9px] ${statusBadgeStyles(evento.estado, isPast)}`}>
+                            <span className={`hidden shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold sm:inline-flex ${statusBadgeStyles(evento.estado, isPast)}`}>
                               {evento.estado}
                             </span>
                           </div>
