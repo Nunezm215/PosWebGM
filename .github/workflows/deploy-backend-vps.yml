@@ -1,0 +1,139 @@
+name: Deploy Backend to VPS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_PATH: PosWeb/PosWeb.csproj
+      PUBLISH_DIR: ${{ runner.temp }}/posweb-backend-publish
+      REMOTE_WEBROOT: /var/www/posweb/backend
+      REMOTE_PREVIOUS_DIR: /var/www/posweb/backend-previous
+      REMOTE_NEW_DIR: /var/www/posweb/backend-new
+      VPS_TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore backend
+        run: dotnet restore "$PROJECT_PATH" -r linux-x64
+
+      - name: Publish backend
+        run: dotnet publish "$PROJECT_PATH" -c Release -r linux-x64 --self-contained true --no-restore -o "$PUBLISH_DIR"
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Preflight SSH
+        run: ssh -o BatchMode=yes "$VPS_TARGET" "echo SSH_OK"
+
+      - name: Upload backend to VPS temp dir
+        run: |
+          ssh -o BatchMode=yes "$VPS_TARGET" "rm -rf '$REMOTE_NEW_DIR' && mkdir -p '$REMOTE_NEW_DIR'"
+          scp -r "$PUBLISH_DIR/." "$VPS_TARGET:$REMOTE_NEW_DIR/"
+
+      - name: Swap backend with rollback
+        run: |
+          ssh -o BatchMode=yes "$VPS_TARGET" "REMOTE_WEBROOT='$REMOTE_WEBROOT' REMOTE_PREVIOUS_DIR='$REMOTE_PREVIOUS_DIR' REMOTE_NEW_DIR='$REMOTE_NEW_DIR' bash -s" <<'EOF'
+          set -euo pipefail
+
+          as_root() {
+            if [ "$(id -u)" -eq 0 ]; then
+              "$@"
+            else
+              sudo -n "$@"
+            fi
+          }
+
+          ROLLBACK_DONE=0
+
+          do_rollback() {
+            if [ "$ROLLBACK_DONE" -eq 1 ]; then
+              return
+            fi
+            ROLLBACK_DONE=1
+            as_root journalctl -u posweb.service --no-pager -n 80 || true
+            as_root systemctl stop posweb.service || true
+            as_root rm -rf "$REMOTE_WEBROOT"
+            if [ -d "$REMOTE_PREVIOUS_DIR" ]; then
+              as_root mv "$REMOTE_PREVIOUS_DIR" "$REMOTE_WEBROOT"
+              as_root chmod +x "$REMOTE_WEBROOT/PosWeb" || true
+            fi
+            as_root systemctl start posweb.service || true
+            sleep 3
+            if ! as_root systemctl is-active --quiet posweb.service; then
+              as_root journalctl -u posweb.service --no-pager -n 80 || true
+            fi
+          }
+
+          DEPLOY_SUCCESS=0
+          trap 'if [ "$DEPLOY_SUCCESS" -eq 0 ]; then do_rollback; fi' EXIT
+
+          as_root systemctl stop posweb.service
+          as_root rm -rf "$REMOTE_PREVIOUS_DIR"
+          if [ -d "$REMOTE_WEBROOT" ]; then
+            as_root mv "$REMOTE_WEBROOT" "$REMOTE_PREVIOUS_DIR"
+          fi
+          as_root mv "$REMOTE_NEW_DIR" "$REMOTE_WEBROOT"
+          as_root chmod +x "$REMOTE_WEBROOT/PosWeb"
+
+          if [ -d "$REMOTE_PREVIOUS_DIR" ]; then
+            for cfg in appsettings.json appsettings.Development.json appsettings.Production.json; do
+              if [ -f "$REMOTE_PREVIOUS_DIR/$cfg" ]; then
+                as_root cp -a "$REMOTE_PREVIOUS_DIR/$cfg" "$REMOTE_WEBROOT/$cfg"
+              fi
+            done
+
+            if [ -d "$REMOTE_PREVIOUS_DIR/logs" ]; then
+              as_root mkdir -p "$REMOTE_WEBROOT/logs"
+              as_root cp -a "$REMOTE_PREVIOUS_DIR/logs/." "$REMOTE_WEBROOT/logs/"
+            fi
+          fi
+
+          as_root systemctl start posweb.service
+
+          for _ in 1 2 3 4 5; do
+            if as_root systemctl is-active --quiet posweb.service; then
+              break
+            fi
+            sleep 2
+          done
+
+          if ! as_root systemctl is-active --quiet posweb.service; then
+            do_rollback
+            exit 1
+          fi
+
+          http_status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/ || true)"
+          if [ "$http_status" = "000" ]; then
+            do_rollback
+            exit 1
+          fi
+
+          as_root rm -rf "$REMOTE_PREVIOUS_DIR"
+          as_root rm -rf "$REMOTE_NEW_DIR"
+          DEPLOY_SUCCESS=1
+          trap - EXIT
+          EOF
