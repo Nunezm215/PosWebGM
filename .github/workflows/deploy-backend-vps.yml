@@ -13,7 +13,7 @@ jobs:
 
     env:
       PROJECT_PATH: PosWeb/PosWeb.csproj
-      PUBLISH_DIR: ${{ runner.temp }}/posweb-backend-publish
+      PUBLISH_DIR: ${{ github.workspace }}/posweb-backend-publish
       REMOTE_WEBROOT: /var/www/posweb/backend
       REMOTE_PREVIOUS_DIR: /var/www/posweb/backend-previous
       REMOTE_NEW_DIR: /var/www/posweb/backend-new
