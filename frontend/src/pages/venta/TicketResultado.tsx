@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import Button from '../../components/ui/Button'
 import type { VentaResultadoDto, UsuarioInfo } from '../../types'
+import { formatDateTime } from '../../formats'
 
 interface ItemEmitido {
   producto: { id: number; nombre: string; precio: number }
@@ -25,10 +26,7 @@ export default function TicketResultado({ resultado, ultimosItems, user, onNueva
     const avail = COL - left.length
     return left + (avail > 0 ? right.padStart(avail) : ' ' + right)
   }
-  const f = (iso: string) => {
-    const d = new Date(iso)
-    return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-  }
+  const f = (iso: string) => formatDateTime(iso)
 
   const line = '─'.repeat(COL)
   const dline = '═'.repeat(COL)
