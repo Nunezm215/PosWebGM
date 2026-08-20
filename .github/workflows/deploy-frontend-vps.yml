@@ -1,0 +1,90 @@
+name: Deploy Frontend to VPS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      REMOTE_WEBROOT: /var/www/posweb/frontend
+      REMOTE_BACKUP_DIR: /var/backups/posweb
+      REMOTE_TMP_DIR: /tmp/posweb-frontend-${{ github.run_id }}-${{ github.run_attempt }}
+      BACKUP_NAME: frontend-backup-${{ github.run_id }}-${{ github.run_attempt }}
+      VPS_TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Trust VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Preflight SSH
+        run: ssh -o BatchMode=yes "$VPS_TARGET" "echo SSH_OK"
+
+      - name: Create backup on VPS
+        run: |
+          ssh -o BatchMode=yes "$VPS_TARGET" "bash -lc 'set -euo pipefail
+          mkdir -p \"${REMOTE_BACKUP_DIR}\"
+          tar -czf \"${REMOTE_BACKUP_DIR}/${BACKUP_NAME}.tar.gz\" -C /var/www/posweb frontend
+          '"
+
+      - name: Create temp dir and upload dist
+        run: |
+          ssh -o BatchMode=yes "$VPS_TARGET" "rm -rf \"${REMOTE_TMP_DIR}\" && mkdir -p \"${REMOTE_TMP_DIR}\""
+          scp -r frontend/dist "$VPS_TARGET:${REMOTE_TMP_DIR}/"
+
+      - name: Replace production frontend
+        run: |
+          ssh -o BatchMode=yes "$VPS_TARGET" "bash -lc 'set -euo pipefail
+          trap '\''if [ -d \"${REMOTE_WEBROOT}.bak\" ]; then rm -rf \"${REMOTE_WEBROOT}\"; mv \"${REMOTE_WEBROOT}.bak\" \"${REMOTE_WEBROOT}\"; fi'\'' ERR
+
+          rm -rf \"${REMOTE_WEBROOT}.bak\"
+          mv \"${REMOTE_WEBROOT}\" \"${REMOTE_WEBROOT}.bak\"
+          mkdir -p \"${REMOTE_WEBROOT}\"
+          cp -a \"${REMOTE_TMP_DIR}/dist/.\" \"${REMOTE_WEBROOT}/\"
+          rm -rf \"${REMOTE_WEBROOT}.bak\"
+          rm -rf \"${REMOTE_TMP_DIR}\"
+          '"
+
+      - name: Verify production
+        run: |
+          curl -fsI https://gestormultieventos.online
+          body="$(curl -fsSL https://gestormultieventos.online)"
+          if echo "$body" | grep -Eq 'Registrarse|Crear administrador'; then
+            echo "Registration UI still visible"
+            exit 1
+          fi
+
+      - name: Rollback command
+        if: always()
+        run: |
+          echo "ssh root@${{ secrets.VPS_HOST }} \"rm -rf /var/www/posweb/frontend && tar -xzf /var/backups/posweb/${BACKUP_NAME}.tar.gz -C /var/www/posweb\""
