@@ -34,7 +34,7 @@ jobs:
         run: dotnet restore "$PROJECT_PATH" -r linux-x64
 
       - name: Publish backend
-        run: dotnet publish "$PROJECT_PATH" -c Release -r linux-x64 --self-contained true --no-restore -o "$PUBLISH_DIR"
+        run: dotnet publish "$PROJECT_PATH" -c Release -r linux-x64 --self-contained true --no-restore -p:PublishSingleFile=false -o "$PUBLISH_DIR"
 
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
