@@ -1417,7 +1417,7 @@ export default function EventosPage() {
                 const isToday = key === todayDateKey
                 const isPast = key < todayDateKey
                 const dayCellClassName = [
-                  'min-h-[100px] border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
+                  'min-h-[100px] overflow-hidden border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
                   isCurrentMonth ? 'text-slate-900' : 'text-slate-400',
                   isToday ? 'ring-[3px] ring-inset ring-blue-700' : '',
                   tieneReservas
@@ -1468,20 +1468,23 @@ export default function EventosPage() {
                             event.stopPropagation()
                             openEvent(evento.id)
                           }}
-                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] sm:text-xs leading-tight transition-colors hover:brightness-[0.98] ${statusStyles(evento.estado, isPast)}`}
+                          className={`min-w-0 w-full overflow-hidden rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-colors hover:brightness-[0.98] sm:rounded-lg sm:px-2 sm:py-1.5 sm:text-xs ${statusStyles(evento.estado, isPast)}`}
                           aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
                         >
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 items-start justify-between gap-1 sm:gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold">
+                              <div className="truncate font-semibold leading-tight">
                                 {formatTime(evento.horaInicio)} {evento.tipoEvento}
                               </div>
-                              <div className="mt-0.5 flex items-center gap-1 text-[10px] opacity-90">
+                              <div className="mt-0.5 hidden items-center gap-1 text-[10px] opacity-90 sm:flex">
                                 <Clock3 size={10} />
                                 <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
                               </div>
+                              <div className="mt-0.5 truncate text-[9px] opacity-90 sm:hidden">
+                                {formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}
+                              </div>
                             </div>
-                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadgeStyles(evento.estado, isPast)}`}>
+                            <span className={`shrink-0 rounded-full px-1 py-0.5 text-[8px] font-semibold sm:px-1.5 sm:text-[9px] ${statusBadgeStyles(evento.estado, isPast)}`}>
                               {evento.estado}
                             </span>
                           </div>
