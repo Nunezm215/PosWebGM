@@ -276,7 +276,7 @@ public class EventoService : IEventoService
         var extras = (await _repository.ListarCargosExtraAsync(evento.ID_EVENTO, cancellationToken)).Where(c => !c.ANULADO).Sum(c => c.MONTO);
         var activos = (await _repository.ListarPagosEventoAsync(evento.ID_EVENTO, cancellationToken)).Where(p => !p.ANULADO).ToList();
         var total = evento.MONTO_TOTAL + extras; var pagado = activos.Sum(p => p.MONTO); var saldo = total - pagado;
-        return new ResumenFinancieroEventoDto { EventoId = evento.ID_EVENTO, MontoBase = evento.MONTO_TOTAL, TotalExtras = extras, MontoTotal = total, TotalPagado = pagado, SaldoPendiente = saldo, EstadoPago = pagado == 0 ? "SinPagos" : saldo == 0 ? "Pagado" : "Señado", CantidadPagosActivos = activos.Count, UltimoPagoFecha = activos.Select(p => (DateTime?)p.FECHA_REGISTRO).Max() };
+        return new ResumenFinancieroEventoDto { EventoId = evento.ID_EVENTO, MontoBase = evento.MONTO_TOTAL, TotalExtras = extras, MontoTotal = total, TotalPagado = pagado, SaldoPendiente = saldo, EstadoPago = pagado == 0 ? "SinPagos" : saldo == 0 ? "Pagado" : "Señado", CantidadPagosActivos = activos.Count, UltimoPagoFecha = activos.Select(p => (DateTime?)DateTime.SpecifyKind(p.FECHA_REGISTRO, DateTimeKind.Utc)).Max() };
     }
 
     private async Task SincronizarEstadoFinancieroAsync(Evento evento, CancellationToken cancellationToken)
@@ -293,7 +293,7 @@ public class EventoService : IEventoService
     {
         var resumen = await ObtenerResumenFinancieroAsync(eventoId, cancellationToken);
         var medio = await _repository.ObtenerMedioPagoAsync(pago.ID_MEDIO_PAGO, cancellationToken);
-        return new PagoEventoDto { Id = pago.ID_PAGO_EVENTO, EventoId = pago.ID_EVENTO, MedioPagoId = pago.ID_MEDIO_PAGO, MedioPago = medio?.DESC_MEDIO_PAGO, Monto = pago.MONTO, FechaRegistro = pago.FECHA_REGISTRO, Observacion = pago.OBSERVACION, ReferenciaExterna = pago.REFERENCIA_EXTERNA, Anulado = pago.ANULADO, FechaAnulacion = pago.FECHA_ANULACION, MotivoAnulacion = pago.MOTIVO_ANULACION, TipoPago = resumen.SaldoPendiente == 0 ? "PagoTotal" : "Seña" };
+        return new PagoEventoDto { Id = pago.ID_PAGO_EVENTO, EventoId = pago.ID_EVENTO, MedioPagoId = pago.ID_MEDIO_PAGO, MedioPago = medio?.DESC_MEDIO_PAGO, Monto = pago.MONTO, FechaRegistro = DateTime.SpecifyKind(pago.FECHA_REGISTRO, DateTimeKind.Utc), Observacion = pago.OBSERVACION, ReferenciaExterna = pago.REFERENCIA_EXTERNA, Anulado = pago.ANULADO, FechaAnulacion = pago.FECHA_ANULACION.HasValue ? DateTime.SpecifyKind(pago.FECHA_ANULACION.Value, DateTimeKind.Utc) : null, MotivoAnulacion = pago.MOTIVO_ANULACION, TipoPago = resumen.SaldoPendiente == 0 ? "PagoTotal" : "Seña" };
     }
 
     private static string? NormalizarOpcional(string? value, int maxLength) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().Length <= maxLength ? value.Trim() : throw new ArgumentException("El texto excede el máximo permitido");
@@ -331,9 +331,9 @@ public class EventoService : IEventoService
         EventoId = cargo.ID_EVENTO,
         Descripcion = cargo.DESCRIPCION,
         Monto = cargo.MONTO,
-        FechaRegistro = cargo.FECHA_REGISTRO,
+        FechaRegistro = DateTime.SpecifyKind(cargo.FECHA_REGISTRO, DateTimeKind.Utc),
         Anulado = cargo.ANULADO,
-        FechaAnulacion = cargo.FECHA_ANULACION,
+        FechaAnulacion = cargo.FECHA_ANULACION.HasValue ? DateTime.SpecifyKind(cargo.FECHA_ANULACION.Value, DateTimeKind.Utc) : null,
         MotivoAnulacion = cargo.MOTIVO_ANULACION,
     };
 

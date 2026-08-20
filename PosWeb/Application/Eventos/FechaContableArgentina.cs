@@ -7,6 +7,9 @@ public static class FechaContableArgentina
     public static DateOnly DesdeUtc(DateTime fechaUtc)
         => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc), Zona));
 
+    public static DateTime ALocal(DateTime fechaUtc)
+        => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc), Zona);
+
     public static DateOnly Actual(TimeProvider timeProvider) => DesdeUtc(timeProvider.GetUtcNow().UtcDateTime);
 
     private static TimeZoneInfo ObtenerZona()

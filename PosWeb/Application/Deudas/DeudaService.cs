@@ -300,8 +300,8 @@ public class DeudaService
             ProveedorNombre: proveedorNombre,
             ClienteNombre: clienteNombre,
             Monto: d.MONTO_DEUDA,
-            Fecha: d.FECHA_DEUDA,
-            FechaPago: d.FECHA_PAGO,
+            Fecha: DateTime.SpecifyKind(d.FECHA_DEUDA, DateTimeKind.Utc),
+            FechaPago: d.FECHA_PAGO.HasValue ? DateTime.SpecifyKind(d.FECHA_PAGO.Value, DateTimeKind.Utc) : null,
             Pago: d.PAGO,
             CompraId: d.ID_COMPRA,
             VentaId: d.ID_VENTA,
@@ -330,7 +330,7 @@ public class DeudaService
                 movimientos.Add(new MovimientoCuentaDto
                 {
                     Tipo = "deuda",
-                    Fecha = d.FECHA_DEUDA,
+                    Fecha = DateTime.SpecifyKind(d.FECHA_DEUDA, DateTimeKind.Utc),
                     Monto = d.MONTO_DEUDA,
                     Descripcion = d.ID_VENTA != null ? $"Venta #{d.ID_VENTA}" : "Deuda registrada",
                 });
@@ -345,7 +345,7 @@ public class DeudaService
                         movimientos.Add(new MovimientoCuentaDto
                         {
                             Tipo = "pago",
-                            Fecha = p.FECHA,
+                            Fecha = DateTime.SpecifyKind(p.FECHA, DateTimeKind.Utc),
                             Monto = p.MONTO,
                             PagoId = p.ID_PAGO_DEUDA,
                             Usuario = p.ID_USUARIO != null
@@ -369,7 +369,7 @@ public class DeudaService
                 movimientos.Add(new MovimientoCuentaDto
                 {
                     Tipo = "deuda",
-                    Fecha = d.FECHA_DEUDA,
+                    Fecha = DateTime.SpecifyKind(d.FECHA_DEUDA, DateTimeKind.Utc),
                     Monto = d.MONTO_DEUDA,
                     Descripcion = d.ID_COMPRA != null ? $"Compra #{d.ID_COMPRA}" : "Deuda registrada",
                 });
@@ -384,7 +384,7 @@ public class DeudaService
                         movimientos.Add(new MovimientoCuentaDto
                         {
                             Tipo = "pago",
-                            Fecha = p.FECHA,
+                            Fecha = DateTime.SpecifyKind(p.FECHA, DateTimeKind.Utc),
                             Monto = p.MONTO,
                             PagoId = p.ID_PAGO_DEUDA,
                             Usuario = p.ID_USUARIO != null

@@ -3,6 +3,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using PosWeb.Contracts;
+using PosWeb.Application.Eventos;
 
 namespace PosWeb.Application.Cajas;
 
@@ -154,7 +155,7 @@ public class CajaMensualPdfService(ICajaDiariaService cajaService) : ICajaMensua
                         Encabezado(table, "Hora", "Cliente", "Evento", "Medio", "Monto");
                         foreach (var ingreso in dia.Ingresos)
                         {
-                            Celda(table, ingreso.FechaRegistro.ToString("HH:mm"));
+                             Celda(table, FechaContableArgentina.ALocal(ingreso.FechaRegistro).ToString("HH:mm"));
                             Celda(table, ingreso.NombreCliente);
                             Celda(table, ingreso.TipoEvento);
                             Celda(table, ingreso.MedioPago);
@@ -176,7 +177,7 @@ public class CajaMensualPdfService(ICajaDiariaService cajaService) : ICajaMensua
                         Encabezado(table, "Hora", "Concepto", "Monto");
                         foreach (var egreso in dia.Egresos)
                         {
-                            Celda(table, egreso.Fecha.ToString("HH:mm"));
+                             Celda(table, FechaContableArgentina.ALocal(egreso.Fecha).ToString("HH:mm"));
                             Celda(table, egreso.Detalle);
                             CeldaMonto(table, Monto(egreso.Monto));
                         }

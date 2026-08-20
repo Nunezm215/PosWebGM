@@ -176,13 +176,17 @@ public class GastoService
 
     private static GastoDto MapToDto(Gasto gasto, string usuarioNombre = "")
     {
+        var fecha = gasto.ID_SUCURSAL.HasValue
+            ? DateTime.SpecifyKind(gasto.FECHA_GASTO, DateTimeKind.Utc)
+            : gasto.FECHA_GASTO;
+
         return new GastoDto
         {
             Id = gasto.ID_GASTO,
             CajaId = gasto.ID_CAJA,
             Monto = gasto.MONTO,
             Detalle = gasto.DETALLE,
-            Fecha = gasto.FECHA_GASTO,
+            Fecha = fecha,
             Anulado = gasto.ANULADO,
             UsuarioNombre = usuarioNombre,
         };

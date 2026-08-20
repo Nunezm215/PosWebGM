@@ -22,7 +22,7 @@ public class CajaDiariaService(PosDbContextLocal context, TimeProvider? timeProv
             .Select(x => new IngresoCajaDiariaDto
             {
                 IdPagoEvento = x.p.ID_PAGO_EVENTO,
-                FechaRegistro = x.p.FECHA_REGISTRO,
+                FechaRegistro = DateTime.SpecifyKind(x.p.FECHA_REGISTRO, DateTimeKind.Utc),
                 EventoId = x.e.ID_EVENTO,
                 TipoEvento = x.e.TIPO_EVENTO,
                 ClienteId = x.e.ID_CLIENTE,
@@ -41,7 +41,7 @@ public class CajaDiariaService(PosDbContextLocal context, TimeProvider? timeProv
             .Select(g => new EgresoCajaDiariaDto
             {
                 IdGasto = g.ID_GASTO,
-                Fecha = g.FECHA_GASTO,
+                Fecha = DateTime.SpecifyKind(g.FECHA_GASTO, DateTimeKind.Utc),
                 Detalle = g.DETALLE,
                 Monto = g.MONTO,
                 UsuarioId = g.ID_USUARIO,
@@ -139,8 +139,8 @@ public class CajaDiariaService(PosDbContextLocal context, TimeProvider? timeProv
                 Dia = FechaContableArgentina.DesdeUtc(x.p.FECHA_REGISTRO),
                 Detalle = new IngresoCajaDiariaDto
                 {
-                    IdPagoEvento = x.p.ID_PAGO_EVENTO,
-                    FechaRegistro = x.p.FECHA_REGISTRO,
+                IdPagoEvento = x.p.ID_PAGO_EVENTO,
+                FechaRegistro = DateTime.SpecifyKind(x.p.FECHA_REGISTRO, DateTimeKind.Utc),
                     EventoId = x.e.ID_EVENTO,
                     TipoEvento = x.e.TIPO_EVENTO,
                     ClienteId = x.e.ID_CLIENTE,
@@ -163,7 +163,7 @@ public class CajaDiariaService(PosDbContextLocal context, TimeProvider? timeProv
                 Detalle = new EgresoCajaDiariaDto
                 {
                     IdGasto = g.ID_GASTO,
-                    Fecha = g.FECHA_GASTO,
+                    Fecha = DateTime.SpecifyKind(g.FECHA_GASTO, DateTimeKind.Utc),
                     Detalle = g.DETALLE,
                     Monto = g.MONTO,
                     UsuarioId = g.ID_USUARIO,
