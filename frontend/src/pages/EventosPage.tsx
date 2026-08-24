@@ -1477,6 +1477,7 @@ export default function EventosPage() {
                 const isSelected = key === effectiveSelectedDay
                 const isToday = key === todayDateKey
                 const isPast = key < todayDateKey
+                const isDimmedPastDay = isCurrentMonth && isPast && !isToday
 
                 return (
                   <button
@@ -1499,7 +1500,7 @@ export default function EventosPage() {
                     }}
                     className={`flex min-h-14 flex-col items-center justify-start rounded-xl px-1 py-1 text-sm outline-none transition focus:ring-2 focus:ring-indigo-500/30 sm:min-h-16 ${
                       isCurrentMonth ? 'text-slate-900' : 'text-slate-400'
-                    }`}
+                    } ${isDimmedPastDay ? 'opacity-50' : ''}`}
                   >
                     <span
                       className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${

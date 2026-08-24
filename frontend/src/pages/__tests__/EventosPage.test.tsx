@@ -954,7 +954,6 @@ describe('EventosPage', () => {
     const pastCancelled = screen.getByRole('button', { name: dayButtonName(pastCancelledKey) })
     const pastMixed = screen.getByRole('button', { name: dayButtonName(pastMixedKey) })
     const normalDay = document.querySelector<HTMLElement>('[data-is-current-month="true"][data-is-past="false"][data-is-today="false"][data-has-events="false"]')
-    const pastDay = document.querySelector<HTMLElement>('[data-is-past="true"][data-has-events="false"]')
     const outsideMonthDay = document.querySelector<HTMLElement>('[data-is-current-month="false"][data-has-events="false"]')
 
     expect(document.querySelectorAll('[data-is-today="true"]')).toHaveLength(1)
@@ -963,18 +962,54 @@ describe('EventosPage', () => {
     expect(within(today).getByText('HOY')).toBeInTheDocument()
     expect(otherReserved).toHaveAttribute('data-has-events', 'true')
     expect(otherReserved).not.toHaveAttribute('data-is-today', 'true')
+    expect(otherReserved).not.toHaveClass('opacity-50')
     expect(pastReserved).toHaveAttribute('data-has-events', 'true')
+    expect(pastReserved).toHaveClass('opacity-50')
     expect(pastCancelled).toHaveAttribute('data-has-events', 'false')
+    expect(pastCancelled).toHaveClass('opacity-50')
     expect(pastMixed).toHaveAttribute('data-has-events', 'true')
+    expect(pastMixed).toHaveClass('opacity-50')
     expect(normalDay).not.toHaveClass('bg-indigo-600')
     expect(normalDay).toHaveAttribute('data-has-events', 'false')
     expect(normalDay).toHaveAttribute('data-is-today', 'false')
+    expect(normalDay).not.toHaveClass('opacity-50')
     expect(within(normalDay!).queryByText('HOY')).not.toBeInTheDocument()
-    expect(pastDay).toHaveAttribute('data-is-past', 'true')
     expect(outsideMonthDay).toHaveClass('text-slate-400')
 
     await userEvent.setup().click(today)
     expect(await screen.findByRole('dialog', { name: 'Eventos del día' })).toBeInTheDocument()
+  })
+
+  it('keeps past days clickable while dimmed', async () => {
+    const pastKey = dateKeyFromToday(-1)
+    apiState.listarRango.mockResolvedValue([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: pastKey,
+        horaInicio: '10:00:00',
+        horaFin: '12:00:00',
+        tipoEvento: 'Reserva pasada',
+        cantidadInvitados: 20,
+        montoTotal: 1000,
+        observaciones: '',
+        estado: 'Pagado',
+        fechaCreacion: `${pastKey}T12:00:00`,
+      },
+    ])
+
+    await renderPage()
+    const user = userEvent.setup()
+    const pastDay = await screen.findByRole('button', { name: dayButtonName(pastKey) })
+
+    expect(pastDay).toHaveClass('opacity-50')
+
+    await user.click(pastDay)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
+    expect(within(dialog).getByRole('button', { name: '10:00 Reserva pasada' })).toBeInTheDocument()
   })
 
   it('shows a fallback reserved-by label when the client is not in cache', async () => {
