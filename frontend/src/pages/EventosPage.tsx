@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, ChevronRight, Clock3, Plus, Search, UserRound, X } from 'lucide-react'
+import { CalendarDays, ChevronRight, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
 import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto, MedioPagoDto, PagoEventoDto, ResumenFinancieroEventoDto } from '../types'
@@ -200,6 +200,29 @@ function formatLongDayLabel(dateKey: string) {
   return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
+function formatSelectedDayLabel(dateKey: string) {
+  const raw = fromDateKey(dateKey).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+function isSameMonth(dateKey: string, anchor: Date) {
+  const [year, month] = dateKey.split('-').map(Number)
+  return year === anchor.getFullYear() && month === anchor.getMonth() + 1
+}
+
+function getDateKeyForMonthDay(anchor: Date, day: number) {
+  const clampedDay = Math.max(1, Math.min(day, endOfMonth(anchor).getDate()))
+  return toDateKey(new Date(anchor.getFullYear(), anchor.getMonth(), clampedDay))
+}
+
+function isCompactViewport() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 639px)').matches
+}
+
 interface EventoAltaFormState {
   fecha: string
   horaInicio: string
@@ -375,44 +398,15 @@ export default function EventosPage() {
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const [monthPickerYear, setMonthPickerYear] = useState(() => monthAnchor.getFullYear())
   const monthPickerRef = useRef<HTMLDivElement | null>(null)
-  const calendarScrollRef = useRef<HTMLDivElement | null>(null)
-  const autoScrolledMonthRef = useRef<string | null>(null)
   const busquedaGlobalRequestIdRef = useRef(0)
   const busquedaGlobalTimeoutRef = useRef<number | null>(null)
+  const [dayDialogOpen, setDayDialogOpen] = useState(false)
 
   const range = useMemo(() => buildVisibleDays(monthAnchor), [monthAnchor])
   const totalExtrasActivos = useMemo(
     () => cargosExtra.filter(cargo => !cargo.anulado).reduce((total, cargo) => total + cargo.monto, 0),
     [cargosExtra],
   )
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    if (typeof window.matchMedia !== 'function' || !window.matchMedia('(max-width: 639px)').matches) return
-
-    const today = new Date()
-    if (monthAnchor.getFullYear() !== today.getFullYear() || monthAnchor.getMonth() !== today.getMonth()) return
-
-    const monthKey = `${monthAnchor.getFullYear()}-${monthAnchor.getMonth()}`
-    if (autoScrolledMonthRef.current === monthKey) return
-
-    const container = calendarScrollRef.current
-    const target = container?.querySelector<HTMLElement>(`[data-day-key="${toDateKey(today)}"]`)
-    if (!container || !target) return
-
-    const raf = window.requestAnimationFrame(() => {
-      const containerRect = container.getBoundingClientRect()
-      const targetRect = target.getBoundingClientRect()
-      const delta = targetRect.left - containerRect.left
-      const nextLeft = Math.max(0, Math.min(container.scrollLeft + delta - 24, container.scrollWidth - container.clientWidth))
-
-      container.scrollTo({ left: nextLeft, behavior: 'auto' })
-      autoScrolledMonthRef.current = monthKey
-    })
-
-    return () => window.cancelAnimationFrame(raf)
-  }, [monthAnchor])
 
   useEffect(() => {
     let active = true
@@ -635,10 +629,28 @@ export default function EventosPage() {
     return map
   }, [eventos])
 
+  const effectiveSelectedDay = useMemo(() => {
+    const current = selectedDay
+    const currentMonth = new Date()
+
+    if (current && isSameMonth(current, monthAnchor)) {
+      return current
+    }
+
+    if (monthAnchor.getFullYear() === currentMonth.getFullYear() && monthAnchor.getMonth() === currentMonth.getMonth()) {
+      return todayDateKey
+    }
+
+    if (current) {
+      return getDateKeyForMonthDay(monthAnchor, Number(current.slice(8, 10)))
+    }
+
+    return getDateKeyForMonthDay(monthAnchor, 1)
+  }, [monthAnchor, selectedDay, todayDateKey])
+
   const selectedDayEventos = useMemo(() => {
-    if (!selectedDay) return []
-    return (eventosPorDia.get(selectedDay) ?? []).slice().sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
-  }, [selectedDay, eventosPorDia])
+    return (eventosPorDia.get(effectiveSelectedDay) ?? []).slice().sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+  }, [effectiveSelectedDay, eventosPorDia])
 
   const eventosProximosVisibles = useMemo(() => {
     const ahora = new Date()
@@ -717,6 +729,11 @@ export default function EventosPage() {
 
   function changeMonth(nextMonth: Date) {
     setMonthAnchor(startOfMonthCopy(nextMonth))
+    setMonthPickerOpen(false)
+  }
+
+  function moveMonth(offset: number) {
+    setMonthAnchor(current => startOfMonthCopy(addMonths(current, offset)))
     setMonthPickerOpen(false)
   }
 
@@ -1356,6 +1373,7 @@ export default function EventosPage() {
 
   function openDay(dateKey: string) {
     setSelectedDay(dateKey)
+    setDayDialogOpen(!isCompactViewport())
   }
 
   return (
@@ -1374,174 +1392,189 @@ export default function EventosPage() {
         </div>
       }
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-gray-600" ref={monthPickerRef}>
-          <CalendarDays size={16} className="text-indigo-600" />
-          <div className="relative">
-            <button
-              type="button"
-              onClick={toggleMonthPicker}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-400 bg-white px-3 py-1.5 font-semibold text-slate-900 shadow-sm hover:bg-slate-100"
-              aria-haspopup="dialog"
-              aria-expanded={monthPickerOpen}
-            >
-              <span>{monthTitle}</span>
-              <ChevronRight size={14} className={`transition-transform ${monthPickerOpen ? 'rotate-90' : ''}`} />
-            </button>
-
-            {monthPickerOpen && (
-              <div className="absolute left-0 top-full z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 shadow-xl" role="dialog" aria-label="Selector de mes y año">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <button type="button" onClick={() => setMonthPickerYear(year => year - 1)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900" aria-label="Año anterior">
-                    <ChevronRight size={16} className="rotate-180" />
-                  </button>
-                  <span className="text-base font-semibold text-gray-900" aria-live="polite">{monthPickerYear}</span>
-                  <button type="button" onClick={() => setMonthPickerYear(year => year + 1)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900" aria-label="Año siguiente">
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-1" aria-label="Meses del año">
-                  {MONTH_LABELS.map((label, monthIndex) => {
-                    const selected = monthAnchor.getFullYear() === monthPickerYear && monthAnchor.getMonth() === monthIndex
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => changeMonth(new Date(monthPickerYear, monthIndex, 1))}
-                        className={`rounded-lg px-2 py-2 text-sm hover:bg-indigo-50 ${selected ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <button type="button" onClick={goToCurrentMonth} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">
-                  Ir al mes actual
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 rounded-2xl bg-slate-100 p-2 shadow-sm">
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs font-semibold text-slate-700" aria-label="Leyenda del calendario">
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-sky-500 bg-sky-200" aria-hidden="true" />Con reserva</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-slate-500 bg-slate-300" aria-hidden="true" />Reserva pasada</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2 border-blue-700 bg-white" aria-hidden="true" />Hoy</span>
-          </div>
-          <div ref={calendarScrollRef} className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
-            <div className="min-w-[700px] sm:min-w-0">
-              <div className="grid grid-cols-7 border-b border-slate-300 bg-slate-100 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:text-xs">
-                {WEEKDAY_LABELS.map(day => (
-                  <div key={day} className="px-2 py-2 text-center">{day}</div>
-                ))}
-              </div>
+        <div className="min-w-0 space-y-4">
+          <div className="rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 sm:px-4" ref={monthPickerRef}>
+            <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-2">
+              <button
+                type="button"
+                onClick={() => moveMonth(-1)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Mes anterior"
+              >
+                <ChevronRight size={18} className="rotate-180" />
+              </button>
 
-              <div className="grid grid-cols-7 gap-px bg-slate-300">
-                {range.days.map(day => {
-                  const key = toDateKey(day)
-                  const eventosDia = eventosPorDia.get(key) ?? []
-                  const tieneReservas = eventosDia.some(evento => evento.estado !== 'Cancelado')
-                  const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
-                  const isToday = key === todayDateKey
-                  const isPast = key < todayDateKey
-                  const dayCellClassName = [
-                    'min-h-[100px] overflow-hidden border border-slate-300 p-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:min-h-[122px] sm:p-3',
-                    isCurrentMonth ? 'text-slate-900' : 'text-slate-400',
-                    isToday ? 'ring-[3px] ring-inset ring-blue-700' : '',
-                    tieneReservas
-                      ? isPast
-                        ? 'border-slate-500 bg-slate-300 text-slate-800 hover:bg-slate-400'
-                        : 'border-sky-500 bg-sky-200 text-sky-950 hover:bg-sky-300'
-                      : !isCurrentMonth
-                        ? 'bg-slate-50 hover:bg-slate-100'
-                        : isPast
-                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          : 'bg-white hover:bg-slate-100',
-                  ].join(' ')
+              <div className="relative text-center">
+                <button
+                  type="button"
+                  onClick={toggleMonthPicker}
+                  className="inline-flex items-center justify-center gap-1 text-base font-semibold text-slate-900 sm:text-lg"
+                  aria-haspopup="dialog"
+                  aria-expanded={monthPickerOpen}
+                >
+                  <span>{monthTitle}</span>
+                </button>
 
-                  return (
-                    <div
-                      key={key}
-                      role="button"
-                      aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
-                      tabIndex={0}
-                      data-day-key={key}
-                      data-has-events={tieneReservas}
-                      data-is-today={isToday}
-                      data-is-past={isPast}
-                      data-is-current-month={isCurrentMonth}
-                      onClick={() => openDay(key)}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          openDay(key)
-                        }
-                      }}
-                      className={dayCellClassName}
-                    >
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold ${tieneReservas ? isPast ? 'bg-slate-700 text-white' : 'bg-blue-950 text-white' : isCurrentMonth ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-400'}`}>
-                          {day.getDate()}
-                        </span>
-                        {isToday && (
-                          <span className="rounded-full bg-blue-700 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white">HOY</span>
-                        )}
-                      </div>
-
-                      <div className="space-y-1">
-                        {eventosDia.slice(0, 3).map(evento => (
-                          <button
-                            key={evento.id}
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation()
-                              openEvent(evento.id)
-                            }}
-                            className={`min-w-0 w-full overflow-hidden rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-colors hover:brightness-[0.98] sm:rounded-lg sm:px-2 sm:py-1.5 sm:text-xs ${statusStyles(evento.estado, isPast)}`}
-                            aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
-                          >
-                            <div className="flex min-w-0 items-center justify-between gap-1 sm:items-start sm:gap-2">
-                              <div className="min-w-0 sm:flex-1">
-                                <div className="truncate font-semibold leading-tight sm:hidden">
-                                  {evento.estado}
-                                </div>
-                                <div className="hidden truncate font-semibold leading-tight sm:block">
-                                  {formatTime(evento.horaInicio)} {evento.tipoEvento}
-                                </div>
-                                <div className="mt-0.5 truncate text-[10px] opacity-90 sm:hidden">
-                                  {formatTime(evento.horaInicio)}
-                                </div>
-                                <div className="mt-0.5 hidden items-center gap-1 text-[10px] opacity-90 sm:flex">
-                                  <Clock3 size={10} />
-                                  <span>{formatTime(evento.horaInicio)}-{formatTime(evento.horaFin)}</span>
-                                </div>
-                              </div>
-                              <span className={`hidden shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold sm:inline-flex ${statusBadgeStyles(evento.estado, isPast)}`}>
-                                {evento.estado}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-
-                        {eventosDia.length > 3 && (
-                          <div className="px-1 text-[10px] font-medium text-slate-700">
-                            +{eventosDia.length - 3} más
-                          </div>
-                        )}
-                      </div>
+                {monthPickerOpen && (
+                  <div className="absolute left-1/2 top-full z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 shadow-xl" role="dialog" aria-label="Selector de mes y año">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <button type="button" onClick={() => setMonthPickerYear(year => year - 1)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900" aria-label="Año anterior">
+                        <ChevronRight size={16} className="rotate-180" />
+                      </button>
+                      <span className="text-base font-semibold text-gray-900" aria-live="polite">{monthPickerYear}</span>
+                      <button type="button" onClick={() => setMonthPickerYear(year => year + 1)} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900" aria-label="Año siguiente">
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
-                  )
-                })}
+                    <div className="grid grid-cols-3 gap-1" aria-label="Meses del año">
+                      {MONTH_LABELS.map((label, monthIndex) => {
+                        const selected = monthAnchor.getFullYear() === monthPickerYear && monthAnchor.getMonth() === monthIndex
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => changeMonth(new Date(monthPickerYear, monthIndex, 1))}
+                            className={`rounded-lg px-2 py-2 text-sm hover:bg-indigo-50 ${selected ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button type="button" onClick={goToCurrentMonth} className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">
+                      Ir al mes actual
+                    </button>
+                  </div>
+                )}
               </div>
+
+              <button
+                type="button"
+                onClick={() => moveMonth(1)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
           </div>
 
+          <div className="rounded-2xl bg-white px-3 py-4 shadow-sm ring-1 ring-slate-200 sm:px-4">
+            <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs" aria-label="Días de la semana">
+              {WEEKDAY_LABELS.map(day => (
+                <div key={day} className="py-1">{day}</div>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-7 gap-y-2">
+              {range.days.map(day => {
+                const key = toDateKey(day)
+                const eventosDia = eventosPorDia.get(key) ?? []
+                const tieneEventosActivos = eventosDia.some(evento => evento.estado !== 'Cancelado')
+                const isCurrentMonth = day.getMonth() === monthAnchor.getMonth()
+                const isSelected = key === effectiveSelectedDay
+                const isToday = key === todayDateKey
+                const isPast = key < todayDateKey
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="button"
+                    aria-label={`Eventos del día ${formatLongDayLabel(key)}`}
+                    tabIndex={0}
+                    data-day-key={key}
+                    data-has-events={tieneEventosActivos}
+                    data-is-today={isToday}
+                    data-is-past={isPast}
+                    data-is-current-month={isCurrentMonth}
+                    onClick={() => openDay(key)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        openDay(key)
+                      }
+                    }}
+                    className={`flex min-h-14 flex-col items-center justify-start rounded-xl px-1 py-1 text-sm outline-none transition focus:ring-2 focus:ring-indigo-500/30 sm:min-h-16 ${
+                      isCurrentMonth ? 'text-slate-900' : 'text-slate-400'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : isToday
+                            ? 'ring-2 ring-inset ring-indigo-500 text-indigo-700'
+                            : isCurrentMonth
+                              ? 'text-slate-900'
+                              : 'text-slate-400'
+                      }`}
+                    >
+                      {day.getDate()}
+                    </span>
+                    <span className={`mt-1 h-1.5 w-1.5 rounded-full ${tieneEventosActivos ? 'bg-indigo-600' : 'bg-transparent'}`} aria-hidden="true" />
+                    {isToday && <span className="mt-1 text-[9px] font-bold uppercase tracking-wide text-indigo-600">HOY</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
+            {effectiveSelectedDay && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">{formatSelectedDayLabel(effectiveSelectedDay)}</h2>
+                  <p className="text-sm text-slate-500">
+                    {selectedDayEventos.length === 0
+                      ? 'No hay eventos para este día'
+                      : `${selectedDayEventos.length} evento${selectedDayEventos.length === 1 ? '' : 's'}`}
+                  </p>
+                </div>
+
+                {selectedDayEventos.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                    No hay eventos para este día
+                    <div className="mt-3">
+                      <Button variant="confirm" size="sm" onClick={() => abrirAltaEvento(effectiveSelectedDay)}>
+                        Nuevo Evento
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedDayEventos.map(evento => (
+                      <button
+                        key={evento.id}
+                        type="button"
+                        onClick={() => openEvent(evento.id)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+                        aria-label={`${formatTime(evento.horaInicio)} ${evento.tipoEvento}`}
+                      >
+                        <div className="flex w-16 shrink-0 flex-col items-start text-xs font-semibold text-slate-600">
+                          <span>{formatTime(evento.horaInicio)}</span>
+                          <span className="text-[10px] text-slate-400">{formatTime(evento.horaFin)}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-slate-900">{evento.tipoEvento}</div>
+                          <div className="truncate text-xs text-slate-500">{clientesPorId[evento.clienteId]?.trim() || `Cliente #${evento.clienteId}`}</div>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${statusBadgeStyles(evento.estado)}`}>
+                          {evento.estado}
+                        </span>
+                        <ChevronRight size={16} className="shrink-0 text-slate-300" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {!loading && eventos.length === 0 && !error && (
-            <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm text-gray-500">
               No hay eventos en este rango.
             </div>
           )}
@@ -1674,20 +1707,20 @@ export default function EventosPage() {
       </div>
 
       <Dialog
-        open={selectedDay !== null}
-        onClose={() => setSelectedDay(null)}
+        open={dayDialogOpen && selectedDay !== null}
+        onClose={() => setDayDialogOpen(false)}
         title="Eventos del día"
-        description={selectedDay ? formatLongDayLabel(selectedDay) : undefined}
+        description={effectiveSelectedDay ? formatLongDayLabel(effectiveSelectedDay) : undefined}
         width="md"
-        footer={selectedDay ? (
+        footer={effectiveSelectedDay ? (
           <>
-            <Button variant="secondary" size="sm" onClick={() => setSelectedDay(null)}>
+            <Button variant="secondary" size="sm" onClick={() => setDayDialogOpen(false)}>
               Cerrar
             </Button>
-            {canAddEventFromDay(selectedDay) && (
+            {canAddEventFromDay(effectiveSelectedDay) && (
               <Button variant="confirm" size="sm" onClick={() => {
-                const fechaSeleccionada = selectedDay
-                setSelectedDay(null)
+                const fechaSeleccionada = effectiveSelectedDay
+                setDayDialogOpen(false)
                 abrirAltaEvento(fechaSeleccionada)
               }}>
                 Añadir evento
@@ -1696,7 +1729,7 @@ export default function EventosPage() {
           </>
         ) : undefined}
       >
-        {selectedDay && (
+        {effectiveSelectedDay && (
           <div className="space-y-3">
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
               {selectedDayEventos.length === 0
