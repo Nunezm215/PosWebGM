@@ -61,7 +61,7 @@ export default function LoginPage() {
       } else {
         await pinLogin({ usuario, pin, sucursalId })
       }
-      navigate('/', { replace: true })
+      navigate('/eventos', { replace: true })
       try {
         const nombre = sucursales.find((s: SucursalDto) => s.id === sucursalId)?.nombre ?? 'Central'
         localStorage.setItem('sucursalActiva', JSON.stringify({ id: sucursalId, nombre }))

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationProvider } from './context/NotificationContext'
 import DialogContainer from './components/ui/DialogContainer'
@@ -118,7 +118,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AuthGuard />}>
             <Route element={<Layout />}> 
-              <Route path="/" element={<HomePage />} />
+               <Route path="/" element={<Navigate to="/eventos" replace />} />
                <Route path="/eventos" element={<EventosPage />} />
                <Route path="/oportunidades" element={<OportunidadesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
