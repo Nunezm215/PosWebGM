@@ -14,13 +14,19 @@ namespace PosWeb.Controllers;
 public class EventosController : ControllerBase
 {
     private readonly IEventoService _eventoService;
+    private readonly EventoContratoFirmaService _eventoContratoFirmaService;
+    private readonly EventoDetalleCompartidoService _eventoDetalleCompartidoService;
     private readonly ContratoEventoPdfService _contratoEventoPdfService;
+    private readonly EventoDetallePdfService _eventoDetallePdfService;
     private readonly PosDbContextLocal _context;
 
-    public EventosController(IEventoService eventoService, ContratoEventoPdfService contratoEventoPdfService, PosDbContextLocal context)
+    public EventosController(IEventoService eventoService, EventoContratoFirmaService eventoContratoFirmaService, EventoDetalleCompartidoService eventoDetalleCompartidoService, ContratoEventoPdfService contratoEventoPdfService, EventoDetallePdfService eventoDetallePdfService, PosDbContextLocal context)
     {
         _eventoService = eventoService;
+        _eventoContratoFirmaService = eventoContratoFirmaService;
+        _eventoDetalleCompartidoService = eventoDetalleCompartidoService;
         _contratoEventoPdfService = contratoEventoPdfService;
+        _eventoDetallePdfService = eventoDetallePdfService;
         _context = context;
     }
 
@@ -285,6 +291,80 @@ public class EventosController : ControllerBase
         return Ok(await _eventoService.ObtenerResumenFinancieroAsync(eventoId, cancellationToken));
     }
 
+    [HttpPost("{eventoId:int}/contrato/firma/enlace")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> CrearEnlaceFirmaContrato(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        try
+        {
+            var enlace = await _eventoContratoFirmaService.GenerarEnlaceAsync(eventoId, sucursalId, cancellationToken);
+            return CreatedAtAction(nameof(ObtenerEstadoFirmaContrato), new { eventoId }, enlace);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{eventoId:int}/contrato/firma/estado")]
+    public async Task<ActionResult<EventoContratoFirmaEstadoDto>> ObtenerEstadoFirmaContrato(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        var estado = await _eventoContratoFirmaService.ObtenerEstadoAsync(eventoId, sucursalId, cancellationToken);
+        return estado is null ? NotFound(new { error = "Firma de contrato no encontrada" }) : Ok(estado);
+    }
+
+    [HttpPost("{eventoId:int}/detalle-compartido")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> CrearDetalleCompartido(int eventoId, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (!EsAdminOMas()) return Forbid();
+        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        try
+        {
+            var enlace = await _eventoDetalleCompartidoService.GenerarEnlaceAsync(eventoId, sucursalId, cancellationToken);
+            return CreatedAtAction(nameof(DetalleCompartidoPdfPublico), new { token = enlace.Token }, enlace);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("detalle-compartido/{token}")]
+    public async Task<IActionResult> DetalleCompartidoPdfPublico(string token, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return NotFound(new { error = "Detalle no encontrado" });
+
+        var detalle = await _eventoDetalleCompartidoService.ObtenerActivoPorTokenAsync(token, cancellationToken);
+        if (detalle is null)
+            return NotFound(new { error = "Detalle no encontrado" });
+
+        var evento = await _eventoService.ObtenerPorIdAsync(detalle.ID_EVENTO, null, cancellationToken);
+        if (evento is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        var pdf = await _eventoDetallePdfService.GenerarAsync(evento.Id, evento.SucursalId, cancellationToken);
+        if (pdf is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{pdf.FileName}\"";
+        return File(pdf.Content, "application/pdf");
+    }
+
     [HttpPost("{eventoId:int}/pagos")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
     public async Task<IActionResult> RegistrarPago(int eventoId, [FromBody] CrearPagoEventoRequestDto request, CancellationToken cancellationToken)
@@ -332,6 +412,20 @@ public class EventosController : ControllerBase
 
         Response.Headers["Content-Disposition"] = $"inline; filename=\"{contrato.FileName}\"";
         return File(contrato.Content, "application/pdf");
+    }
+
+    [HttpGet("{id:int}/detalle-pdf")]
+    public async Task<IActionResult> DetallePdf(int id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error))
+            return error;
+
+        var detalle = await _eventoDetallePdfService.GenerarAsync(id, sucursalId, cancellationToken);
+        if (detalle is null)
+            return NotFound(new { error = "Evento no encontrado" });
+
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{detalle.FileName}\"";
+        return File(detalle.Content, "application/pdf");
     }
 
     private bool TryGetCurrentContext(out int usuarioId, out int sucursalId, out ActionResult error)

@@ -126,7 +126,7 @@ export default function Dialog({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 pb-6 pt-2 flex items-center justify-end gap-3 shrink-0"
+          <div className="px-6 pb-6 pt-2 flex flex-wrap items-center justify-end gap-3 shrink-0"
             onKeyDown={(e) => {
               if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
               const buttons = e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled])')

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +10,7 @@ using PosWeb.Data;
 using PosWeb.Domain;
 using PosWeb.Controllers;
 using PosWeb.Testing;
+using UglyToad.PdfPig;
 
 namespace PosWeb.Application.Test.Eventos;
 
@@ -67,6 +69,11 @@ public class EventosControllerTests
         TestHelpers.SetId(otroCliente, OtroClienteId, "ID_CLIENTE");
         context.Cliente.Add(otroCliente);
 
+        if (!context.MedioPago.Any())
+        {
+            context.MedioPago.Add(new MedioPago(9101, "EFECTIVO_TEST", "Efectivo", true));
+        }
+
         await context.SaveChangesAsync();
     }
 
@@ -74,8 +81,11 @@ public class EventosControllerTests
     {
         var repo = new EventoRepository(context);
         var service = new EventoService(repo);
+        var firmaService = new EventoContratoFirmaService(repo, context);
+        var detalleCompartidoService = new EventoDetalleCompartidoService(repo, context);
         var contratoService = new ContratoEventoPdfService(repo, context);
-        var controller = new EventosController(service, contratoService, context)
+        var detalleService = new EventoDetallePdfService(repo, service);
+        var controller = new EventosController(service, firmaService, detalleCompartidoService, contratoService, detalleService, context)
         {
             ControllerContext = new ControllerContext
             {
@@ -121,6 +131,13 @@ public class EventosControllerTests
             MontoTotal = 100000m,
             Observaciones = "Sin alcohol"
         };
+
+    private static string LeerTextoPdf(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var pdf = PdfDocument.Open(stream);
+        return string.Join("\n", pdf.GetPages().Select(page => page.Text));
+    }
 
     private static async Task<Evento> CrearEventoPersistidoAsync(PosDbContextLocal context, int clienteId = ClienteId, int usuarioId = UsuarioId, int sucursalId = SucursalId, DateOnly? fecha = null, TimeOnly? inicio = null, TimeOnly? fin = null)
     {
@@ -545,8 +562,11 @@ public class EventosControllerTests
             await SeedAsync(context);
             var repo = new EventoRepository(context);
             var service = new EventoService(repo);
+            var firmaService = new EventoContratoFirmaService(repo, context);
+            var detalleCompartidoService = new EventoDetalleCompartidoService(repo, context);
             var contratoService = new ContratoEventoPdfService(repo, context);
-            var controller = new EventosController(service, contratoService, context)
+            var detalleService = new EventoDetallePdfService(repo, service);
+            var controller = new EventosController(service, firmaService, detalleCompartidoService, contratoService, detalleService, context)
             {
                 ControllerContext = new ControllerContext
                 {
@@ -613,6 +633,117 @@ public class EventosControllerTests
             var controller = CrearController(context, Roles.UsuarioComun);
 
             var result = await controller.Contrato(999999, CancellationToken.None);
+
+            Assert.IsType<NotFoundObjectResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Detalle_pdf_devuelve_pdf_y_no_modifica_datos()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var totalAntes = await context.Evento.CountAsync();
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.DetallePdf(evento.ID_EVENTO, CancellationToken.None);
+
+            var file = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("application/pdf", file.ContentType);
+            Assert.NotEmpty(file.FileContents);
+            Assert.Equal(totalAntes, await context.Evento.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Detalle_pdf_evento_inexistente_devuelve_404()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var controller = CrearController(context, Roles.UsuarioComun);
+
+            var result = await controller.DetallePdf(999999, CancellationToken.None);
+
+            Assert.IsType<NotFoundObjectResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Detalle_compartido_publico_devuelve_pdf_dinamico_con_saldo_actualizado()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var controller = CrearController(context, Roles.Admin);
+
+            var creado = await controller.CrearDetalleCompartido(evento.ID_EVENTO, CancellationToken.None);
+            var enlace = Assert.IsType<CreatedAtActionResult>(creado);
+            var dto = Assert.IsType<EventoDetalleCompartidoEnlaceDto>(enlace.Value);
+
+            var antes = await controller.DetalleCompartidoPdfPublico(dto.Token, CancellationToken.None);
+            var pdfAntes = Assert.IsType<FileContentResult>(antes);
+            var textoAntes = LeerTextoPdf(pdfAntes.FileContents);
+            Assert.Contains("$ 100.000,00", textoAntes);
+            Assert.Contains("SALDO PENDIENTE", textoAntes);
+
+            var medioPagoId = await context.MedioPago.Where(m => m.ACTIVO).Select(m => m.ID_MEDIO_PAGO).FirstAsync();
+            var eventoService = new EventoService(new EventoRepository(context));
+            await eventoService.RegistrarPagoEventoAsync(evento.ID_EVENTO, new CrearPagoEventoRequestDto { MedioPagoId = medioPagoId, Monto = 50000m, Observacion = "Seña" }, UsuarioId);
+
+            var despues = await controller.DetalleCompartidoPdfPublico(dto.Token, CancellationToken.None);
+            var pdfDespues = Assert.IsType<FileContentResult>(despues);
+            var textoDespues = LeerTextoPdf(pdfDespues.FileContents);
+            Assert.Contains("$ 50.000,00", textoDespues);
+            Assert.Contains("$ 50.000,00", textoDespues);
+            Assert.DoesNotContain("Saldo pendiente: $ 100.000,00", textoDespues);
+        }
+    }
+
+    [Fact]
+    public async Task Detalle_compartido_publico_token_invalido_devuelve_404()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var controller = CrearController(context, Roles.Admin);
+
+            var result = await controller.DetalleCompartidoPdfPublico("token-invalido", CancellationToken.None);
+
+            Assert.IsType<NotFoundObjectResult>(result);
+        }
+    }
+
+    [Fact]
+    public async Task Detalle_compartido_publico_token_revocado_devuelve_404()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        await using (connection)
+        await using (context)
+        {
+            await SeedAsync(context);
+            var evento = await CrearEventoPersistidoAsync(context);
+            var controller = CrearController(context, Roles.Admin);
+            var creado = await controller.CrearDetalleCompartido(evento.ID_EVENTO, CancellationToken.None);
+            var enlace = Assert.IsType<CreatedAtActionResult>(creado);
+            var dto = Assert.IsType<EventoDetalleCompartidoEnlaceDto>(enlace.Value);
+
+            var entidad = await context.EventoDetalleCompartido.SingleAsync();
+            entidad.Revocar(DateTime.UtcNow);
+            await context.SaveChangesAsync();
+
+            var result = await controller.DetalleCompartidoPdfPublico(dto.Token, CancellationToken.None);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }

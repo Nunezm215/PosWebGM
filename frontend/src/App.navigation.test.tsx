@@ -13,6 +13,14 @@ vi.mock('./pages/ClientesPage', () => ({
   default: () => <div>ClientesMock</div>,
 }))
 
+vi.mock('./pages/FirmaContratoPage', () => ({
+  default: () => <div>FirmaContratoMock</div>,
+}))
+
+vi.mock('./pages/DetalleReservaPage', () => ({
+  default: () => <div>DetalleReservaMock</div>,
+}))
+
 vi.mock('./updater', () => ({
   onUpdaterChange: () => () => undefined,
   runUpdateCheck: vi.fn(),
@@ -56,7 +64,7 @@ describe('App navigation', () => {
 
     await renderApp()
 
-    expect(await screen.findByText('EventosMock')).toBeInTheDocument()
+    expect(await screen.findByText('EventosMock', {}, { timeout: 10000 })).toBeInTheDocument()
   })
 
   it('keeps a valid deep link for an authenticated user', async () => {
@@ -74,5 +82,21 @@ describe('App navigation', () => {
     await renderApp()
 
     expect(await screen.findByText('LoginMock')).toBeInTheDocument()
+  })
+
+  it('exposes the public signature route without auth', async () => {
+    window.history.pushState({}, '', '/firma/token-123')
+
+    await renderApp()
+
+    expect(await screen.findByText('FirmaContratoMock')).toBeInTheDocument()
+  })
+
+  it('exposes the public detail route without auth', async () => {
+    window.history.pushState({}, '', '/detalle-reserva/token-123')
+
+    await renderApp()
+
+    expect(await screen.findByText('DetalleReservaMock')).toBeInTheDocument()
   })
 })

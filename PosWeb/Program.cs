@@ -133,7 +133,10 @@ builder.Services.AddScoped<OfertaService>();
 builder.Services.AddScoped<CategoriaGastoService>();
 builder.Services.AddScoped<IEventoRepository, EventoRepository>();
 builder.Services.AddScoped<IEventoService, EventoService>();
+builder.Services.AddScoped<EventoContratoFirmaService>();
+builder.Services.AddScoped<EventoDetalleCompartidoService>();
 builder.Services.AddScoped<ContratoEventoPdfService>();
+builder.Services.AddScoped<EventoDetallePdfService>();
 
 // MercadoPago
 var mpEncryptionKey = builder.Configuration["MercadoPago:EncryptionKey"]

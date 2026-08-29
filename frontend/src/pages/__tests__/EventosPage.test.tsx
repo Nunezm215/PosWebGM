@@ -13,6 +13,9 @@ const apiState = vi.hoisted(() => ({
   crearCliente: vi.fn(),
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
+  generarDetalleCompartido: vi.fn(),
+  obtenerContratoFirmaEstado: vi.fn(),
+  generarContratoFirmaEnlace: vi.fn(),
   listarCargos: vi.fn(),
   agregarCargo: vi.fn(),
   anularCargo: vi.fn(),
@@ -41,6 +44,9 @@ vi.mock('../../api/client', () => ({
       listarPagos: apiState.listarPagos,
       resumenFinanciero: apiState.resumenFinanciero,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
+      generarDetalleCompartido: apiState.generarDetalleCompartido,
+      obtenerContratoFirmaEstado: apiState.obtenerContratoFirmaEstado,
+      generarContratoFirmaEnlace: apiState.generarContratoFirmaEnlace,
     },
     clientes: {
       listar: apiState.listarClientes,
@@ -84,6 +90,9 @@ describe('EventosPage', () => {
     apiState.crearCliente.mockReset()
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
+    apiState.generarDetalleCompartido.mockReset()
+    apiState.obtenerContratoFirmaEstado.mockReset()
+    apiState.generarContratoFirmaEnlace.mockReset()
     apiState.listarCargos.mockReset()
     apiState.agregarCargo.mockReset()
     apiState.anularCargo.mockReset()
@@ -110,6 +119,45 @@ describe('EventosPage', () => {
       activo: true,
     })
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
+    apiState.generarDetalleCompartido.mockResolvedValue({
+      eventoId: 1,
+      solicitudId: 77,
+      token: 'token-abc',
+      urlPublica: '/detalle-reserva/token-abc',
+      creadoEnUtc: '2026-08-15T12:00:00Z',
+      venceEnUtc: '2026-09-14T12:00:00Z',
+    })
+    apiState.obtenerContratoFirmaEstado.mockResolvedValue(null)
+    apiState.generarContratoFirmaEnlace.mockResolvedValue({
+      eventoId: 1,
+      solicitudId: 99,
+      token: 'token-abc',
+      urlPublica: '/api/contratos-firma/token-abc',
+      estado: 'Pendiente',
+      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
+      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
+      snapshot: {
+        eventoId: 1,
+        clienteId: 1,
+        clienteNombre: 'Juan Pérez',
+        clienteTipoDocumento: 'DNI',
+        clienteNumeroDocumento: '12345678',
+        clienteTelefono: '+54 11-1234-5678',
+        clienteDomicilio: 'Calle 123',
+        clienteMail: 'cliente@correo.com',
+        sucursalId: 1,
+        salonNombre: 'Salon Norte',
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estadoEvento: 'Reservado',
+        fechaCreacionUtc: '2026-08-10T12:00:00Z',
+      },
+    })
     apiState.listarCargos.mockResolvedValue([])
     apiState.agregarCargo.mockResolvedValue({})
     apiState.anularCargo.mockResolvedValue(undefined)
@@ -2024,17 +2072,19 @@ describe('EventosPage', () => {
     expect(within(dialog).getByText('Pedro')).toBeInTheDocument()
     expect(within(dialog).queryByText('Usuario #1')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Contrato' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Compartir detalle' })).toBeInTheDocument()
     expect(await within(dialog).findByText('Contacto')).toBeInTheDocument()
     expect(await within(dialog).findByText('+54 11-1234-5678')).toBeInTheDocument()
     expect(await within(dialog).findByRole('link', { name: 'Llamar' })).toHaveAttribute('href', 'tel:+541112345678')
     const whatsappLink = await within(dialog).findByRole('link', { name: 'WhatsApp' })
-    expect(whatsappLink).toHaveAttribute('href', 'https://wa.me/541112345678')
+    expect(whatsappLink).toHaveAttribute('href', 'https://wa.me/5491112345678')
     expect(whatsappLink).toHaveAttribute('target', '_blank')
     expect(whatsappLink.getAttribute('rel')).toContain('noopener')
     expect(whatsappLink.getAttribute('rel')).toContain('noreferrer')
     expect(whatsappLink.getAttribute('href')).not.toContain('text=')
     expect(within(dialog).queryByText(/Sucursal/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cambiar estado' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancelar evento' })).not.toBeInTheDocument()
   })
 
@@ -2196,10 +2246,11 @@ describe('EventosPage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
 
     const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
-    expect(within(contratoDialog).getByRole('button', { name: 'Ver contrato' })).toBeInTheDocument()
-    expect(within(contratoDialog).queryByRole('button', { name: 'Imprimir contrato' })).not.toBeInTheDocument()
+    expect(within(contratoDialog).getByRole('button', { name: 'Ver contrato PDF' })).toBeInTheDocument()
+    expect(within(contratoDialog).getByRole('button', { name: 'Enviar para firmar' })).toBeInTheDocument()
+    expect(within(contratoDialog).getByText('Sin solicitud')).toBeInTheDocument()
 
-    await user.click(within(contratoDialog).getByRole('button', { name: 'Ver contrato' }))
+    await user.click(within(contratoDialog).getByRole('button', { name: 'Ver contrato PDF' }))
 
     await waitFor(() => expect(apiState.obtenerContratoPdf).toHaveBeenCalledWith(1))
     expect(openSpy).toHaveBeenCalledWith('blob:contrato', '_blank', 'noopener,noreferrer')
@@ -2207,6 +2258,344 @@ describe('EventosPage', () => {
     objectUrlSpy.mockRestore()
     revokeSpy.mockRestore()
     openSpy.mockRestore()
+  })
+
+  it('shares the event detail via WhatsApp with a public link', async () => {
+    const eventDate = dateKeyFromToday(1)
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: eventDate,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: eventDate,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Compartir detalle' }))
+
+    await waitFor(() => expect(apiState.generarDetalleCompartido).toHaveBeenCalledWith(1))
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('https://wa.me/5491112345678?text='), '_blank', 'noopener,noreferrer')
+    expect(decodeURIComponent((openSpy.mock.calls[0]?.[0] as string).split('?text=')[1] ?? '')).toContain('http://localhost:3000/detalle-reserva/token-abc')
+
+    openSpy.mockRestore()
+  })
+
+  it('shows an error when the client has no valid whatsapp phone', async () => {
+    const eventDate = dateKeyFromToday(1)
+    apiState.listarClientes.mockResolvedValueOnce({
+      items: [
+        { id: 1, nombre: 'Juan Pérez', telefono: '   ' },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 1000,
+      totalPages: 1,
+    })
+    apiState.obtenerCliente.mockResolvedValueOnce({
+      id: 1,
+      nombre: 'Juan Pérez',
+      tipoDocumento: 'DNI',
+      numeroDocumento: '12345678',
+      ivaCondicion: 'ConsumidorFinal',
+      telefono: '   ',
+      domicilio: '',
+      mail: '',
+      activo: true,
+    })
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: eventDate,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: eventDate, horaInicio: '18:00:00', horaFin: '22:00:00', tipoEvento: 'Cumpleaños', cantidadInvitados: 50, montoTotal: 500000, observaciones: 'Sin alcohol', estado: 'Reservado', fechaCreacion: '2026-08-10T12:00:00' }])
+    apiState.generarDetalleCompartido.mockResolvedValueOnce({
+      eventoId: 1,
+      solicitudId: 88,
+      token: 'token-abc',
+      urlPublica: '/detalle-reserva/token-abc',
+      creadoEnUtc: '2026-08-15T12:00:00Z',
+      venceEnUtc: '2026-09-14T12:00:00Z',
+    })
+
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Compartir detalle' }))
+
+    expect(await within(dialog).findByText('No hay un teléfono válido cargado para esta reserva.')).toBeInTheDocument()
+    expect(openSpy).not.toHaveBeenCalled()
+
+    openSpy.mockRestore()
+  })
+
+  it('keeps the share button disabled while generating the link', async () => {
+    const eventDate = dateKeyFromToday(1)
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: eventDate,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: eventDate, horaInicio: '18:00:00', horaFin: '22:00:00', tipoEvento: 'Cumpleaños', cantidadInvitados: 50, montoTotal: 500000, observaciones: 'Sin alcohol', estado: 'Reservado', fechaCreacion: '2026-08-10T12:00:00' }])
+    let resolveShare!: (value: { eventoId: number; solicitudId: number; token: string; urlPublica: string; creadoEnUtc: string; venceEnUtc: string }) => void
+    const pendingShare = new Promise<{ eventoId: number; solicitudId: number; token: string; urlPublica: string; creadoEnUtc: string; venceEnUtc: string }>(resolve => { resolveShare = resolve })
+    apiState.generarDetalleCompartido.mockReturnValueOnce(pendingShare)
+
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    const shareButton = within(dialog).getByRole('button', { name: 'Compartir detalle' })
+
+    await user.click(shareButton)
+    expect(shareButton).toBeDisabled()
+    await user.click(shareButton)
+    expect(apiState.generarDetalleCompartido).toHaveBeenCalledTimes(1)
+
+    resolveShare({ eventoId: 1, solicitudId: 88, token: 'token-abc', urlPublica: '/detalle-reserva/token-abc', creadoEnUtc: '2026-08-15T12:00:00Z', venceEnUtc: '2026-09-14T12:00:00Z' })
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1))
+
+    openSpy.mockRestore()
+  })
+
+  it('generates a signing link, shows pending status, and copies it', async () => {
+    const eventDate = dateKeyFromToday(1)
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: eventDate,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: eventDate,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+    apiState.obtenerContratoFirmaEstado.mockResolvedValueOnce({
+      eventoId: 1,
+      solicitudId: 77,
+      estado: 'Pendiente',
+      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
+      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
+      fechaFirmaUtc: null,
+      fechaRevocacionUtc: null,
+      snapshot: {
+        eventoId: 1,
+        clienteId: 1,
+        clienteNombre: 'Juan Pérez',
+        clienteTipoDocumento: 'DNI',
+        clienteNumeroDocumento: '12345678',
+        clienteTelefono: '+54 11-1234-5678',
+        clienteDomicilio: 'Calle 123',
+        clienteMail: 'cliente@correo.com',
+        sucursalId: 1,
+        salonNombre: 'Salon Norte',
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estadoEvento: 'Reservado',
+        fechaCreacionUtc: '2026-08-10T12:00:00Z',
+      },
+    })
+
+    const clipboard = navigator.clipboard as { writeText?: (value: string) => Promise<void> } | undefined
+    const clipboardWrite = clipboard?.writeText ? vi.spyOn(clipboard, 'writeText').mockResolvedValue(undefined) : null
+    const execCommandMock = clipboardWrite ? null : vi.fn(() => true)
+    if (execCommandMock) {
+      Object.defineProperty(document, 'execCommand', {
+        value: execCommandMock,
+        configurable: true,
+      })
+    }
+
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
+
+    const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
+    await user.click(within(contratoDialog).getByRole('button', { name: 'Enviar para firmar' }))
+
+    expect(await within(contratoDialog).findByText('Pendiente de firma')).toBeInTheDocument()
+    expect(await within(contratoDialog).findByDisplayValue(/\/firma\/token-abc/)).toBeInTheDocument()
+
+    await user.click(within(contratoDialog).getByRole('button', { name: 'Copiar enlace' }))
+    if (clipboardWrite) {
+      await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith(expect.stringContaining('/firma/token-abc')))
+      clipboardWrite.mockRestore()
+    } else {
+      await waitFor(() => expect(execCommandMock).toHaveBeenCalledWith('copy'))
+    }
+    expect(await within(contratoDialog).findByRole('button', { name: 'Copiado' })).toBeInTheDocument()
+  })
+
+  it('shows signed contract state', async () => {
+    const eventDate = dateKeyFromToday(1)
+    apiState.obtenerPorId.mockResolvedValueOnce({
+      id: 1,
+      clienteId: 1,
+      usuarioCreadorId: 1,
+      sucursalId: 1,
+      fecha: eventDate,
+      horaInicio: '18:00:00',
+      horaFin: '22:00:00',
+      tipoEvento: 'Cumpleaños',
+      cantidadInvitados: 50,
+      montoTotal: 500000,
+      observaciones: 'Sin alcohol',
+      estado: 'Reservado',
+      fechaCreacion: '2026-08-10T12:00:00',
+    })
+    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 1,
+        clienteId: 1,
+        usuarioCreadorId: 1,
+        sucursalId: 1,
+        fecha: eventDate,
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estado: 'Reservado',
+        fechaCreacion: '2026-08-10T12:00:00',
+      },
+    ])
+    apiState.obtenerContratoFirmaEstado.mockResolvedValueOnce({
+      eventoId: 1,
+      solicitudId: 77,
+      estado: 'Firmado',
+      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
+      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
+      fechaFirmaUtc: '2026-08-16T12:00:00Z',
+      fechaRevocacionUtc: null,
+      snapshot: {
+        eventoId: 1,
+        clienteId: 1,
+        clienteNombre: 'Juan Pérez',
+        clienteTipoDocumento: 'DNI',
+        clienteNumeroDocumento: '12345678',
+        clienteTelefono: '+54 11-1234-5678',
+        clienteDomicilio: 'Calle 123',
+        clienteMail: 'cliente@correo.com',
+        sucursalId: 1,
+        salonNombre: 'Salon Norte',
+        fecha: '2026-08-15',
+        horaInicio: '18:00:00',
+        horaFin: '22:00:00',
+        tipoEvento: 'Cumpleaños',
+        cantidadInvitados: 50,
+        montoTotal: 500000,
+        observaciones: 'Sin alcohol',
+        estadoEvento: 'Reservado',
+        fechaCreacionUtc: '2026-08-10T12:00:00Z',
+      },
+    })
+
+    await renderPage()
+    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
+
+    const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
+    expect(await within(contratoDialog).findByText('Firmado')).toBeInTheDocument()
+    expect(within(contratoDialog).queryByText('Sin solicitud')).not.toBeInTheDocument()
+    expect(within(contratoDialog).queryByRole('button', { name: 'Copiar enlace' })).not.toBeInTheDocument()
   })
 
   it('shows the 10 nearest upcoming events and skips cancelados', async () => {
@@ -2431,7 +2820,7 @@ describe('EventosPage', () => {
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-25',
+        fecha: dateKeyFromToday(1),
         horaInicio: '09:00:00',
         horaFin: '10:00:00',
         tipoEvento: 'Cumpleaños',
@@ -2446,7 +2835,7 @@ describe('EventosPage', () => {
         clienteId: 2,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-26',
+        fecha: dateKeyFromToday(2),
         horaInicio: '10:00:00',
         horaFin: '11:00:00',
         tipoEvento: 'Reunión',
@@ -2461,7 +2850,7 @@ describe('EventosPage', () => {
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-24',
+        fecha: dateKeyFromToday(3),
         horaInicio: '11:00:00',
         horaFin: '12:00:00',
         tipoEvento: 'Evento Cancelado',
@@ -2565,13 +2954,14 @@ describe('EventosPage', () => {
   }, 30000)
 
   it('shows empty and error states for the global search and clears back to upcoming events', async () => {
+    const eventDate = dateKeyFromToday(1)
     apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
       {
         id: 1,
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-25',
+        fecha: eventDate,
         horaInicio: '11:00:00',
         horaFin: '12:00:00',
         tipoEvento: 'Evento 1',
@@ -2657,6 +3047,8 @@ describe('EventosPage', () => {
   }, 30000)
 
   it('shows the reservador in each upcoming event card using the shared client cache', async () => {
+    const firstEventDate = dateKeyFromToday(1)
+    const secondEventDate = dateKeyFromToday(2)
     apiState.listarClientes.mockResolvedValueOnce({
       items: [
         { id: 1, nombre: 'Juan Pérez' },
@@ -2673,7 +3065,7 @@ describe('EventosPage', () => {
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-25',
+        fecha: firstEventDate,
         horaInicio: '21:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -2688,7 +3080,7 @@ describe('EventosPage', () => {
         clienteId: 2,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-26',
+        fecha: secondEventDate,
         horaInicio: '22:00:00',
         horaFin: '23:00:00',
         tipoEvento: 'Reunión',
@@ -2713,6 +3105,7 @@ describe('EventosPage', () => {
   }, 30000)
 
   it('falls back to Cliente #ID when the client is not in the cache', async () => {
+    const eventDate = dateKeyFromToday(1)
     apiState.listarClientes.mockResolvedValueOnce({
       items: [],
       totalCount: 0,
@@ -2726,7 +3119,7 @@ describe('EventosPage', () => {
         clienteId: 23,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-25',
+        fecha: eventDate,
         horaInicio: '21:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -2741,7 +3134,7 @@ describe('EventosPage', () => {
     await renderPage()
     await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
 
-    const clientCard = screen.getByRole('button', { name: '21:00 Cumpleaños' })
+    const clientCard = await screen.findByRole('button', { name: '21:00 Cumpleaños' })
     expect(clientCard.textContent).toContain('Reservado por: Cliente #23')
   }, 30000)
 
