@@ -1,4 +1,4 @@
-import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CrearUsuarioRequest, EditarUsuarioRequest, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto, MarcarOportunidadCumpleaniosAtendidaRequestDto, OportunidadCumpleaniosAtendidaResponseDto, CargoExtraEventoDto, CrearCargoExtraEventoRequestDto, AnularCargoExtraEventoRequestDto, PagoEventoDto, CrearPagoEventoRequestDto, AnularPagoEventoRequestDto, ResumenFinancieroEventoDto, CajaDiariaDto, CajaDiariaResumenDto, CajaMensualDto, EventoContratoFirmaEnlaceDto, EventoContratoFirmaEstadoDto, EventoContratoFirmaPublicoDto, EventoDetalleCompartidoEnlaceDto } from '../types'
+import type { ProductoDto, ProductoUpsertDto, ProductoDetailDto, SucursalDto, VentaDto, VentaResultadoDto, StockSucursalDto, CompraRequestDto, CompraResponseDto, VentaHistorialDto, VentaDetalleDto, PagedResult, VentaHistorialParams, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, ClienteDto, MedioPagoDto, CajaDto, AbrirCajaRequest, CerrarCajaRequest, CierrePreviewDto, GastoDto, CrearGastoRequest, GastoListResponse, UsuarioListadoDto, CrearUsuarioRequest, EditarUsuarioRequest, CambiarSuscripcionResponse, ProveedorDto, CrearProveedorRequestDto, DeudaDto, PagarDeudaRequestDto, CategoriaDto, CrearCategoriaRequest, ActualizarCategoriaRequest, UnidadMedidaDto, CrearUnidadMedidaRequest, ActualizarUnidadMedidaRequest, ProductoLookupResponseDto, ProximoCodigoResponse, EstadisticasDto, PedidoListDto, PedidoDetailDto, PedidoRequestDto, RecibirPedidoRequestDto, ComboDto, ComboUpsertDto, OfertaDto, OfertaUpsertDto, CategoriaGastoDto, CategoriaGastoListResponse, PagoDeudaDto, CuentaCorrienteDto, MercadoPagoEstadoDto, EventoDto, BuscarEventoResponseDto, CrearEventoRequestDto, EditarEventoRequestDto, ActualizarEstadoEventoRequestDto, DisponibilidadEventoResponseDto, ProximoCumpleaniosResponseDto, MarcarOportunidadCumpleaniosAtendidaRequestDto, OportunidadCumpleaniosAtendidaResponseDto, CargoExtraEventoDto, CrearCargoExtraEventoRequestDto, AnularCargoExtraEventoRequestDto, PagoEventoDto, CrearPagoEventoRequestDto, AnularPagoEventoRequestDto, ResumenFinancieroEventoDto, CajaDiariaDto, CajaDiariaResumenDto, CajaMensualDto, EventoDetalleCompartidoEnlaceDto } from '../types'
 
 function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -174,35 +174,6 @@ async function requestBlob(url: string, options?: RequestInit & { noAuth?: boole
   }
 }
 
-async function requestMaybe<T>(url: string, options?: RequestInit & { noAuth?: boolean }): Promise<T | null> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options?.noAuth ? {} : getAuthHeaders()),
-  }
-
-  if (options?.headers) {
-    Object.assign(headers, options.headers)
-  }
-
-  const res = await fetch(`${BASE}${url}`, {
-    ...options,
-    headers,
-  })
-
-  if (res.status === 404) return null
-  if (!res.ok) {
-    const text = await res.text()
-    let message = text
-    try {
-      const parsed = JSON.parse(text)
-      message = parsed.error || parsed.title || parsed.message || text
-    } catch {}
-    throw new Error(message)
-  }
-
-  return res.status === 204 ? null : res.json()
-}
-
 export const api = {
   // Auth
   auth: {
@@ -275,12 +246,6 @@ export const api = {
     obtenerDetallePdf: (id: number) => requestBlob(`/eventos/${id}/detalle-pdf`),
     generarDetalleCompartido: (id: number) => request<EventoDetalleCompartidoEnlaceDto>(`/eventos/${id}/detalle-compartido`, { method: 'POST' }),
     obtenerDetalleCompartidoPdf: (token: string) => requestBlob(`/eventos/detalle-compartido/${encodeURIComponent(token)}`, { noAuth: true }),
-    generarContratoFirmaEnlace: (id: number) => request<EventoContratoFirmaEnlaceDto>(`/eventos/${id}/contrato/firma/enlace`, { method: 'POST' }),
-    obtenerContratoFirmaEstado: (id: number) => requestMaybe<EventoContratoFirmaEstadoDto>(`/eventos/${id}/contrato/firma/estado`),
-  },
-
-  contratosFirma: {
-    obtenerPorToken: (token: string) => requestMaybe<EventoContratoFirmaPublicoDto>(`/contratos-firma/${encodeURIComponent(token)}`, { noAuth: true }),
   },
 
   // Productos

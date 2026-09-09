@@ -8,6 +8,7 @@ public partial class PosDbContext
     internal static void ConfigureEntities(ModelBuilder modelBuilder)
     {
         ConfigureEvento(modelBuilder);
+        ConfigureEventoDetalleCompartido(modelBuilder);
         ConfigureCargoExtraEvento(modelBuilder);
         ConfigurePagoEvento(modelBuilder);
 

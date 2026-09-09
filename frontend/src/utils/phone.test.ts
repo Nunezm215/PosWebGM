@@ -19,6 +19,18 @@ describe('phone helpers', () => {
     expect(buildTelHref('5491112345678')).toBe('tel:+5491112345678')
   })
 
+  it('normalizes common argentine whatsapp formats', () => {
+    expect(buildWhatsAppHref('11 1234-5678')).toBe('https://wa.me/5491112345678')
+    expect(buildWhatsAppHref('01112345678')).toBe('https://wa.me/5491112345678')
+    expect(buildWhatsAppHref('+54 9 11 1234-5678')).toBe('https://wa.me/5491112345678')
+    expect(buildWhatsAppHref('5491112345678')).toBe('https://wa.me/5491112345678')
+  })
+
+  it('returns no whatsapp link for empty or invalid numbers', () => {
+    expect(buildWhatsAppHref('')).toBe('')
+    expect(buildWhatsAppHref('abc')).toBe('')
+  })
+
   it('derives local digit counts, labels and placeholders', () => {
     expect(getArgentinaPhoneLocalDigits('54911')).toBe(8)
     expect(getArgentinaPhoneLocalDigits('549221')).toBe(7)

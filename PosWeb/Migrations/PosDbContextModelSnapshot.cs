@@ -570,6 +570,47 @@ namespace PosWeb.Migrations
                     b.ToTable("EVENTO", (string)null);
                 });
 
+            modelBuilder.Entity("PosWeb.Domain.EventoDetalleCompartido", b =>
+                {
+                    b.Property<int>("ID_EVENTO_DETALLE_COMPARTIDO")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ID_EVENTO_DETALLE_COMPARTIDO");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ID_EVENTO_DETALLE_COMPARTIDO"));
+
+                    b.Property<DateTime>("CREADO_EN_UTC")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("CREADO_EN_UTC");
+
+                    b.Property<int>("ID_EVENTO")
+                        .HasColumnType("int")
+                        .HasColumnName("ID_EVENTO");
+
+                    b.Property<DateTime?>("REVOCADO_EN_UTC")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("REVOCADO_EN_UTC");
+
+                    b.Property<string>("TOKEN_HASH")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("TOKEN_HASH");
+
+                    b.Property<DateTime>("VENCE_EN_UTC")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("VENCE_EN_UTC");
+
+                    b.HasKey("ID_EVENTO_DETALLE_COMPARTIDO");
+
+                    b.HasIndex("ID_EVENTO");
+
+                    b.HasIndex("TOKEN_HASH")
+                        .IsUnique();
+
+                    b.ToTable("EVENTO_DETALLE_COMPARTIDO", (string)null);
+                });
+
             modelBuilder.Entity("PosWeb.Domain.FamiliarCliente", b =>
                 {
                     b.Property<int>("ID_FAMILIAR_CLIENTE")
@@ -1843,6 +1884,15 @@ namespace PosWeb.Migrations
                     b.Navigation("Sucursal");
 
                     b.Navigation("UsuarioCreador");
+                });
+
+            modelBuilder.Entity("PosWeb.Domain.EventoDetalleCompartido", b =>
+                {
+                    b.HasOne("PosWeb.Domain.Evento", null)
+                        .WithMany()
+                        .HasForeignKey("ID_EVENTO")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PosWeb.Domain.FamiliarCliente", b =>

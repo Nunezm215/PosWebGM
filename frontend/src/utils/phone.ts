@@ -88,7 +88,19 @@ export function buildTelHref(phone: string) {
   return digits ? `tel:+${digits}` : ''
 }
 
+function normalizeArgentinaWhatsAppDigits(phone: string) {
+  const digits = sanitizePhoneDigits(phone).replace(/^0+/, '')
+  if (!digits) return ''
+
+  const parsed = parseArgentinaPhone(digits)
+  if (parsed.recognized) {
+    return buildArgentinaPhone(parsed.code, parsed.local)
+  }
+
+  return digits
+}
+
 export function buildWhatsAppHref(phone: string) {
-  const digits = sanitizePhoneDigits(phone)
+  const digits = normalizeArgentinaWhatsAppDigits(phone)
   return digits ? `https://wa.me/${digits}` : ''
 }

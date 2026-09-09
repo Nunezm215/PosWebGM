@@ -14,16 +14,14 @@ namespace PosWeb.Controllers;
 public class EventosController : ControllerBase
 {
     private readonly IEventoService _eventoService;
-    private readonly EventoContratoFirmaService _eventoContratoFirmaService;
     private readonly EventoDetalleCompartidoService _eventoDetalleCompartidoService;
     private readonly ContratoEventoPdfService _contratoEventoPdfService;
     private readonly EventoDetallePdfService _eventoDetallePdfService;
     private readonly PosDbContextLocal _context;
 
-    public EventosController(IEventoService eventoService, EventoContratoFirmaService eventoContratoFirmaService, EventoDetalleCompartidoService eventoDetalleCompartidoService, ContratoEventoPdfService contratoEventoPdfService, EventoDetallePdfService eventoDetallePdfService, PosDbContextLocal context)
+    public EventosController(IEventoService eventoService, EventoDetalleCompartidoService eventoDetalleCompartidoService, ContratoEventoPdfService contratoEventoPdfService, EventoDetallePdfService eventoDetallePdfService, PosDbContextLocal context)
     {
         _eventoService = eventoService;
-        _eventoContratoFirmaService = eventoContratoFirmaService;
         _eventoDetalleCompartidoService = eventoDetalleCompartidoService;
         _contratoEventoPdfService = contratoEventoPdfService;
         _eventoDetallePdfService = eventoDetallePdfService;
@@ -289,37 +287,6 @@ public class EventosController : ControllerBase
         if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
             return NotFound(new { error = "Evento no encontrado" });
         return Ok(await _eventoService.ObtenerResumenFinancieroAsync(eventoId, cancellationToken));
-    }
-
-    [HttpPost("{eventoId:int}/contrato/firma/enlace")]
-    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
-    public async Task<IActionResult> CrearEnlaceFirmaContrato(int eventoId, CancellationToken cancellationToken)
-    {
-        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
-        if (!EsAdminOMas()) return Forbid();
-        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        try
-        {
-            var enlace = await _eventoContratoFirmaService.GenerarEnlaceAsync(eventoId, sucursalId, cancellationToken);
-            return CreatedAtAction(nameof(ObtenerEstadoFirmaContrato), new { eventoId }, enlace);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
-    [HttpGet("{eventoId:int}/contrato/firma/estado")]
-    public async Task<ActionResult<EventoContratoFirmaEstadoDto>> ObtenerEstadoFirmaContrato(int eventoId, CancellationToken cancellationToken)
-    {
-        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
-        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        var estado = await _eventoContratoFirmaService.ObtenerEstadoAsync(eventoId, sucursalId, cancellationToken);
-        return estado is null ? NotFound(new { error = "Firma de contrato no encontrada" }) : Ok(estado);
     }
 
     [HttpPost("{eventoId:int}/detalle-compartido")]

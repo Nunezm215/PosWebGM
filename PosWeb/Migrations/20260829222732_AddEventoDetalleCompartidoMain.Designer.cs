@@ -573,66 +573,6 @@ namespace PosWeb.Migrations
                     b.ToTable("EVENTO", (string)null);
                 });
 
-            modelBuilder.Entity("PosWeb.Domain.EventoContratoFirma", b =>
-                {
-                    b.Property<int>("ID_EVENTO_CONTRATO_FIRMA")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("ID_EVENTO_CONTRATO_FIRMA");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ID_EVENTO_CONTRATO_FIRMA"));
-
-                    b.Property<string>("ESTADO")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)")
-                        .HasDefaultValue("Pendiente")
-                        .HasColumnName("ESTADO");
-
-                    b.Property<DateTime>("FECHA_EXPIRACION_UTC")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("FECHA_EXPIRACION_UTC");
-
-                    b.Property<DateTime?>("FECHA_FIRMA_UTC")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("FECHA_FIRMA_UTC");
-
-                    b.Property<DateTime?>("FECHA_REVOCACION_UTC")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("FECHA_REVOCACION_UTC");
-
-                    b.Property<DateTime>("FECHA_SOLICITUD_UTC")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("FECHA_SOLICITUD_UTC");
-
-                    b.Property<int>("ID_EVENTO")
-                        .HasColumnType("int")
-                        .HasColumnName("ID_EVENTO");
-
-                    b.Property<string>("SNAPSHOT_JSON")
-                        .IsRequired()
-                        .HasColumnType("longtext")
-                        .HasColumnName("SNAPSHOT_JSON");
-
-                    b.Property<string>("TOKEN_HASH")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)")
-                        .HasColumnName("TOKEN_HASH");
-
-                    b.HasKey("ID_EVENTO_CONTRATO_FIRMA");
-
-                    b.HasIndex("ID_EVENTO");
-
-                    b.HasIndex("TOKEN_HASH")
-                        .IsUnique();
-
-                    b.HasIndex("ID_EVENTO", "ESTADO");
-
-                    b.ToTable("EVENTO_CONTRATO_FIRMA", (string)null);
-                });
-
             modelBuilder.Entity("PosWeb.Domain.EventoDetalleCompartido", b =>
                 {
                     b.Property<int>("ID_EVENTO_DETALLE_COMPARTIDO")
@@ -1947,15 +1887,6 @@ namespace PosWeb.Migrations
                     b.Navigation("Sucursal");
 
                     b.Navigation("UsuarioCreador");
-                });
-
-            modelBuilder.Entity("PosWeb.Domain.EventoContratoFirma", b =>
-                {
-                    b.HasOne("PosWeb.Domain.Evento", null)
-                        .WithMany()
-                        .HasForeignKey("ID_EVENTO")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("PosWeb.Domain.EventoDetalleCompartido", b =>

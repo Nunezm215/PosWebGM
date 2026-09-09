@@ -13,10 +13,6 @@ vi.mock('./pages/ClientesPage', () => ({
   default: () => <div>ClientesMock</div>,
 }))
 
-vi.mock('./pages/FirmaContratoPage', () => ({
-  default: () => <div>FirmaContratoMock</div>,
-}))
-
 vi.mock('./pages/DetalleReservaPage', () => ({
   default: () => <div>DetalleReservaMock</div>,
 }))
@@ -82,14 +78,6 @@ describe('App navigation', () => {
     await renderApp()
 
     expect(await screen.findByText('LoginMock')).toBeInTheDocument()
-  })
-
-  it('exposes the public signature route without auth', async () => {
-    window.history.pushState({}, '', '/firma/token-123')
-
-    await renderApp()
-
-    expect(await screen.findByText('FirmaContratoMock')).toBeInTheDocument()
   })
 
   it('exposes the public detail route without auth', async () => {

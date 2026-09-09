@@ -14,8 +14,6 @@ const apiState = vi.hoisted(() => ({
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
   generarDetalleCompartido: vi.fn(),
-  obtenerContratoFirmaEstado: vi.fn(),
-  generarContratoFirmaEnlace: vi.fn(),
   listarCargos: vi.fn(),
   agregarCargo: vi.fn(),
   anularCargo: vi.fn(),
@@ -45,8 +43,6 @@ vi.mock('../../api/client', () => ({
       resumenFinanciero: apiState.resumenFinanciero,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
       generarDetalleCompartido: apiState.generarDetalleCompartido,
-      obtenerContratoFirmaEstado: apiState.obtenerContratoFirmaEstado,
-      generarContratoFirmaEnlace: apiState.generarContratoFirmaEnlace,
     },
     clientes: {
       listar: apiState.listarClientes,
@@ -91,8 +87,6 @@ describe('EventosPage', () => {
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
     apiState.generarDetalleCompartido.mockReset()
-    apiState.obtenerContratoFirmaEstado.mockReset()
-    apiState.generarContratoFirmaEnlace.mockReset()
     apiState.listarCargos.mockReset()
     apiState.agregarCargo.mockReset()
     apiState.anularCargo.mockReset()
@@ -126,37 +120,6 @@ describe('EventosPage', () => {
       urlPublica: '/detalle-reserva/token-abc',
       creadoEnUtc: '2026-08-15T12:00:00Z',
       venceEnUtc: '2026-09-14T12:00:00Z',
-    })
-    apiState.obtenerContratoFirmaEstado.mockResolvedValue(null)
-    apiState.generarContratoFirmaEnlace.mockResolvedValue({
-      eventoId: 1,
-      solicitudId: 99,
-      token: 'token-abc',
-      urlPublica: '/api/contratos-firma/token-abc',
-      estado: 'Pendiente',
-      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
-      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
-      snapshot: {
-        eventoId: 1,
-        clienteId: 1,
-        clienteNombre: 'Juan Pérez',
-        clienteTipoDocumento: 'DNI',
-        clienteNumeroDocumento: '12345678',
-        clienteTelefono: '+54 11-1234-5678',
-        clienteDomicilio: 'Calle 123',
-        clienteMail: 'cliente@correo.com',
-        sucursalId: 1,
-        salonNombre: 'Salon Norte',
-        fecha: '2026-08-15',
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estadoEvento: 'Reservado',
-        fechaCreacionUtc: '2026-08-10T12:00:00Z',
-      },
     })
     apiState.listarCargos.mockResolvedValue([])
     apiState.agregarCargo.mockResolvedValue({})
@@ -654,7 +617,7 @@ describe('EventosPage', () => {
   })
 
   it('does not show inline client creation in edit mode', async () => {
-    const eventDate = '2026-08-15'
+    const eventDate = dateKeyFromToday()
     apiState.obtenerCliente.mockResolvedValueOnce({
       id: 1,
       nombre: 'Cliente Prueba',
@@ -673,7 +636,7 @@ describe('EventosPage', () => {
         usuarioCreadorId: 1,
         usuarioCreadorNombre: 'Pedro',
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -702,7 +665,7 @@ describe('EventosPage', () => {
 
     await renderPage()
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: dayButtonName('2026-08-15') }))
+    await user.click(await screen.findByRole('button', { name: dayButtonName(eventDate) }))
     const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     await user.click(within(dayDialog).getByRole('button', { name: '18:00 Cumpleaños' }))
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
@@ -713,7 +676,7 @@ describe('EventosPage', () => {
   })
 
   it('opens the daily dialog when clicking a day', async () => {
-    const eventDate = '2026-08-15'
+    const eventDate = dateKeyFromToday()
     apiState.listarClientes.mockResolvedValueOnce({
       items: [
         {
@@ -744,7 +707,7 @@ describe('EventosPage', () => {
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -759,7 +722,7 @@ describe('EventosPage', () => {
         clienteId: 2,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '10:00:00',
         horaFin: '12:00:00',
         tipoEvento: 'Brunch',
@@ -787,14 +750,14 @@ describe('EventosPage', () => {
     })
 
     await renderPage()
-    await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })
+    await screen.findByRole('button', { name: dayButtonName(eventDate) })
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+    await user.click(screen.getByRole('button', { name: dayButtonName(eventDate) }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     await waitFor(() => expect(apiState.listarClientes).toHaveBeenCalledTimes(1))
-    expect(within(dialog).getByText(/eventos?/)).toBeInTheDocument()
+    expect(within(dialog).getByText('2 eventos')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '10:00 Brunch' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: '18:00 Cumpleaños' })).toBeInTheDocument()
     expect(within(dialog).getAllByText('18:00 - 22:00')[0]).toBeInTheDocument()
@@ -804,10 +767,10 @@ describe('EventosPage', () => {
   })
 
   it('marks days with active reservations and ignores cancelados alone', async () => {
-    const eventDate = '2026-08-15'
-    const keyWithActive = '2026-08-15'
-    const keyOnlyCancelled = '2026-08-16'
-    const keyMixed = '2026-08-17'
+    const eventDate = dateKeyFromToday()
+    const keyWithActive = eventDate
+    const keyOnlyCancelled = dateKeyFromToday(1)
+    const keyMixed = dateKeyFromToday(2)
 
     apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
       {
@@ -890,9 +853,9 @@ describe('EventosPage', () => {
     await renderPage()
     await screen.findByRole('button', { name: formatMonthTitle() })
 
-    expect(screen.getByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ })).toHaveAttribute('data-has-events', 'false')
-    expect(screen.getByRole('button', { name: /Eventos del día .*17 de agosto de 2026/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: dayButtonName(keyWithActive) })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: dayButtonName(keyOnlyCancelled) })).toHaveAttribute('data-has-events', 'false')
+    expect(screen.getByRole('button', { name: dayButtonName(keyMixed) })).toBeInTheDocument()
   })
 
   it('highlights the local current day without replacing reservation styling or day interaction', async () => {
@@ -1061,6 +1024,7 @@ describe('EventosPage', () => {
   })
 
   it('shows a fallback reserved-by label when the client is not in cache', async () => {
+    const eventDate = dateKeyFromToday()
     apiState.listarClientes.mockResolvedValueOnce({
       items: [{
         id: 1,
@@ -1081,7 +1045,7 @@ describe('EventosPage', () => {
         clienteId: 99,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -1095,20 +1059,21 @@ describe('EventosPage', () => {
 
     await renderPage()
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: /Eventos del día .*15 de agosto de 2026/ }))
+    await user.click(await screen.findByRole('button', { name: dayButtonName(eventDate) }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     expect(within(dialog).getByText('Reservado por: Cliente #99')).toBeInTheDocument()
   })
 
   it('shows the empty day message when clicking a day without events', async () => {
+    const eventDate = dateKeyFromToday(1)
     apiState.listarRango.mockResolvedValueOnce([])
 
     await renderPage()
-    await screen.findByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ })
+    await screen.findByRole('button', { name: dayButtonName(eventDate) })
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /Eventos del día .*16 de agosto de 2026/ }))
+    await user.click(screen.getByRole('button', { name: dayButtonName(eventDate) }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     expect(within(dialog).getByText('No hay eventos para este día.')).toBeInTheDocument()
@@ -1296,13 +1261,14 @@ describe('EventosPage', () => {
   })
 
   it('keeps event clicks opening the detail dialog', async () => {
+    const eventDate = dateKeyFromToday()
     apiState.listarRango.mockResolvedValue([
       {
         id: 1,
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -1318,7 +1284,7 @@ describe('EventosPage', () => {
       clienteId: 1,
       usuarioCreadorId: 1,
       sucursalId: 1,
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       tipoEvento: 'Cumpleaños',
@@ -1331,7 +1297,7 @@ describe('EventosPage', () => {
 
     await renderPage()
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: dayButtonName('2026-08-15') }))
+    await user.click(await screen.findByRole('button', { name: dayButtonName(eventDate) }))
     const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     await user.click(within(dayDialog).getByRole('button', { name: '18:00 Cumpleaños' }))
 
@@ -1507,6 +1473,7 @@ describe('EventosPage', () => {
   })
 
   it('rechecks availability when schedule values change and keeps edit exclusion', async () => {
+    const eventDate = dateKeyFromToday()
     apiState.listarClientes.mockResolvedValue({
       items: [
         {
@@ -1529,7 +1496,7 @@ describe('EventosPage', () => {
         clienteId: 1,
         usuarioCreadorId: 1,
         sucursalId: 1,
-        fecha: '2026-08-15',
+        fecha: eventDate,
         horaInicio: '18:00:00',
         horaFin: '22:00:00',
         tipoEvento: 'Cumpleaños',
@@ -1545,7 +1512,7 @@ describe('EventosPage', () => {
       clienteId: 1,
       usuarioCreadorId: 1,
       sucursalId: 1,
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       tipoEvento: 'Cumpleaños',
@@ -1559,7 +1526,7 @@ describe('EventosPage', () => {
 
     await renderPage()
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: dayButtonName('2026-08-15') }))
+    await user.click(await screen.findByRole('button', { name: dayButtonName(eventDate) }))
     const dayDialog = await screen.findByRole('dialog', { name: 'Eventos del día' })
     await user.click(within(dayDialog).getByRole('button', { name: '18:00 Cumpleaños' }))
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
@@ -1567,7 +1534,7 @@ describe('EventosPage', () => {
 
     const editDialog = await screen.findByRole('dialog', { name: 'Editar Evento' })
     await waitFor(() => expect(apiState.consultarDisponibilidad).toHaveBeenCalledWith(expect.objectContaining({
-      fecha: '2026-08-15',
+      fecha: eventDate,
       horaInicio: '18:00:00',
       horaFin: '22:00:00',
       eventoIdExcluir: 1,
@@ -2247,8 +2214,6 @@ describe('EventosPage', () => {
 
     const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
     expect(within(contratoDialog).getByRole('button', { name: 'Ver contrato PDF' })).toBeInTheDocument()
-    expect(within(contratoDialog).getByRole('button', { name: 'Enviar para firmar' })).toBeInTheDocument()
-    expect(within(contratoDialog).getByText('Sin solicitud')).toBeInTheDocument()
 
     await user.click(within(contratoDialog).getByRole('button', { name: 'Ver contrato PDF' }))
 
@@ -2375,227 +2340,6 @@ describe('EventosPage', () => {
     expect(openSpy).not.toHaveBeenCalled()
 
     openSpy.mockRestore()
-  })
-
-  it('keeps the share button disabled while generating the link', async () => {
-    const eventDate = dateKeyFromToday(1)
-    apiState.obtenerPorId.mockResolvedValueOnce({
-      id: 1,
-      clienteId: 1,
-      usuarioCreadorId: 1,
-      sucursalId: 1,
-      fecha: eventDate,
-      horaInicio: '18:00:00',
-      horaFin: '22:00:00',
-      tipoEvento: 'Cumpleaños',
-      cantidadInvitados: 50,
-      montoTotal: 500000,
-      observaciones: 'Sin alcohol',
-      estado: 'Reservado',
-      fechaCreacion: '2026-08-10T12:00:00',
-    })
-    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: eventDate, horaInicio: '18:00:00', horaFin: '22:00:00', tipoEvento: 'Cumpleaños', cantidadInvitados: 50, montoTotal: 500000, observaciones: 'Sin alcohol', estado: 'Reservado', fechaCreacion: '2026-08-10T12:00:00' }])
-    let resolveShare!: (value: { eventoId: number; solicitudId: number; token: string; urlPublica: string; creadoEnUtc: string; venceEnUtc: string }) => void
-    const pendingShare = new Promise<{ eventoId: number; solicitudId: number; token: string; urlPublica: string; creadoEnUtc: string; venceEnUtc: string }>(resolve => { resolveShare = resolve })
-    apiState.generarDetalleCompartido.mockReturnValueOnce(pendingShare)
-
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
-
-    await renderPage()
-    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
-
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
-    const shareButton = within(dialog).getByRole('button', { name: 'Compartir detalle' })
-
-    await user.click(shareButton)
-    expect(shareButton).toBeDisabled()
-    await user.click(shareButton)
-    expect(apiState.generarDetalleCompartido).toHaveBeenCalledTimes(1)
-
-    resolveShare({ eventoId: 1, solicitudId: 88, token: 'token-abc', urlPublica: '/detalle-reserva/token-abc', creadoEnUtc: '2026-08-15T12:00:00Z', venceEnUtc: '2026-09-14T12:00:00Z' })
-    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1))
-
-    openSpy.mockRestore()
-  })
-
-  it('generates a signing link, shows pending status, and copies it', async () => {
-    const eventDate = dateKeyFromToday(1)
-    apiState.obtenerPorId.mockResolvedValueOnce({
-      id: 1,
-      clienteId: 1,
-      usuarioCreadorId: 1,
-      sucursalId: 1,
-      fecha: eventDate,
-      horaInicio: '18:00:00',
-      horaFin: '22:00:00',
-      tipoEvento: 'Cumpleaños',
-      cantidadInvitados: 50,
-      montoTotal: 500000,
-      observaciones: 'Sin alcohol',
-      estado: 'Reservado',
-      fechaCreacion: '2026-08-10T12:00:00',
-    })
-    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 1,
-        clienteId: 1,
-        usuarioCreadorId: 1,
-        sucursalId: 1,
-        fecha: eventDate,
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estado: 'Reservado',
-        fechaCreacion: '2026-08-10T12:00:00',
-      },
-    ])
-    apiState.obtenerContratoFirmaEstado.mockResolvedValueOnce({
-      eventoId: 1,
-      solicitudId: 77,
-      estado: 'Pendiente',
-      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
-      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
-      fechaFirmaUtc: null,
-      fechaRevocacionUtc: null,
-      snapshot: {
-        eventoId: 1,
-        clienteId: 1,
-        clienteNombre: 'Juan Pérez',
-        clienteTipoDocumento: 'DNI',
-        clienteNumeroDocumento: '12345678',
-        clienteTelefono: '+54 11-1234-5678',
-        clienteDomicilio: 'Calle 123',
-        clienteMail: 'cliente@correo.com',
-        sucursalId: 1,
-        salonNombre: 'Salon Norte',
-        fecha: '2026-08-15',
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estadoEvento: 'Reservado',
-        fechaCreacionUtc: '2026-08-10T12:00:00Z',
-      },
-    })
-
-    const clipboard = navigator.clipboard as { writeText?: (value: string) => Promise<void> } | undefined
-    const clipboardWrite = clipboard?.writeText ? vi.spyOn(clipboard, 'writeText').mockResolvedValue(undefined) : null
-    const execCommandMock = clipboardWrite ? null : vi.fn(() => true)
-    if (execCommandMock) {
-      Object.defineProperty(document, 'execCommand', {
-        value: execCommandMock,
-        configurable: true,
-      })
-    }
-
-    await renderPage()
-    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
-
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
-    await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
-
-    const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
-    await user.click(within(contratoDialog).getByRole('button', { name: 'Enviar para firmar' }))
-
-    expect(await within(contratoDialog).findByText('Pendiente de firma')).toBeInTheDocument()
-    expect(await within(contratoDialog).findByDisplayValue(/\/firma\/token-abc/)).toBeInTheDocument()
-
-    await user.click(within(contratoDialog).getByRole('button', { name: 'Copiar enlace' }))
-    if (clipboardWrite) {
-      await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith(expect.stringContaining('/firma/token-abc')))
-      clipboardWrite.mockRestore()
-    } else {
-      await waitFor(() => expect(execCommandMock).toHaveBeenCalledWith('copy'))
-    }
-    expect(await within(contratoDialog).findByRole('button', { name: 'Copiado' })).toBeInTheDocument()
-  })
-
-  it('shows signed contract state', async () => {
-    const eventDate = dateKeyFromToday(1)
-    apiState.obtenerPorId.mockResolvedValueOnce({
-      id: 1,
-      clienteId: 1,
-      usuarioCreadorId: 1,
-      sucursalId: 1,
-      fecha: eventDate,
-      horaInicio: '18:00:00',
-      horaFin: '22:00:00',
-      tipoEvento: 'Cumpleaños',
-      cantidadInvitados: 50,
-      montoTotal: 500000,
-      observaciones: 'Sin alcohol',
-      estado: 'Reservado',
-      fechaCreacion: '2026-08-10T12:00:00',
-    })
-    apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 1,
-        clienteId: 1,
-        usuarioCreadorId: 1,
-        sucursalId: 1,
-        fecha: eventDate,
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estado: 'Reservado',
-        fechaCreacion: '2026-08-10T12:00:00',
-      },
-    ])
-    apiState.obtenerContratoFirmaEstado.mockResolvedValueOnce({
-      eventoId: 1,
-      solicitudId: 77,
-      estado: 'Firmado',
-      fechaSolicitudUtc: '2026-08-15T12:00:00Z',
-      fechaExpiracionUtc: '2026-08-22T12:00:00Z',
-      fechaFirmaUtc: '2026-08-16T12:00:00Z',
-      fechaRevocacionUtc: null,
-      snapshot: {
-        eventoId: 1,
-        clienteId: 1,
-        clienteNombre: 'Juan Pérez',
-        clienteTipoDocumento: 'DNI',
-        clienteNumeroDocumento: '12345678',
-        clienteTelefono: '+54 11-1234-5678',
-        clienteDomicilio: 'Calle 123',
-        clienteMail: 'cliente@correo.com',
-        sucursalId: 1,
-        salonNombre: 'Salon Norte',
-        fecha: '2026-08-15',
-        horaInicio: '18:00:00',
-        horaFin: '22:00:00',
-        tipoEvento: 'Cumpleaños',
-        cantidadInvitados: 50,
-        montoTotal: 500000,
-        observaciones: 'Sin alcohol',
-        estadoEvento: 'Reservado',
-        fechaCreacionUtc: '2026-08-10T12:00:00Z',
-      },
-    })
-
-    await renderPage()
-    await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
-
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
-    await user.click(within(dialog).getByRole('button', { name: 'Contrato' }))
-
-    const contratoDialog = await screen.findByRole('dialog', { name: 'Contrato' })
-    expect(await within(contratoDialog).findByText('Firmado')).toBeInTheDocument()
-    expect(within(contratoDialog).queryByText('Sin solicitud')).not.toBeInTheDocument()
-    expect(within(contratoDialog).queryByRole('button', { name: 'Copiar enlace' })).not.toBeInTheDocument()
   })
 
   it('shows the 10 nearest upcoming events and skips cancelados', async () => {

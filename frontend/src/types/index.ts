@@ -302,6 +302,15 @@ export interface EventoDto {
   fechaCreacion: string
 }
 
+export interface EventoDetalleCompartidoEnlaceDto {
+  eventoId: number
+  solicitudId: number
+  token: string
+  urlPublica: string
+  creadoEnUtc: string
+  venceEnUtc: string
+}
+
 export interface BuscarEventoResponseDto {
   id: number
   clienteId: number

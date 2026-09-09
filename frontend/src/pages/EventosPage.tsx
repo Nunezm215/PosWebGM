@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronRight, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
-import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoContratoFirmaEstadoDto, EventoDto, FamiliarClienteDto, MedioPagoDto, PagoEventoDto, ResumenFinancieroEventoDto } from '../types'
+import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto, MedioPagoDto, PagoEventoDto, ResumenFinancieroEventoDto } from '../types'
 import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
@@ -387,12 +387,6 @@ export default function EventosPage() {
   const [contratoOpen, setContratoOpen] = useState(false)
   const [contratoLoading, setContratoLoading] = useState(false)
   const [contratoError, setContratoError] = useState('')
-  const [contratoFirmaEstado, setContratoFirmaEstado] = useState<EventoContratoFirmaEstadoDto | null>(null)
-  const [contratoFirmaEstadoLoading, setContratoFirmaEstadoLoading] = useState(false)
-  const [contratoFirmaError, setContratoFirmaError] = useState('')
-  const [contratoFirmaEnlace, setContratoFirmaEnlace] = useState('')
-  const [contratoFirmaGenerando, setContratoFirmaGenerando] = useState(false)
-  const [contratoFirmaCopiado, setContratoFirmaCopiado] = useState(false)
   const [detallePdfLoading, setDetallePdfLoading] = useState(false)
   const [detallePdfError, setDetallePdfError] = useState('')
 
@@ -544,39 +538,6 @@ export default function EventosPage() {
       .catch(() => { if (active) setPagosError('No se pudo cargar la información de pagos.') })
     return () => { active = false }
   }, [selectedEvento?.id, cargosExtra])
-
-  useEffect(() => {
-    setContratoFirmaEstado(null)
-    setContratoFirmaEstadoLoading(false)
-    setContratoFirmaError('')
-    setContratoFirmaEnlace('')
-    setContratoFirmaCopiado(false)
-  }, [selectedEvento?.id])
-
-  useEffect(() => {
-    if (!contratoOpen || !selectedEvento) return
-
-    let active = true
-    setContratoFirmaEstadoLoading(true)
-    setContratoFirmaError('')
-
-    api.eventos.obtenerContratoFirmaEstado(selectedEvento.id)
-      .then(estado => {
-        if (!active) return
-        setContratoFirmaEstado(estado)
-      })
-      .catch((err: unknown) => {
-        if (!active) return
-        setContratoFirmaError(err instanceof Error ? err.message : 'No se pudo consultar el estado de firma')
-      })
-      .finally(() => {
-        if (active) setContratoFirmaEstadoLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [contratoOpen, selectedEvento?.id])
 
   async function refrescarPagosYResumen(eventoId: number) {
     const [nextPagos, resumen] = await Promise.all([api.eventos.listarPagos(eventoId), api.eventos.resumenFinanciero(eventoId)])
@@ -1220,7 +1181,7 @@ export default function EventosPage() {
   }
 
   function cerrarContrato() {
-    if (contratoLoading || contratoFirmaGenerando) return
+    if (contratoLoading) return
     setContratoOpen(false)
     setContratoError('')
   }
@@ -1254,63 +1215,6 @@ export default function EventosPage() {
     }
 
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  }
-
-  async function enviarContratoFirma() {
-    if (!selectedEvento) return
-
-    setContratoFirmaGenerando(true)
-    setContratoFirmaError('')
-
-    try {
-      const enlace = await api.eventos.generarContratoFirmaEnlace(selectedEvento.id)
-      setContratoFirmaEstado({
-        eventoId: enlace.eventoId,
-        solicitudId: enlace.solicitudId,
-        estado: enlace.estado,
-        fechaSolicitudUtc: enlace.fechaSolicitudUtc,
-        fechaExpiracionUtc: enlace.fechaExpiracionUtc,
-        fechaFirmaUtc: null,
-        fechaRevocacionUtc: null,
-        snapshot: enlace.snapshot,
-      })
-      setContratoFirmaEnlace(`${window.location.origin}/firma/${enlace.token}`)
-      setContratoFirmaCopiado(false)
-    } catch (err) {
-      setContratoFirmaError(err instanceof Error ? err.message : 'No se pudo generar el enlace de firma')
-    } finally {
-      setContratoFirmaGenerando(false)
-    }
-  }
-
-  async function copiarEnlaceContratoFirma() {
-    if (!contratoFirmaEnlace) return
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(contratoFirmaEnlace)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = contratoFirmaEnlace
-        textarea.setAttribute('readonly', 'true')
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        const copied = document.execCommand('copy')
-        document.body.removeChild(textarea)
-        if (!copied) throw new Error('Clipboard no disponible')
-      }
-      setContratoFirmaCopiado(true)
-      window.setTimeout(() => setContratoFirmaCopiado(false), 2000)
-    } catch {
-      setContratoFirmaError('No se pudo copiar el enlace')
-    }
-  }
-
-  function abrirEnlaceContratoFirma() {
-    if (!contratoFirmaEnlace) return
-    window.open(contratoFirmaEnlace, '_blank', 'noopener,noreferrer')
   }
 
   async function handleGuardarEvento(e: React.FormEvent<HTMLFormElement>) {
@@ -2492,14 +2396,11 @@ export default function EventosPage() {
         title="Contrato"
         description={selectedEvento ? `Contrato de reserva para el Evento #${selectedEvento.id}` : 'Contrato de reserva'}
         width="lg"
-        closeOnBackdrop={!contratoLoading && !contratoFirmaGenerando}
+        closeOnBackdrop={!contratoLoading}
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={cerrarContrato} disabled={contratoLoading || contratoFirmaGenerando}>
+            <Button variant="secondary" size="sm" onClick={cerrarContrato} disabled={contratoLoading}>
               Cerrar
-            </Button>
-            <Button variant="secondary" size="sm" onClick={enviarContratoFirma} loading={contratoFirmaGenerando}>
-              Enviar para firmar
             </Button>
             <Button variant="secondary" size="sm" onClick={verContrato} loading={contratoLoading}>
               Ver contrato PDF
@@ -2513,55 +2414,12 @@ export default function EventosPage() {
               {contratoError}
             </div>
           )}
-          {contratoFirmaError && !contratoError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-              {contratoFirmaError}
-            </div>
-          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Estado de firma</p>
-              {contratoFirmaEstadoLoading ? (
-                <p className="mt-2 text-sm text-gray-500">Cargando estado...</p>
-              ) : contratoFirmaEstado ? (
-                <div className="mt-2 space-y-1">
-                  <p className="font-semibold text-gray-900">
-                    {contratoFirmaEstado.estado === 'Pendiente' ? 'Pendiente de firma' : contratoFirmaEstado.estado === 'Firmado' ? 'Firmado' : contratoFirmaEstado.estado === 'Revocado' ? 'Revocado' : contratoFirmaEstado.estado === 'Vencido' ? 'Vencido' : contratoFirmaEstado.estado}
-                  </p>
-                  <p>Solicitud: {formatArgentinaDateTime(contratoFirmaEstado.fechaSolicitudUtc)}</p>
-                  <p>Vence: {formatArgentinaDateTime(contratoFirmaEstado.fechaExpiracionUtc)}</p>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-gray-600">Sin solicitud</p>
-              )}
-            </div>
-
             <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contrato PDF</p>
               <p className="mt-2 text-sm text-gray-600">El PDF se genera con los datos reales del Evento y del Cliente.</p>
             </div>
-          </div>
-
-          {contratoFirmaEnlace && (
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Enlace generado</p>
-              <div className="mt-2 space-y-2">
-                <input readOnly value={contratoFirmaEnlace} className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-700" aria-label="Enlace de firma" />
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="secondary" onClick={copiarEnlaceContratoFirma}>
-                    {contratoFirmaCopiado ? 'Copiado' : 'Copiar enlace'}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={abrirEnlaceContratoFirma}>
-                    Abrir enlace
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Si el estado está pendiente, podés regenerar el enlace y reemplazar la solicitud anterior.
           </div>
         </div>
       </Dialog>

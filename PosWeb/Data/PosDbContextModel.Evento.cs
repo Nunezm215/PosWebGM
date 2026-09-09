@@ -80,6 +80,46 @@ public partial class PosDbContext
         });
     }
 
+    internal static void ConfigureEventoDetalleCompartido(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<EventoDetalleCompartido>(entity =>
+        {
+            entity.ToTable("EVENTO_DETALLE_COMPARTIDO");
+
+            entity.HasKey(e => e.ID_EVENTO_DETALLE_COMPARTIDO);
+
+            entity.Property(e => e.ID_EVENTO_DETALLE_COMPARTIDO)
+                .HasColumnName("ID_EVENTO_DETALLE_COMPARTIDO");
+
+            entity.Property(e => e.ID_EVENTO)
+                .HasColumnName("ID_EVENTO");
+
+            entity.Property(e => e.TOKEN_HASH)
+                .HasColumnName("TOKEN_HASH")
+                .HasMaxLength(64)
+                .IsRequired();
+
+            entity.HasIndex(e => e.TOKEN_HASH)
+                .IsUnique();
+
+            entity.HasIndex(e => e.ID_EVENTO);
+
+            entity.Property(e => e.CREADO_EN_UTC)
+                .HasColumnName("CREADO_EN_UTC");
+
+            entity.Property(e => e.VENCE_EN_UTC)
+                .HasColumnName("VENCE_EN_UTC");
+
+            entity.Property(e => e.REVOCADO_EN_UTC)
+                .HasColumnName("REVOCADO_EN_UTC");
+
+            entity.HasOne<Evento>()
+                .WithMany()
+                .HasForeignKey(e => e.ID_EVENTO)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
     internal static void ConfigureCargoExtraEvento(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CargoExtraEvento>(entity =>
