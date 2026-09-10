@@ -547,7 +547,52 @@ public class EventoServiceTests
         Assert.Equal("Seña", pago.TipoPago);
         Assert.Equal(400000m, resumen.SaldoPendiente);
         Assert.Equal("Señado", resumen.EstadoPago);
+        Assert.Equal(EventoEstados.Reservado, evento.ESTADO);
         Assert.Equal("nota", pago.Observacion);
+    }
+
+    [Fact]
+    public async Task Pago_total_marcar_pagado_y_anularlo_vuelve_a_reservado()
+    {
+        var evento = new Evento(10, 99, 1, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), "Evento", 10, 500000m);
+        evento.AsignarId(1);
+        var repo = new EventoRepositoryFake(new[] { evento });
+        var service = new EventoService(repo);
+
+        var pago = await service.RegistrarPagoEventoAsync(1, new CrearPagoEventoRequestDto { MedioPagoId = 1, Monto = 500000m }, 99);
+        Assert.Equal(EventoEstados.Pagado, evento.ESTADO);
+
+        await service.AnularPagoEventoAsync(1, pago.Id, new AnularPagoEventoRequestDto { Motivo = "Corrección" }, 99);
+        Assert.Equal(EventoEstados.Reservado, evento.ESTADO);
+    }
+
+    [Fact]
+    public async Task Extra_en_evento_pagado_vuelve_a_reservado_hasta_anularlo()
+    {
+        var evento = new Evento(10, 99, 1, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), "Evento", 10, 500000m);
+        evento.AsignarId(1);
+        var service = new EventoService(new EventoRepositoryFake(new[] { evento }));
+
+        await service.RegistrarPagoEventoAsync(1, new CrearPagoEventoRequestDto { MedioPagoId = 1, Monto = 500000m }, 99);
+        var extra = await service.AgregarCargoExtraAsync(1, new CrearCargoExtraEventoRequestDto { Descripcion = "Pool", Monto = 50000m }, 99);
+        Assert.Equal(EventoEstados.Reservado, evento.ESTADO);
+
+        await service.AnularCargoExtraAsync(1, extra.Id, new AnularCargoExtraEventoRequestDto { Motivo = "No se contrató" }, 99);
+        Assert.Equal(EventoEstados.Pagado, evento.ESTADO);
+    }
+
+    [Fact]
+    public async Task Sincronizacion_financiera_no_modifica_evento_cancelado()
+    {
+        var evento = new Evento(10, 99, 1, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0), "Evento", 10, 500000m);
+        evento.AsignarId(1);
+        var repo = new EventoRepositoryFake(new[] { evento });
+        var service = new EventoService(repo);
+        var pago = await service.RegistrarPagoEventoAsync(1, new CrearPagoEventoRequestDto { MedioPagoId = 1, Monto = 100000m }, 99);
+        evento.Cancelar();
+
+        await service.AnularPagoEventoAsync(1, pago.Id, new AnularPagoEventoRequestDto { Motivo = "Corrección" }, 99);
+        Assert.Equal(EventoEstados.Cancelado, evento.ESTADO);
     }
 
     [Fact]

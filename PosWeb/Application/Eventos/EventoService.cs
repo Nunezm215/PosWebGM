@@ -289,9 +289,8 @@ public class EventoService : IEventoService
     {
         if (evento.ESTADO == EventoEstados.Cancelado) return;
         var resumen = await ObtenerResumenFinancieroInternoAsync(evento, cancellationToken);
-        if (resumen.TotalPagado == 0) evento.MarcarReservado();
-        else if (resumen.SaldoPendiente == 0) evento.MarcarPagado();
-        else evento.MarcarSenado();
+        if (resumen.SaldoPendiente == 0) evento.MarcarPagado();
+        else evento.MarcarReservado();
         await _repository.GuardarCambiosAsync(cancellationToken);
     }
 

@@ -2891,10 +2891,13 @@ describe('EventosPage', () => {
     await pause(350)
     await user.click(await screen.findByRole('button', { name: '18:00 Cumpleaños' }))
     const dialog = await screen.findByRole('dialog', { name: 'Detalle del evento' })
+    expect(within(dialog).getByText('Pendiente')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Compartir detalle' }))
 
     await waitFor(() => expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('https://wa.me/5491112345678?text='), '_blank', 'noopener,noreferrer'))
-    expect(decodeURIComponent((openSpy.mock.calls[0][0] as string).split('?text=')[1])).toContain('TOTAL: $ 510.000,00')
+    const sharedMessage = decodeURIComponent((openSpy.mock.calls[0][0] as string).split('?text=')[1])
+    expect(sharedMessage).toContain('Estado: Reservado')
+    expect(sharedMessage).toContain('TOTAL: $ 510.000,00')
     openSpy.mockRestore()
   }, 30000)
 

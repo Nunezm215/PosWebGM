@@ -62,6 +62,7 @@ function isBeforeToday(value: string, today = formatDateInput(new Date())) {
 
 const EVENTO_ESTADOS = ['Reservado', 'Señado', 'Pagado', 'Cancelado'] as const
 type EventoEstado = typeof EVENTO_ESTADOS[number]
+const EVENTO_ESTADOS_VISIBLES: EventoEstado[] = ['Reservado', 'Pagado']
 
 const CLIENTE_TIPOS_DOCUMENTO = ['DNI', 'CUIT', 'CUIL', 'ConsumidorFinal']
 interface ClienteAltaFormState {
@@ -2426,7 +2427,7 @@ export default function EventosPage() {
                 {resumenFinanciero && <>
                   <DetailRow label="Pagado" value={formatCurrency(resumenFinanciero.totalPagado)} />
                   <div className="flex items-center justify-between gap-4 pt-2 text-base font-bold text-emerald-800"><span>Saldo pendiente</span><span>{formatCurrency(resumenFinanciero.saldoPendiente)}</span></div>
-                  <DetailRow label="Estado financiero" value={resumenFinanciero.estadoPago === 'SinPagos' ? 'Sin pagos' : resumenFinanciero.estadoPago} />
+                  <DetailRow label="Estado financiero" value={resumenFinanciero.estadoPago === 'SinPagos' ? 'Sin pagos' : resumenFinanciero.estadoPago === 'Señado' ? 'Pendiente' : resumenFinanciero.estadoPago} />
                 </>}
               </div>
               {pagosError && <p className="mt-3 text-sm text-red-700">{pagosError}</p>}
@@ -2544,7 +2545,7 @@ export default function EventosPage() {
               onChange={e => setEstadoSeleccionado(e.target.value as EventoEstado)}
               className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 bg-white"
             >
-              {EVENTO_ESTADOS.map(estado => <option key={estado} value={estado}>{estado}</option>)}
+              {EVENTO_ESTADOS_VISIBLES.map(estado => <option key={estado} value={estado}>{estado}</option>)}
             </select>
           </div>
         </div>
