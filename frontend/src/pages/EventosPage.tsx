@@ -1500,7 +1500,7 @@ export default function EventosPage() {
       actions={
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Button variant="secondary" size="sm" icon={<AlertTriangle size={14} />} onClick={() => upcomingPaymentAlert?.openManually()}>
-            Pagos próximos
+            Eventos con pagos pendientes
           </Button>
           <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => abrirAltaEvento()}>
             Nuevo Evento

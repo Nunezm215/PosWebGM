@@ -158,11 +158,11 @@ describe('EventosPage', () => {
     return { user, dialog: await screen.findByRole('dialog', { name: 'Nuevo Evento' }) }
   }
 
-  it('renders title, Pagos próximos and Nuevo Evento buttons', async () => {
+  it('renders title, Eventos con pagos pendientes and Nuevo Evento buttons', async () => {
     await renderPage()
 
     expect(await screen.findByText('Eventos')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pagos próximos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eventos con pagos pendientes' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Nuevo Evento' }).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('searchbox', { name: 'Buscar evento' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mes anterior' })).toBeInTheDocument()
