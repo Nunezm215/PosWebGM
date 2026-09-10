@@ -44,8 +44,19 @@ jobs:
 
       - name: Trust VPS host key
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+            mkdir -p ~/.ssh
+            for i in 1 2 3 4 5; do
+              if ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null; then
+                echo "Host key obtenida correctamente"
+                exit 0
+              fi
+
+              echo "Intento $i falló. Reintentando..."
+              sleep 5
+            done
+
+            echo "No se pudo obtener la host key del VPS después de 5 intentos"
+            exit 1
 
       - name: Preflight SSH
         run: ssh -o BatchMode=yes "$VPS_TARGET" "echo SSH_OK"
