@@ -61,6 +61,7 @@ export default function LoginPage() {
       } else {
         await pinLogin({ usuario, pin, sucursalId })
       }
+      sessionStorage.setItem('upcoming-payment-alert', localStorage.getItem('jwt_expires') ?? '')
       navigate('/eventos', { replace: true })
       try {
         const nombre = sucursales.find((s: SucursalDto) => s.id === sucursalId)?.nombre ?? 'Central'

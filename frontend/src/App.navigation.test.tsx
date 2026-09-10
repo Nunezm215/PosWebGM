@@ -41,6 +41,7 @@ vi.mock('./versionCheck', () => ({
 describe('App navigation', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
     window.history.pushState({}, '', '/')
   })
 

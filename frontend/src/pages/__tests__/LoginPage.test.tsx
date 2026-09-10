@@ -49,6 +49,7 @@ describe('LoginPage navigation', () => {
     apiState.sucursales.mockResolvedValue([{ id: 1, nombre: 'Central' }])
     authState.isAuthenticated = false
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   it('navigates to Eventos after a successful login', async () => {
@@ -56,11 +57,13 @@ describe('LoginPage navigation', () => {
     const user = userEvent.setup()
 
     render(<LoginPage />)
+    localStorage.setItem('jwt_expires', '2026-12-31T00:00:00.000Z')
 
     await user.type(screen.getByPlaceholderText('Nombre de usuario'), 'demo')
     await user.type(screen.getByPlaceholderText('••••••••'), '1234')
     await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/eventos', { replace: true }))
+    expect(sessionStorage.getItem('upcoming-payment-alert')).toBe('2026-12-31T00:00:00.000Z')
   })
 })
