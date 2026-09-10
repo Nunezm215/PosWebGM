@@ -6,7 +6,7 @@ import DialogContainer from './components/ui/DialogContainer'
 import AuthGuard from './components/AuthGuard'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
-import UpcomingPaymentAlert from './components/UpcomingPaymentAlert'
+import { UpcomingPaymentAlertProvider } from './components/UpcomingPaymentAlert'
 import ProductosPage from './pages/ProductosPage'
 import VentasPage from './pages/VentasPage'
 import HistorialVentasPage from './pages/HistorialVentasPage'
@@ -113,8 +113,8 @@ export default function App() {
     <BrowserRouter>
       <NotificationProvider>
         <AuthProvider>
+          <UpcomingPaymentAlertProvider>
           <DialogContainer />
-          <UpcomingPaymentAlert />
           <UpdaterBanner {...updater} />
           <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -139,7 +139,8 @@ export default function App() {
               <Route path="/configuracion" element={<ConfiguracionPage />} />
             </Route>
           </Route>
-        </Routes>
+          </Routes>
+          </UpcomingPaymentAlertProvider>
         </AuthProvider>
       </NotificationProvider>
     </BrowserRouter>

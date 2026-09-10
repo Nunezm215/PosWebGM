@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, ChevronRight, Plus, Search, UserRound, X } from 'lucide-react'
+import { AlertTriangle, CalendarDays, ChevronRight, Plus, Search, UserRound, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNotification } from '../context/NotificationContext'
 import type { BuscarEventoResponseDto, CargoExtraEventoDto, ClienteDto, CrearEventoRequestDto, EventoDto, FamiliarClienteDto, MedioPagoDto, PagoEventoDto, ResumenFinancieroEventoDto } from '../types'
@@ -7,6 +7,7 @@ import PageShell from '../components/shared/PageShell'
 import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
+import { useUpcomingPaymentAlert } from '../components/UpcomingPaymentAlert'
 import { formatDateTime as formatArgentinaDateTime } from '../formats'
 import { DEFAULT_PHONE_CODE, PHONE_CODE_OPTIONS, buildArgentinaPhone, buildTelHref, buildWhatsAppHref, getArgentinaPhoneLocalDigits, getArgentinaPhoneLocalError, getArgentinaPhoneLocalLabel, getArgentinaPhoneLocalPlaceholder, limitArgentinaPhoneLocalDigits } from '../utils/phone'
 
@@ -372,6 +373,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function EventosPage() {
   const { user } = useAuth()
+  const upcomingPaymentAlert = useUpcomingPaymentAlert()
   const { notifySuccess } = useNotification()
   const todayDateKey = formatDateInput(new Date())
   const canManageEvents = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
@@ -1497,6 +1499,9 @@ export default function EventosPage() {
       onErrorClose={() => setError(null)}
       actions={
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button variant="secondary" size="sm" icon={<AlertTriangle size={14} />} onClick={() => upcomingPaymentAlert?.openManually()}>
+            Pagos próximos
+          </Button>
           <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => abrirAltaEvento()}>
             Nuevo Evento
           </Button>

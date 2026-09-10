@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 
 vi.mock('./pages/LoginPage', () => ({
   default: () => <div>LoginMock</div>,
@@ -11,6 +12,10 @@ vi.mock('./pages/EventosPage', () => ({
 
 vi.mock('./pages/ClientesPage', () => ({
   default: () => <div>ClientesMock</div>,
+}))
+
+vi.mock('./components/UpcomingPaymentAlert', () => ({
+  UpcomingPaymentAlertProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock('./updater', () => ({

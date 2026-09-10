@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { EventoDto } from '../../types'
 
 const authState = vi.hoisted(() => ({ isAuthenticated: true }))
@@ -24,10 +25,15 @@ vi.mock('../ui/Dialog', () => ({
   default: ({ open, title, children, footer }: any) => open ? <div role="dialog" aria-label={title}>{children}{footer}</div> : null,
 }))
 
-import UpcomingPaymentAlert from '../UpcomingPaymentAlert'
+import UpcomingPaymentAlert, { UpcomingPaymentAlertProvider, useUpcomingPaymentAlert } from '../UpcomingPaymentAlert'
 
 function event(id: number, fecha: string, estado = 'Reservado'): EventoDto {
   return { id, clienteId: id, usuarioCreadorId: 1, sucursalId: 1, fecha, horaInicio: '18:00:00', horaFin: '22:00:00', tipoEvento: `Evento ${id}`, cantidadInvitados: 10, montoTotal: 500000, estado, fechaCreacion: '2026-09-01T12:00:00' }
+}
+
+function ManualTrigger() {
+  const alert = useUpcomingPaymentAlert()
+  return <button type="button" onClick={() => alert?.openManually()}>Pagos próximos</button>
 }
 
 describe('UpcomingPaymentAlert', () => {
@@ -93,5 +99,33 @@ describe('UpcomingPaymentAlert', () => {
 
     rerender(<UpcomingPaymentAlert />)
     expect(apiState.listarPorRango).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens manually with fresh data every time, even without the login marker', async () => {
+    sessionStorage.clear()
+    apiState.listarPorRango.mockResolvedValue([event(1, '2026-09-11')])
+    apiState.resumenFinanciero.mockResolvedValue({ eventoId: 1, montoBase: 500000, totalExtras: 0, montoTotal: 500000, totalPagado: 200000, saldoPendiente: 300000, estadoPago: 'Señado', cantidadPagosActivos: 1 })
+    const user = userEvent.setup()
+
+    render(<UpcomingPaymentAlertProvider><ManualTrigger /></UpcomingPaymentAlertProvider>)
+    await user.click(screen.getByRole('button', { name: 'Pagos próximos' }))
+    expect(await screen.findByRole('dialog', { name: 'Eventos próximos con pago pendiente' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cerrar' }))
+    await user.click(screen.getByRole('button', { name: 'Pagos próximos' }))
+
+    await waitFor(() => expect(apiState.listarPorRango).toHaveBeenCalledTimes(2))
+    expect(apiState.resumenFinanciero).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows an empty-state response for a manual check without pending events', async () => {
+    sessionStorage.clear()
+    apiState.listarPorRango.mockResolvedValue([event(1, '2026-09-11')])
+    apiState.resumenFinanciero.mockResolvedValue({ eventoId: 1, montoBase: 500000, totalExtras: 0, montoTotal: 500000, totalPagado: 500000, saldoPendiente: 0, estadoPago: 'Pagado', cantidadPagosActivos: 1 })
+    const user = userEvent.setup()
+
+    render(<UpcomingPaymentAlertProvider><ManualTrigger /></UpcomingPaymentAlertProvider>)
+    await user.click(screen.getByRole('button', { name: 'Pagos próximos' }))
+
+    expect(await screen.findByText('No hay eventos próximos con pagos pendientes.')).toBeInTheDocument()
   })
 })

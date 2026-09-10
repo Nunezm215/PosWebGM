@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import { formatCurrency, formatDate, formatDateInput } from '../formats'
 import type { EventoDto, ResumenFinancieroEventoDto } from '../types'
@@ -32,11 +32,60 @@ function remainingDaysLabel(date: string, today: string) {
   return days === 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : `Faltan ${days} días`
 }
 
-export default function UpcomingPaymentAlert() {
+export interface UpcomingPaymentAlertHandle {
+  openManually: () => void
+}
+
+const UpcomingPaymentAlertContext = createContext<UpcomingPaymentAlertHandle | null>(null)
+
+export function useUpcomingPaymentAlert() {
+  return useContext(UpcomingPaymentAlertContext)
+}
+
+const UpcomingPaymentAlert = forwardRef<UpcomingPaymentAlertHandle>(function UpcomingPaymentAlert(_, ref) {
   const { isAuthenticated } = useAuth()
   const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([])
   const [open, setOpen] = useState(false)
   const [today, setToday] = useState('')
+  const [empty, setEmpty] = useState(false)
+
+  const load = useCallback(async (manual: boolean, isActive: () => boolean = () => true) => {
+    const argentinaToday = formatDateInput(new Date())
+    try {
+      const until = addDays(argentinaToday, 15)
+      const events = await api.eventos.listarPorRango(argentinaToday, until)
+      const candidates = events.filter(evento => evento.estado !== 'Cancelado' && evento.fecha >= argentinaToday && evento.fecha <= until)
+      const withBalance = await Promise.all(candidates.map(async evento => {
+        try {
+          const resumen = await api.eventos.resumenFinanciero(evento.id)
+          return resumen.saldoPendiente > 0 ? { evento, resumen } : null
+        } catch {
+          return null
+        }
+      }))
+      const pending = withBalance.filter((item): item is { evento: EventoDto; resumen: ResumenFinancieroEventoDto } => item !== null)
+      const clients = new Map<number, string>()
+      await Promise.all([...new Set(pending.map(item => item.evento.clienteId))].map(async clienteId => {
+        try {
+          clients.set(clienteId, (await api.clientes.obtener(clienteId)).nombre)
+        } catch {
+          clients.set(clienteId, `Cliente #${clienteId}`)
+        }
+      }))
+
+      if (!isActive()) return
+      setToday(argentinaToday)
+      setPendingEvents(pending
+        .map(item => ({ ...item, cliente: clients.get(item.evento.clienteId) ?? `Cliente #${item.evento.clienteId}` }))
+        .sort((a, b) => a.evento.fecha.localeCompare(b.evento.fecha)))
+      setEmpty(pending.length === 0)
+      setOpen(manual || pending.length > 0)
+    } catch {
+      // The informational alert must never interfere with a successful login.
+    }
+  }, [])
+
+  useImperativeHandle(ref, () => ({ openManually: () => { void load(true) } }), [load])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -46,44 +95,9 @@ export default function UpcomingPaymentAlert() {
 
     // Consume the login-only marker before requests so navigation cannot duplicate the alert.
     sessionStorage.removeItem(ALERT_MARKER)
-    const argentinaToday = formatDateInput(new Date())
     let active = true
 
-    const load = async () => {
-      try {
-        const until = addDays(argentinaToday, 15)
-        const events = await api.eventos.listarPorRango(argentinaToday, until)
-        const candidates = events.filter(evento => evento.estado !== 'Cancelado' && evento.fecha >= argentinaToday && evento.fecha <= until)
-        const withBalance = await Promise.all(candidates.map(async evento => {
-          try {
-            const resumen = await api.eventos.resumenFinanciero(evento.id)
-            return resumen.saldoPendiente > 0 ? { evento, resumen } : null
-          } catch {
-            return null
-          }
-        }))
-        const pending = withBalance.filter((item): item is { evento: EventoDto; resumen: ResumenFinancieroEventoDto } => item !== null)
-        const clients = new Map<number, string>()
-        await Promise.all([...new Set(pending.map(item => item.evento.clienteId))].map(async clienteId => {
-          try {
-            clients.set(clienteId, (await api.clientes.obtener(clienteId)).nombre)
-          } catch {
-            clients.set(clienteId, `Cliente #${clienteId}`)
-          }
-        }))
-
-        if (!active || pending.length === 0) return
-        setToday(argentinaToday)
-        setPendingEvents(pending
-          .map(item => ({ ...item, cliente: clients.get(item.evento.clienteId) ?? `Cliente #${item.evento.clienteId}` }))
-          .sort((a, b) => a.evento.fecha.localeCompare(b.evento.fecha)))
-        setOpen(true)
-      } catch {
-        // The informational alert must never interfere with a successful login.
-      }
-    }
-
-    void load()
+    void load(false, () => active)
     return () => { active = false }
   }, [isAuthenticated])
 
@@ -96,7 +110,9 @@ export default function UpcomingPaymentAlert() {
       width="lg"
       footer={<Button variant="secondary" size="sm" onClick={() => setOpen(false)}>Cerrar</Button>}
     >
-      <div className="space-y-3">
+      {empty ? (
+        <p className="py-3 text-sm text-slate-600">No hay eventos próximos con pagos pendientes.</p>
+      ) : <div className="space-y-3">
         {pendingEvents.map(({ evento, resumen, cliente }) => (
           <article key={evento.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:p-4">
             <p className="font-semibold text-slate-950">{formatDate(evento.fecha)} - {evento.tipoEvento}</p>
@@ -109,7 +125,20 @@ export default function UpcomingPaymentAlert() {
             </div>
           </article>
         ))}
-      </div>
+      </div>}
     </Dialog>
   )
+})
+
+export function UpcomingPaymentAlertProvider({ children }: { children: ReactNode }) {
+  const [handle, setHandle] = useState<UpcomingPaymentAlertHandle | null>(null)
+
+  return (
+    <UpcomingPaymentAlertContext.Provider value={handle}>
+      <UpcomingPaymentAlert ref={setHandle} />
+      {children}
+    </UpcomingPaymentAlertContext.Provider>
+  )
 }
+
+export default UpcomingPaymentAlert
