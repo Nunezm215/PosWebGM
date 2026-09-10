@@ -45,7 +45,7 @@ describe('UpcomingPaymentAlert', () => {
     apiState.listarPorRango.mockReset()
     apiState.resumenFinanciero.mockReset()
     apiState.obtenerCliente.mockReset()
-    apiState.obtenerCliente.mockImplementation(async (id: number) => ({ id, nombre: `Cliente ${id}` }))
+    apiState.obtenerCliente.mockImplementation(async (id: number) => ({ id, nombre: `Cliente ${id}`, telefono: '11 1234-5678' }))
   })
 
   it('includes pending events from today through day 15, sorted by date', async () => {
@@ -127,5 +127,36 @@ describe('UpcomingPaymentAlert', () => {
     await user.click(screen.getByRole('button', { name: 'Pagos próximos' }))
 
     expect(await screen.findByText('No hay eventos próximos con pagos pendientes.')).toBeInTheDocument()
+  })
+
+  it('opens the client WhatsApp conversation without a predefined message', async () => {
+    apiState.listarPorRango.mockResolvedValue([event(1, '2026-09-11')])
+    apiState.resumenFinanciero.mockResolvedValue({ eventoId: 1, montoBase: 500000, totalExtras: 0, montoTotal: 500000, totalPagado: 0, saldoPendiente: 500000, estadoPago: 'SinPagos', cantidadPagosActivos: 0 })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const user = userEvent.setup()
+
+    render(<UpcomingPaymentAlert />)
+    await user.click(await screen.findByRole('button', { name: 'Abrir WhatsApp' }))
+
+    expect(openSpy).toHaveBeenCalledWith('https://wa.me/5491112345678', '_blank', 'noopener,noreferrer')
+    expect(openSpy.mock.calls[0][0]).not.toContain('?text=')
+    openSpy.mockRestore()
+  })
+
+  it('supports an already normalized number and disables WhatsApp without a valid phone', async () => {
+    apiState.listarPorRango.mockResolvedValue([event(1, '2026-09-11'), event(2, '2026-09-12')])
+    apiState.resumenFinanciero.mockResolvedValue({ eventoId: 1, montoBase: 500000, totalExtras: 0, montoTotal: 500000, totalPagado: 0, saldoPendiente: 500000, estadoPago: 'SinPagos', cantidadPagosActivos: 0 })
+    apiState.obtenerCliente.mockImplementation(async (id: number) => id === 1
+      ? { id, nombre: 'Cliente 1', telefono: '5491112345678' }
+      : { id, nombre: 'Cliente 2', telefono: '' })
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const user = userEvent.setup()
+
+    render(<UpcomingPaymentAlert />)
+    await user.click(await screen.findByRole('button', { name: 'Abrir WhatsApp' }))
+
+    expect(openSpy).toHaveBeenCalledWith('https://wa.me/5491112345678', '_blank', 'noopener,noreferrer')
+    expect(screen.getByRole('button', { name: 'Sin teléfono' })).toBeDisabled()
+    openSpy.mockRestore()
   })
 })

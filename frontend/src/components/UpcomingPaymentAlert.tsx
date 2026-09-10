@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { formatCurrency, formatDate, formatDateInput } from '../formats'
 import type { EventoDto, ResumenFinancieroEventoDto } from '../types'
 import { useAuth } from '../context/AuthContext'
+import { buildWhatsAppHref } from '../utils/phone'
 import Dialog from './ui/Dialog'
 import Button from './ui/Button'
 
@@ -11,7 +12,7 @@ const ALERT_MARKER = 'upcoming-payment-alert'
 interface PendingEvent {
   evento: EventoDto
   resumen: ResumenFinancieroEventoDto
-  cliente: string
+  cliente: { nombre: string; telefono?: string | null }
 }
 
 function addDays(date: string, days: number) {
@@ -64,19 +65,20 @@ const UpcomingPaymentAlert = forwardRef<UpcomingPaymentAlertHandle>(function Upc
         }
       }))
       const pending = withBalance.filter((item): item is { evento: EventoDto; resumen: ResumenFinancieroEventoDto } => item !== null)
-      const clients = new Map<number, string>()
+      const clients = new Map<number, { nombre: string; telefono?: string | null }>()
       await Promise.all([...new Set(pending.map(item => item.evento.clienteId))].map(async clienteId => {
         try {
-          clients.set(clienteId, (await api.clientes.obtener(clienteId)).nombre)
+          const cliente = await api.clientes.obtener(clienteId)
+          clients.set(clienteId, { nombre: cliente.nombre, telefono: cliente.telefono })
         } catch {
-          clients.set(clienteId, `Cliente #${clienteId}`)
+          clients.set(clienteId, { nombre: `Cliente #${clienteId}` })
         }
       }))
 
       if (!isActive()) return
       setToday(argentinaToday)
       setPendingEvents(pending
-        .map(item => ({ ...item, cliente: clients.get(item.evento.clienteId) ?? `Cliente #${item.evento.clienteId}` }))
+        .map(item => ({ ...item, cliente: clients.get(item.evento.clienteId) ?? { nombre: `Cliente #${item.evento.clienteId}` } }))
         .sort((a, b) => a.evento.fecha.localeCompare(b.evento.fecha)))
       setEmpty(pending.length === 0)
       setOpen(manual || pending.length > 0)
@@ -113,18 +115,22 @@ const UpcomingPaymentAlert = forwardRef<UpcomingPaymentAlertHandle>(function Upc
       {empty ? (
         <p className="py-3 text-sm text-slate-600">No hay eventos próximos con pagos pendientes.</p>
       ) : <div className="space-y-3">
-        {pendingEvents.map(({ evento, resumen, cliente }) => (
-          <article key={evento.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:p-4">
+        {pendingEvents.map(({ evento, resumen, cliente }) => {
+          const whatsAppHref = buildWhatsAppHref(cliente.telefono ?? '')
+          return <article key={evento.id} className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:p-4">
             <p className="font-semibold text-slate-950">{formatDate(evento.fecha)} - {evento.tipoEvento}</p>
-            <p className="mt-1 text-sm text-slate-700">{cliente}</p>
+            <p className="mt-1 text-sm text-slate-700">{cliente.nombre}</p>
             <p className="mt-2 text-sm font-medium text-amber-800">{remainingDaysLabel(evento.fecha, today)}</p>
             <div className="mt-3 grid grid-cols-1 gap-1 text-sm sm:grid-cols-3 sm:gap-3">
               <p>Total: <span className="font-semibold">{formatCurrency(resumen.montoTotal)}</span></p>
               <p>Pagado: <span className="font-semibold">{formatCurrency(resumen.totalPagado)}</span></p>
               <p>Pendiente: <span className="font-semibold text-amber-900">{formatCurrency(resumen.saldoPendiente)}</span></p>
             </div>
+            <Button variant="secondary" size="sm" className="mt-3" disabled={!whatsAppHref} onClick={() => { if (whatsAppHref) window.open(whatsAppHref, '_blank', 'noopener,noreferrer') }}>
+              {whatsAppHref ? 'Abrir WhatsApp' : 'Sin teléfono'}
+            </Button>
           </article>
-        ))}
+        })}
       </div>}
     </Dialog>
   )
