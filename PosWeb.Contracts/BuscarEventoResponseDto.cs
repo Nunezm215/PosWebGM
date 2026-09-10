@@ -11,4 +11,6 @@ public class BuscarEventoResponseDto
     public string TipoEvento { get; set; } = string.Empty;
     public string Estado { get; set; } = string.Empty;
     public int CantidadInvitados { get; set; }
+    public int CantidadMayores { get; set; }
+    public int CantidadMenores { get; set; }
 }

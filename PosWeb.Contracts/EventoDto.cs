@@ -12,6 +12,8 @@ public class EventoDto
     public TimeOnly HoraFin { get; set; }
     public string TipoEvento { get; set; } = string.Empty;
     public int CantidadInvitados { get; set; }
+    public int CantidadMayores { get; set; }
+    public int CantidadMenores { get; set; }
     public decimal MontoTotal { get; set; }
     public string? Observaciones { get; set; }
     public string Estado { get; set; } = string.Empty;

@@ -296,6 +296,8 @@ export interface EventoDto {
   horaFin: string
   tipoEvento: string
   cantidadInvitados: number
+  cantidadMayores?: number
+  cantidadMenores?: number
   montoTotal: number
   observaciones?: string | null
   estado: string
@@ -312,6 +314,8 @@ export interface BuscarEventoResponseDto {
   tipoEvento: string
   estado: string
   cantidadInvitados: number
+  cantidadMayores?: number
+  cantidadMenores?: number
 }
 
 export interface DisponibilidadEventoResponseDto {
@@ -326,6 +330,8 @@ export interface CrearEventoRequestDto {
   horaFin: string
   tipoEvento: string
   cantidadInvitados: number
+  cantidadMayores?: number
+  cantidadMenores?: number
   montoTotal: number
   observaciones?: string | null
 }
@@ -337,6 +343,8 @@ export interface EditarEventoRequestDto {
   horaFin: string
   tipoEvento: string
   cantidadInvitados: number
+  cantidadMayores?: number
+  cantidadMenores?: number
   montoTotal: number
   observaciones?: string | null
 }

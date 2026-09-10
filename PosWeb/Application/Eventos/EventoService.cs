@@ -30,7 +30,9 @@ public class EventoService : IEventoService
             request.TipoEvento,
             request.CantidadInvitados,
             request.MontoTotal,
-            request.Observaciones);
+            request.Observaciones,
+            cantidadMayores: request.CantidadMayores,
+            cantidadMenores: request.CantidadMenores);
 
         var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(request.Fecha, sucursalId, cancellationToken);
         if (!EventoDisponibilidad.EstaDisponible(evento, eventosExistentes))
@@ -56,7 +58,9 @@ public class EventoService : IEventoService
             request.TipoEvento,
             request.CantidadInvitados,
             request.MontoTotal,
-            request.Observaciones);
+            request.Observaciones,
+            cantidadMayores: request.CantidadMayores,
+            cantidadMenores: request.CantidadMenores);
 
         var eventosExistentes = await _repository.ListarPorFechaYSucursalAsync(evento.FECHA, evento.ID_SUCURSAL, cancellationToken);
         if (!EventoDisponibilidad.EstaDisponible(evento, eventosExistentes, eventoId))
@@ -133,6 +137,8 @@ public class EventoService : IEventoService
             TipoEvento = evento.TIPO_EVENTO,
             Estado = evento.ESTADO,
             CantidadInvitados = evento.CANTIDAD_INVITADOS,
+            CantidadMayores = evento.CANTIDAD_MAYORES,
+            CantidadMenores = evento.CANTIDAD_MENORES,
         }).ToList();
     }
 
@@ -312,7 +318,9 @@ public class EventoService : IEventoService
             request.CantidadInvitados,
             request.MontoTotal,
             request.Observaciones,
-            fechaCreacion: DateTime.UtcNow);
+            fechaCreacion: DateTime.UtcNow,
+            cantidadMayores: request.CantidadMayores,
+            cantidadMenores: request.CantidadMenores);
     }
 
     private async Task<Evento> ObtenerEventoRequerido(int eventoId, CancellationToken cancellationToken)
@@ -376,6 +384,8 @@ public class EventoService : IEventoService
             HoraFin = evento.HORA_FIN,
             TipoEvento = evento.TIPO_EVENTO,
             CantidadInvitados = evento.CANTIDAD_INVITADOS,
+            CantidadMayores = evento.CANTIDAD_MAYORES,
+            CantidadMenores = evento.CANTIDAD_MENORES,
             MontoTotal = evento.MONTO_TOTAL,
             Observaciones = evento.OBSERVACIONES,
             Estado = evento.ESTADO,

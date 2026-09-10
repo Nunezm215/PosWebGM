@@ -42,6 +42,12 @@ public partial class PosDbContext
             entity.Property(e => e.CANTIDAD_INVITADOS)
                 .HasColumnName("CANTIDAD_INVITADOS");
 
+            entity.Property(e => e.CANTIDAD_MAYORES)
+                .HasColumnName("CANTIDAD_MAYORES");
+
+            entity.Property(e => e.CANTIDAD_MENORES)
+                .HasColumnName("CANTIDAD_MENORES");
+
             entity.Property(e => e.MONTO_TOTAL)
                 .HasColumnName("MONTO_TOTAL")
                 .HasColumnType("decimal(18,2)");

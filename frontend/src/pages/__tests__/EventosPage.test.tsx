@@ -2848,7 +2848,7 @@ describe('EventosPage', () => {
 
   it('builds a current detail message without cancelled payments or extras', () => {
     const message = buildEventoDetalleWhatsAppMessage(
-      { id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: '2026-09-18', horaInicio: '21:00:00', horaFin: '05:00:00', tipoEvento: 'Cumpleaños', cantidadInvitados: 80, montoTotal: 300000, estado: 'Señado', fechaCreacion: '2026-09-01T12:00:00' },
+      { id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: '2026-09-18', horaInicio: '21:00:00', horaFin: '05:00:00', tipoEvento: 'Cumpleaños', cantidadMayores: 70, cantidadMenores: 10, cantidadInvitados: 80, montoTotal: 300000, estado: 'Señado', fechaCreacion: '2026-09-01T12:00:00' },
       { id: 1, nombre: 'Juan Pérez', telefono: '11 1234-5678', tipoDocumento: 'DNI', numeroDocumento: '12345678', ivaCondicion: 'ConsumidorFinal', activo: true },
       [
         { id: 1, eventoId: 1, descripcion: 'Inflable', monto: 30000, fechaRegistro: '2026-09-01T12:00:00Z', anulado: false },
@@ -2863,6 +2863,9 @@ describe('EventosPage', () => {
 
     expect(message).toContain('DETALLE DE RESERVA')
     expect(message).toContain('Evento: Cumpleaños')
+    expect(message).toContain('Mayores: 70')
+    expect(message).toContain('Menores: 10')
+    expect(message).toContain('Total invitados: 80')
     expect(message).toContain('Extras:\n- Inflable: $ 30.000,00')
     expect(message).toContain('TOTAL: $ 330.000,00')
     expect(message).toContain('PAGADO: $ 150.000,00')

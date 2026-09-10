@@ -16,6 +16,8 @@ public class EventoServiceTests
         TimeOnly? horaFin = null,
         string tipoEvento = "Cumplea\u00f1os",
         int cantidadInvitados = 50,
+        int? cantidadMayores = null,
+        int? cantidadMenores = null,
         decimal montoTotal = 150000m,
         string? observaciones = "Sin alcohol")
     {
@@ -27,6 +29,8 @@ public class EventoServiceTests
             HoraFin = horaFin ?? new TimeOnly(22, 0),
             TipoEvento = tipoEvento,
             CantidadInvitados = cantidadInvitados,
+            CantidadMayores = cantidadMayores,
+            CantidadMenores = cantidadMenores,
             MontoTotal = montoTotal,
             Observaciones = observaciones,
         };
@@ -75,6 +79,48 @@ public class EventoServiceTests
         Assert.Equal(50, dto.CantidadInvitados);
         Assert.Equal(150000m, dto.MontoTotal);
         Assert.True(dto.FechaCreacion != default);
+    }
+
+    [Fact]
+    public async Task CrearEventoAsync_separa_mayores_menores_y_sincroniza_total()
+    {
+        var dto = await new EventoService(new EventoRepositoryFake()).CrearEventoAsync(
+            CrearRequest(cantidadMayores: 70, cantidadMenores: 20), usuarioCreadorId: 7, sucursalId: 3);
+
+        Assert.Equal(70, dto.CantidadMayores);
+        Assert.Equal(20, dto.CantidadMenores);
+        Assert.Equal(90, dto.CantidadInvitados);
+    }
+
+    [Fact]
+    public async Task EditarEventoAsync_actualiza_mayores_menores_y_total()
+    {
+        var repo = new EventoRepositoryFake([CrearEventoExistente(1, 10, 3, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0))]);
+        var dto = await new EventoService(repo).EditarEventoAsync(1, new EditarEventoRequestDto
+        {
+            ClienteId = 10,
+            Fecha = Hoy,
+            HoraInicio = new TimeOnly(18, 0),
+            HoraFin = new TimeOnly(22, 0),
+            TipoEvento = "Cumpleaños",
+            CantidadInvitados = 0,
+            CantidadMayores = 40,
+            CantidadMenores = 10,
+            MontoTotal = 150000m,
+        });
+
+        Assert.Equal(40, dto.CantidadMayores);
+        Assert.Equal(10, dto.CantidadMenores);
+        Assert.Equal(50, dto.CantidadInvitados);
+    }
+
+    [Fact]
+    public async Task CrearEventoAsync_rechaza_mayores_o_menores_negativos()
+    {
+        var service = new EventoService(new EventoRepositoryFake());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CrearEventoAsync(CrearRequest(cantidadMayores: -1, cantidadMenores: 0), 7, 3));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CrearEventoAsync(CrearRequest(cantidadMayores: 1, cantidadMenores: -1), 7, 3));
     }
 
     [Fact]

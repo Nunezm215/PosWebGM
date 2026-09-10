@@ -39,6 +39,10 @@ public class Evento
 
     public int CANTIDAD_INVITADOS { get; private set; }
 
+    public int CANTIDAD_MAYORES { get; private set; }
+
+    public int CANTIDAD_MENORES { get; private set; }
+
     public decimal MONTO_TOTAL { get; private set; }
 
     public string? OBSERVACIONES { get; private set; }
@@ -63,9 +67,11 @@ public class Evento
         int cantidadInvitados,
         decimal montoTotal,
         string? observaciones = null,
-        DateTime? fechaCreacion = null)
+        DateTime? fechaCreacion = null,
+        int? cantidadMayores = null,
+        int? cantidadMenores = null)
     {
-        ValidarBasico(clienteId, usuarioCreadorId, sucursalId, fecha, horaInicio, horaFin, tipoEvento, cantidadInvitados, montoTotal);
+        ValidarBasico(clienteId, usuarioCreadorId, sucursalId, fecha, horaInicio, horaFin, tipoEvento, montoTotal);
 
         ID_CLIENTE = clienteId;
         ID_USUARIO_CREADOR = usuarioCreadorId;
@@ -74,7 +80,7 @@ public class Evento
         HORA_INICIO = horaInicio;
         HORA_FIN = horaFin;
         TIPO_EVENTO = tipoEvento.Trim();
-        CANTIDAD_INVITADOS = cantidadInvitados;
+        AsignarCantidades(cantidadInvitados, cantidadMayores, cantidadMenores);
         MONTO_TOTAL = montoTotal;
         OBSERVACIONES = string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
         ESTADO = EventoEstados.Reservado;
@@ -101,16 +107,18 @@ public class Evento
         string tipoEvento,
         int cantidadInvitados,
         decimal montoTotal,
-        string? observaciones = null)
+        string? observaciones = null,
+        int? cantidadMayores = null,
+        int? cantidadMenores = null)
     {
-        ValidarBasico(clienteId, ID_USUARIO_CREADOR, ID_SUCURSAL, fecha, horaInicio, horaFin, tipoEvento, cantidadInvitados, montoTotal);
+        ValidarBasico(clienteId, ID_USUARIO_CREADOR, ID_SUCURSAL, fecha, horaInicio, horaFin, tipoEvento, montoTotal);
 
         ID_CLIENTE = clienteId;
         FECHA = fecha;
         HORA_INICIO = horaInicio;
         HORA_FIN = horaFin;
         TIPO_EVENTO = tipoEvento.Trim();
-        CANTIDAD_INVITADOS = cantidadInvitados;
+        AsignarCantidades(cantidadInvitados, cantidadMayores, cantidadMenores);
         MONTO_TOTAL = montoTotal;
         OBSERVACIONES = string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
     }
@@ -143,7 +151,6 @@ public class Evento
         TimeOnly horaInicio,
         TimeOnly horaFin,
         string tipoEvento,
-        int cantidadInvitados,
         decimal montoTotal)
     {
         if (clienteId <= 0)
@@ -164,10 +171,30 @@ public class Evento
         if (string.IsNullOrWhiteSpace(tipoEvento))
             throw new ArgumentException("tipoEvento es requerido", nameof(tipoEvento));
 
-        if (cantidadInvitados < 0)
-            throw new ArgumentException("cantidadInvitados no puede ser negativa", nameof(cantidadInvitados));
-
         if (montoTotal < 0)
             throw new ArgumentException("montoTotal no puede ser negativo", nameof(montoTotal));
+    }
+
+    private void AsignarCantidades(int cantidadInvitados, int? cantidadMayores, int? cantidadMenores)
+    {
+        if (!cantidadMayores.HasValue && !cantidadMenores.HasValue)
+        {
+            if (cantidadInvitados < 0)
+                throw new ArgumentException("cantidadInvitados no puede ser negativa", nameof(cantidadInvitados));
+
+            CANTIDAD_MAYORES = cantidadInvitados;
+            CANTIDAD_MENORES = 0;
+            CANTIDAD_INVITADOS = cantidadInvitados;
+            return;
+        }
+
+        if (!cantidadMayores.HasValue || !cantidadMenores.HasValue)
+            throw new ArgumentException("cantidadMayores y cantidadMenores deben informarse juntos");
+        if (cantidadMayores.Value < 0 || cantidadMenores.Value < 0)
+            throw new ArgumentException("Las cantidades de invitados no pueden ser negativas");
+
+        CANTIDAD_MAYORES = cantidadMayores.Value;
+        CANTIDAD_MENORES = cantidadMenores.Value;
+        CANTIDAD_INVITADOS = checked(CANTIDAD_MAYORES + CANTIDAD_MENORES);
     }
 }

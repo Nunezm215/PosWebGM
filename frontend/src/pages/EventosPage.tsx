@@ -172,7 +172,9 @@ export function buildEventoDetalleWhatsAppMessage(
     '--------------------------------',
     'DETALLE',
     '--------------------------------',
-    `Invitados: ${evento.cantidadInvitados}`,
+    `Mayores: ${evento.cantidadMayores ?? evento.cantidadInvitados}`,
+    `Menores: ${evento.cantidadMenores ?? 0}`,
+    `Total invitados: ${evento.cantidadInvitados}`,
     `Estado: ${evento.estado}`,
     '',
     `Valor del evento: ${formatCurrency(resumen.montoBase)}`,
@@ -289,7 +291,8 @@ interface EventoAltaFormState {
   horaInicio: string
   horaFin: string
   tipoEvento: string
-  cantidadInvitados: string
+  cantidadMayores: string
+  cantidadMenores: string
   montoTotal: string
   observaciones: string
 }
@@ -304,7 +307,8 @@ function createEmptyForm(fecha = formatDateInput(new Date())): EventoAltaFormSta
     horaInicio: '',
     horaFin: '',
     tipoEvento: '',
-    cantidadInvitados: '',
+    cantidadMayores: '',
+    cantidadMenores: '',
     montoTotal: '',
     observaciones: '',
   }
@@ -820,6 +824,9 @@ export default function EventosPage() {
     if (!createForm.fecha) return ''
     return isBeforeToday(createForm.fecha, todayDateKey) ? 'No se puede reservar un evento en una fecha anterior a hoy' : ''
   }, [createForm.fecha, todayDateKey])
+  const invitadosError = Number(createForm.cantidadMayores || 0) < 0 || Number(createForm.cantidadMenores || 0) < 0
+    ? 'Las cantidades de invitados no pueden ser negativas'
+    : ''
 
   const canGuardar = Boolean(
     clienteSeleccionado?.id &&
@@ -827,14 +834,17 @@ export default function EventosPage() {
     createForm.horaInicio &&
     createForm.horaFin &&
     createForm.tipoEvento.trim() &&
-    createForm.cantidadInvitados.trim() &&
+    createForm.cantidadMayores.trim() &&
+    createForm.cantidadMenores.trim() &&
     createForm.montoTotal.trim() &&
     !fechaError &&
     !timeError &&
+    !invitadosError &&
     disponibilidad.estado === 'available' &&
     !saving &&
     !clienteLoading
   )
+  const totalInvitadosForm = Math.max(0, Number(createForm.cantidadMayores || 0)) + Math.max(0, Number(createForm.cantidadMenores || 0))
 
   const canGuardarCliente = !clienteCreateSaving
 
@@ -981,7 +991,8 @@ export default function EventosPage() {
         horaInicio: formatTime(evento.horaInicio),
         horaFin: formatTime(evento.horaFin),
         tipoEvento: evento.tipoEvento,
-        cantidadInvitados: String(evento.cantidadInvitados),
+        cantidadMayores: String(evento.cantidadMayores ?? evento.cantidadInvitados),
+        cantidadMenores: String(evento.cantidadMenores ?? 0),
         montoTotal: String(evento.montoTotal),
         observaciones: evento.observaciones ?? '',
       })
@@ -1294,13 +1305,18 @@ export default function EventosPage() {
       return
     }
 
-    if (!createForm.fecha || !createForm.horaInicio || !createForm.horaFin || !createForm.tipoEvento.trim() || !createForm.cantidadInvitados.trim() || !createForm.montoTotal.trim()) {
+    if (!createForm.fecha || !createForm.horaInicio || !createForm.horaFin || !createForm.tipoEvento.trim() || !createForm.cantidadMayores.trim() || !createForm.cantidadMenores.trim() || !createForm.montoTotal.trim()) {
       setCreateError('Completá los campos obligatorios')
       return
     }
 
     if (timeError) {
       setCreateError(timeError)
+      return
+    }
+
+    if (invitadosError) {
+      setCreateError(invitadosError)
       return
     }
 
@@ -1320,7 +1336,9 @@ export default function EventosPage() {
       horaInicio: normalizeTimeForApi(createForm.horaInicio),
       horaFin: normalizeTimeForApi(createForm.horaFin),
       tipoEvento: createForm.tipoEvento.trim(),
-      cantidadInvitados: Number(createForm.cantidadInvitados),
+      cantidadMayores: Number(createForm.cantidadMayores),
+      cantidadMenores: Number(createForm.cantidadMenores),
+      cantidadInvitados: totalInvitadosForm,
       montoTotal: Number(createForm.montoTotal),
       observaciones: createForm.observaciones.trim() ? createForm.observaciones.trim() : null,
     }
@@ -2038,6 +2056,10 @@ export default function EventosPage() {
             <p className="text-xs font-medium text-red-600">{fechaError}</p>
           )}
 
+          {invitadosError && (
+            <p className="text-xs font-medium text-red-600">{invitadosError}</p>
+          )}
+
           <div className={`rounded-xl border px-4 py-3 text-sm whitespace-pre-line ${
             disponibilidad.estado === 'available'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
@@ -2056,16 +2078,29 @@ export default function EventosPage() {
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="evento-invitados" className="text-xs font-semibold text-gray-700">Cantidad de invitados *</label>
+              <label htmlFor="evento-mayores" className="text-xs font-semibold text-gray-700">Mayores *</label>
               <input
-                id="evento-invitados"
+                id="evento-mayores"
                 type="number"
                 min="0"
                 step="1"
-                value={createForm.cantidadInvitados}
-                onChange={e => setCreateForm(prev => ({ ...prev, cantidadInvitados: e.target.value }))}
+                value={createForm.cantidadMayores}
+                onChange={e => setCreateForm(prev => ({ ...prev, cantidadMayores: e.target.value }))}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               />
+            </div>
+            <div>
+              <label htmlFor="evento-menores" className="text-xs font-semibold text-gray-700">Menores *</label>
+              <input
+                id="evento-menores"
+                type="number"
+                min="0"
+                step="1"
+                value={createForm.cantidadMenores}
+                onChange={e => setCreateForm(prev => ({ ...prev, cantidadMenores: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <p className="mt-1 text-xs text-gray-500">Total invitados: {totalInvitadosForm}</p>
             </div>
             <div>
               <label htmlFor="evento-monto" className="text-xs font-semibold text-gray-700">Monto total *</label>
@@ -2319,7 +2354,9 @@ export default function EventosPage() {
             <DetailRow label="Fecha" value={formatDate(selectedEvento.fecha)} />
             <DetailRow label="Horario" value={`${formatTime(selectedEvento.horaInicio)} - ${formatTime(selectedEvento.horaFin)}`} />
             <DetailRow label="Tipo" value={selectedEvento.tipoEvento} />
-            <DetailRow label="Invitados" value={String(selectedEvento.cantidadInvitados)} />
+            <DetailRow label="Mayores" value={String(selectedEvento.cantidadMayores ?? selectedEvento.cantidadInvitados)} />
+            <DetailRow label="Menores" value={String(selectedEvento.cantidadMenores ?? 0)} />
+            <DetailRow label="Total invitados" value={String(selectedEvento.cantidadInvitados)} />
             <DetailRow label="Monto" value={formatCurrency(selectedEvento.montoTotal)} />
             <DetailRow label="Estado" value={selectedEvento.estado} />
             <DetailRow

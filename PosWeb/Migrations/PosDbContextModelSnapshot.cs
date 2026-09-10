@@ -508,6 +508,14 @@ namespace PosWeb.Migrations
                         .HasColumnType("int")
                         .HasColumnName("CANTIDAD_INVITADOS");
 
+                    b.Property<int>("CANTIDAD_MAYORES")
+                        .HasColumnType("int")
+                        .HasColumnName("CANTIDAD_MAYORES");
+
+                    b.Property<int>("CANTIDAD_MENORES")
+                        .HasColumnType("int")
+                        .HasColumnName("CANTIDAD_MENORES");
+
                     b.Property<string>("ESTADO")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
