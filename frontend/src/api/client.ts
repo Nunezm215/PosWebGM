@@ -70,13 +70,13 @@ function getFilenameFromContentDisposition(header: string | null): string | unde
   }
 }
 
-async function request<T>(url: string, options?: RequestInit & { noAuth?: boolean }): Promise<T> {
+async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const startTime = Date.now()
   console.log(`[API Request] ${options?.method ?? 'GET'} ${url}`)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options?.noAuth ? {} : getAuthHeaders()),
+    ...getAuthHeaders(),
   }
 
   // Merge custom headers
@@ -122,12 +122,12 @@ async function request<T>(url: string, options?: RequestInit & { noAuth?: boolea
   return res.json()
 }
 
-async function requestBlob(url: string, options?: RequestInit & { noAuth?: boolean }): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
+async function requestBlob(url: string, options?: RequestInit): Promise<{ blob: Blob; filename?: string; contentType?: string }> {
   const startTime = Date.now()
   console.log(`[API Request] ${options?.method ?? 'GET'} ${url}`)
 
   const headers: Record<string, string> = {
-    ...(options?.noAuth ? {} : getAuthHeaders()),
+    ...getAuthHeaders(),
   }
 
   if (options?.headers) {
@@ -243,7 +243,6 @@ export const api = {
     registrarPago: (eventoId: number, dto: CrearPagoEventoRequestDto) => request<PagoEventoDto>(`/eventos/${eventoId}/pagos`, { method: 'POST', body: JSON.stringify(dto) }),
     anularPago: (eventoId: number, pagoId: number, dto: AnularPagoEventoRequestDto) => request<PagoEventoDto>(`/eventos/${eventoId}/pagos/${pagoId}/anular`, { method: 'POST', body: JSON.stringify(dto) }),
     obtenerContratoPdf: (id: number) => requestBlob(`/eventos/${id}/contrato`),
-    obtenerDetallePdf: (id: number) => requestBlob(`/eventos/${id}/detalle-pdf`),
   },
 
   // Productos

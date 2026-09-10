@@ -115,28 +115,29 @@ export default function App() {
           <DialogContainer />
           <UpdaterBanner {...updater} />
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<AuthGuard />}>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Navigate to="/eventos" replace />} />
-                <Route path="/eventos" element={<EventosPage />} />
-                <Route path="/oportunidades" element={<OportunidadesPage />} />
-                <Route path="/productos" element={<ProductosPage />} />
-                <Route path="/ventas" element={<VentasPage />} />
-                <Route path="/historial" element={<HistorialVentasPage />} />
-                <Route path="/clientes" element={<ClientesPage />} />
-                <Route path="/caja" element={<CajaPage />} />
-                <Route path="/compras" element={<CompraPage />} />
-                <Route path="/gastos" element={<GastosPage />} />
-                <Route path="/proveedores" element={<ProveedoresPage />} />
-                <Route path="/deudas" element={<DeudaPage />} />
-                <Route path="/pedidos" element={<PedidosPage />} />
-                <Route path="/combos" element={<CombosPage />} />
-                <Route path="/usuarios/alta" element={<AltaUsuarioPage />} />
-                <Route path="/configuracion" element={<ConfiguracionPage />} />
-              </Route>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<AuthGuard />}>
+            <Route element={<Layout />}> 
+               <Route path="/" element={<Navigate to="/eventos" replace />} />
+               <Route path="/eventos" element={<EventosPage />} />
+               <Route path="/oportunidades" element={<OportunidadesPage />} />
+            <Route path="/productos" element={<ProductosPage />} />
+            <Route path="/ventas" element={<VentasPage />} />
+            <Route path="/historial" element={<HistorialVentasPage />} />
+            <Route path="/clientes" element={<ClientesPage />} />
+            <Route path="/caja" element={<CajaPage />} />
+            <Route path="/compras" element={<CompraPage />} />
+            <Route path="/gastos" element={<GastosPage />} />
+            <Route path="/proveedores" element={<ProveedoresPage />} />
+              <Route path="/deudas" element={<DeudaPage />} />
+              <Route path="/pedidos" element={<PedidosPage />} />
+              <Route path="/combos" element={<CombosPage />} />
+
+              <Route path="/usuarios/alta" element={<AltaUsuarioPage />} />
+              <Route path="/configuracion" element={<ConfiguracionPage />} />
             </Route>
-          </Routes>
+          </Route>
+        </Routes>
         </AuthProvider>
       </NotificationProvider>
     </BrowserRouter>

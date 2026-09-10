@@ -134,9 +134,6 @@ builder.Services.AddScoped<CategoriaGastoService>();
 builder.Services.AddScoped<IEventoRepository, EventoRepository>();
 builder.Services.AddScoped<IEventoService, EventoService>();
 builder.Services.AddScoped<ContratoEventoPdfService>();
-builder.Services.AddScoped<EventoDetallePdfService>();
-builder.Services.Configure<DetallePdfStorageOptions>(builder.Configuration.GetSection(DetallePdfStorageOptions.SectionName));
-builder.Services.AddScoped<DetallePdfStorage>();
 
 // MercadoPago
 var mpEncryptionKey = builder.Configuration["MercadoPago:EncryptionKey"]

@@ -93,11 +93,11 @@ function normalizeArgentinaWhatsAppDigits(phone: string) {
   if (!digits) return ''
 
   const parsed = parseArgentinaPhone(digits)
-  if (parsed.recognized) {
+  if (parsed.recognized && parsed.local.length === getArgentinaPhoneLocalDigits(parsed.code)) {
     return buildArgentinaPhone(parsed.code, parsed.local)
   }
 
-  return digits
+  return ''
 }
 
 export function buildWhatsAppHref(phone: string) {

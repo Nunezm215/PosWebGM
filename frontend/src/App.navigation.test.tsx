@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
 vi.mock('./pages/LoginPage', () => ({
   default: () => <div>LoginMock</div>,
@@ -56,7 +56,7 @@ describe('App navigation', () => {
 
     await renderApp()
 
-    expect(await screen.findByText('EventosMock', {}, { timeout: 10000 })).toBeInTheDocument()
+    expect(await screen.findByText('EventosMock')).toBeInTheDocument()
   })
 
   it('keeps a valid deep link for an authenticated user', async () => {
@@ -74,13 +74,5 @@ describe('App navigation', () => {
     await renderApp()
 
     expect(await screen.findByText('LoginMock')).toBeInTheDocument()
-  })
-
-  it('does not expose a public detail route', async () => {
-    window.history.pushState({}, '', '/detalle-reserva/token-123')
-
-    const { container } = await renderApp()
-
-    await waitFor(() => expect(container).toBeEmptyDOMElement())
   })
 })

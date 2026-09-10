@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using PosWeb.Application.Eventos;
 using PosWeb.Contracts;
 using PosWeb.Data;
@@ -69,11 +67,6 @@ public class EventosControllerTests
         TestHelpers.SetId(otroCliente, OtroClienteId, "ID_CLIENTE");
         context.Cliente.Add(otroCliente);
 
-        if (!context.MedioPago.Any())
-        {
-            context.MedioPago.Add(new MedioPago(9101, "EFECTIVO_TEST", "Efectivo", true));
-        }
-
         await context.SaveChangesAsync();
     }
 
@@ -82,9 +75,7 @@ public class EventosControllerTests
         var repo = new EventoRepository(context);
         var service = new EventoService(repo);
         var contratoService = new ContratoEventoPdfService(repo, context);
-        var detalleService = new EventoDetallePdfService(repo, service);
-        var storage = new DetallePdfStorage(detalleService, Options.Create(new DetallePdfStorageOptions { BasePath = Path.Combine(Path.GetTempPath(), "PosWebTests", Guid.NewGuid().ToString("N")) }));
-        var controller = new EventosController(service, contratoService, storage, context, NullLogger<EventosController>.Instance)
+        var controller = new EventosController(service, contratoService, context)
         {
             ControllerContext = new ControllerContext
             {
@@ -555,9 +546,7 @@ public class EventosControllerTests
             var repo = new EventoRepository(context);
             var service = new EventoService(repo);
             var contratoService = new ContratoEventoPdfService(repo, context);
-            var detalleService = new EventoDetallePdfService(repo, service);
-            var storage = new DetallePdfStorage(detalleService, Options.Create(new DetallePdfStorageOptions { BasePath = Path.Combine(Path.GetTempPath(), "PosWebTests", Guid.NewGuid().ToString("N")) }));
-            var controller = new EventosController(service, contratoService, storage, context, NullLogger<EventosController>.Instance)
+            var controller = new EventosController(service, contratoService, context)
             {
                 ControllerContext = new ControllerContext
                 {
@@ -626,65 +615,6 @@ public class EventosControllerTests
             var result = await controller.Contrato(999999, CancellationToken.None);
 
             Assert.IsType<NotFoundObjectResult>(result);
-        }
-    }
-
-    [Fact]
-    public async Task Detalle_pdf_devuelve_pdf_y_no_modifica_datos()
-    {
-        var (connection, context) = await CrearContextoAsync();
-        await using (connection)
-        await using (context)
-        {
-            await SeedAsync(context);
-            var evento = await CrearEventoPersistidoAsync(context);
-            var totalAntes = await context.Evento.CountAsync();
-            var controller = CrearController(context, Roles.UsuarioComun);
-
-            var result = await controller.DetallePdf(evento.ID_EVENTO, CancellationToken.None);
-
-            var file = Assert.IsType<FileContentResult>(result);
-            Assert.Equal("application/pdf", file.ContentType);
-            Assert.NotEmpty(file.FileContents);
-            Assert.Equal(totalAntes, await context.Evento.CountAsync());
-        }
-    }
-
-    [Fact]
-    public async Task Detalle_pdf_evento_inexistente_devuelve_404()
-    {
-        var (connection, context) = await CrearContextoAsync();
-        await using (connection)
-        await using (context)
-        {
-            await SeedAsync(context);
-            var controller = CrearController(context, Roles.UsuarioComun);
-
-            var result = await controller.DetallePdf(999999, CancellationToken.None);
-
-            Assert.IsType<NotFoundObjectResult>(result);
-        }
-    }
-
-    [Fact]
-    public async Task Detalle_pdf_sin_claims_devuelve_unauthorized()
-    {
-        var (connection, context) = await CrearContextoAsync();
-        await using (connection)
-        await using (context)
-        {
-            await SeedAsync(context);
-            var repo = new EventoRepository(context);
-            var service = new EventoService(repo);
-            var storage = new DetallePdfStorage(new EventoDetallePdfService(repo, service), Options.Create(new DetallePdfStorageOptions { BasePath = Path.Combine(Path.GetTempPath(), "PosWebTests", Guid.NewGuid().ToString("N")) }));
-            var controller = new EventosController(service, new ContratoEventoPdfService(repo, context), storage, context, NullLogger<EventosController>.Instance)
-            {
-                ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity()) } }
-            };
-
-            var result = await controller.DetallePdf(1, CancellationToken.None);
-
-            Assert.IsType<UnauthorizedObjectResult>(result);
         }
     }
 

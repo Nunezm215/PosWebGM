@@ -15,17 +15,13 @@ public class EventosController : ControllerBase
 {
     private readonly IEventoService _eventoService;
     private readonly ContratoEventoPdfService _contratoEventoPdfService;
-    private readonly DetallePdfStorage _detallePdfStorage;
     private readonly PosDbContextLocal _context;
-    private readonly ILogger<EventosController> _logger;
 
-    public EventosController(IEventoService eventoService, ContratoEventoPdfService contratoEventoPdfService, DetallePdfStorage detallePdfStorage, PosDbContextLocal context, ILogger<EventosController> logger)
+    public EventosController(IEventoService eventoService, ContratoEventoPdfService contratoEventoPdfService, PosDbContextLocal context)
     {
         _eventoService = eventoService;
         _contratoEventoPdfService = contratoEventoPdfService;
-        _detallePdfStorage = detallePdfStorage;
         _context = context;
-        _logger = logger;
     }
 
     [HttpPost]
@@ -40,7 +36,6 @@ public class EventosController : ControllerBase
         try
         {
             var creado = await _eventoService.CrearEventoAsync(request, usuarioId, sucursalId, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(creado.Id, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = creado.Id }, creado);
         }
         catch (ArgumentException ex)
@@ -148,7 +143,6 @@ public class EventosController : ControllerBase
         try
         {
             var editado = await _eventoService.EditarEventoAsync(id, request, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(editado);
         }
         catch (ArgumentException ex)
@@ -177,7 +171,6 @@ public class EventosController : ControllerBase
         try
         {
             var actualizado = await _eventoService.CambiarEstadoAsync(id, request.Estado, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(actualizado);
         }
         catch (ArgumentException ex)
@@ -206,7 +199,6 @@ public class EventosController : ControllerBase
         try
         {
             var cancelado = await _eventoService.CancelarAsync(id, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(cancelado);
         }
         catch (InvalidOperationException ex)
@@ -237,7 +229,6 @@ public class EventosController : ControllerBase
         try
         {
             var creado = await _eventoService.AgregarCargoExtraAsync(eventoId, request, usuarioId, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ListarCargos), new { eventoId }, creado);
         }
         catch (ArgumentException ex)
@@ -262,7 +253,6 @@ public class EventosController : ControllerBase
         try
         {
             await _eventoService.AnularCargoExtraAsync(eventoId, cargoId, request, usuarioId, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return NoContent();
         }
         catch (ArgumentException ex)
@@ -306,7 +296,6 @@ public class EventosController : ControllerBase
         try
         {
             var pago = await _eventoService.RegistrarPagoEventoAsync(eventoId, request, usuarioId, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ListarPagos), new { eventoId }, pago);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -324,7 +313,6 @@ public class EventosController : ControllerBase
         try
         {
             await _eventoService.AnularPagoEventoAsync(eventoId, pagoId, request, usuarioId, cancellationToken);
-            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             var pago = (await _eventoService.ListarPagosEventoAsync(eventoId, cancellationToken)).SingleOrDefault(p => p.Id == pagoId);
             return pago is null ? NotFound(new { error = "Pago no encontrado" }) : Ok(pago);
         }
@@ -346,19 +334,6 @@ public class EventosController : ControllerBase
         return File(contrato.Content, "application/pdf");
     }
 
-    [HttpGet("{id:int}/detalle-pdf")]
-    public async Task<IActionResult> DetallePdf(int id, CancellationToken cancellationToken)
-    {
-        if (!TryGetCurrentContext(out _, out var sucursalId, out var error))
-            return error;
-
-        var detalle = await _detallePdfStorage.RegenerarAsync(id, sucursalId, cancellationToken);
-        if (detalle is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        return File(detalle.Content, "application/pdf", $"Detalle-Reserva-{id}.pdf");
-    }
-
     private bool TryGetCurrentContext(out int usuarioId, out int sucursalId, out ActionResult error)
     {
         usuarioId = 0;
@@ -376,16 +351,4 @@ public class EventosController : ControllerBase
 
     private bool EsAdminOMas()
         => User.IsInRole(Roles.Admin) || User.IsInRole(Roles.SuperAdmin);
-
-    private async Task RegenerarDetalleSinAfectarOperacionAsync(int eventoId, int sucursalId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _detallePdfStorage.RegenerarAsync(eventoId, sucursalId, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "No se pudo actualizar el PDF privado del evento {EventoId}", eventoId);
-        }
-    }
 }

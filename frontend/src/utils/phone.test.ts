@@ -29,6 +29,7 @@ describe('phone helpers', () => {
   it('returns no whatsapp link for empty or invalid numbers', () => {
     expect(buildWhatsAppHref('')).toBe('')
     expect(buildWhatsAppHref('abc')).toBe('')
+    expect(buildWhatsAppHref('11 1234')).toBe('')
   })
 
   it('derives local digit counts, labels and placeholders', () => {

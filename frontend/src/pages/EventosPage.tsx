@@ -145,6 +145,67 @@ function formatCurrency(value: number) {
   return `$ ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+export function buildEventoDetalleWhatsAppMessage(
+  evento: EventoDto,
+  cliente: ClienteDto,
+  cargos: CargoExtraEventoDto[],
+  pagos: PagoEventoDto[],
+  resumen: ResumenFinancieroEventoDto,
+) {
+  const extrasActivos = cargos.filter(cargo => !cargo.anulado)
+  const pagosValidos = pagos.filter(pago => !pago.anulado)
+  const lines = [
+    '================================',
+    '       DETALLE DE RESERVA',
+    '================================',
+    '',
+    `Evento: ${evento.tipoEvento}`,
+    `Fecha: ${formatDate(evento.fecha)}`,
+    `Horario: ${formatTime(evento.horaInicio)} a ${formatTime(evento.horaFin)}`,
+    '',
+    '--------------------------------',
+    'RESERVANTE',
+    '--------------------------------',
+    `Nombre: ${cliente.nombre.trim()}`,
+    `Teléfono: ${cliente.telefono?.trim() || '-'}`,
+    '',
+    '--------------------------------',
+    'DETALLE',
+    '--------------------------------',
+    `Invitados: ${evento.cantidadInvitados}`,
+    `Estado: ${evento.estado}`,
+    '',
+    `Valor del evento: ${formatCurrency(resumen.montoBase)}`,
+  ]
+
+  if (extrasActivos.length > 0) {
+    lines.push('', 'Extras:', ...extrasActivos.map(cargo => `- ${cargo.descripcion}: ${formatCurrency(cargo.monto)}`))
+  }
+
+  lines.push(
+    '',
+    '--------------------------------',
+    'RESUMEN',
+    '--------------------------------',
+    `TOTAL: ${formatCurrency(resumen.montoTotal)}`,
+    `PAGADO: ${formatCurrency(resumen.totalPagado)}`,
+    `SALDO PENDIENTE: ${formatCurrency(resumen.saldoPendiente)}`,
+    '',
+    '--------------------------------',
+    'PAGOS',
+    '--------------------------------',
+  )
+
+  if (pagosValidos.length === 0) {
+    lines.push('Sin pagos registrados')
+  } else {
+    lines.push(...pagosValidos.map(pago => `- ${formatArgentinaDateTime(pago.fechaRegistro)} - ${pago.medioPago || `Medio #${pago.medioPagoId}`} - ${formatCurrency(pago.monto)}`))
+  }
+
+  lines.push('', '================================', 'Gracias por elegirnos', '================================')
+  return lines.join('\n')
+}
+
 function normalizeSearchText(value: string) {
   return value
     .trim()
@@ -306,7 +367,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function EventosPage() {
   const { user } = useAuth()
-  const { notifyInfo, notifySuccess } = useNotification()
+  const { notifySuccess } = useNotification()
   const todayDateKey = formatDateInput(new Date())
   const canManageEvents = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()))
@@ -314,6 +375,8 @@ export default function EventosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<EventoDto | null>(null)
+  const [detalleCompartirError, setDetalleCompartirError] = useState('')
+  const [detalleCompartirLoading, setDetalleCompartirLoading] = useState(false)
   const [cargosExtra, setCargosExtra] = useState<CargoExtraEventoDto[]>([])
   const [cargosExtraLoading, setCargosExtraLoading] = useState(false)
   const [cargosExtraError, setCargosExtraError] = useState('')
@@ -387,8 +450,6 @@ export default function EventosPage() {
   const [contratoOpen, setContratoOpen] = useState(false)
   const [contratoLoading, setContratoLoading] = useState(false)
   const [contratoError, setContratoError] = useState('')
-  const [detallePdfLoading, setDetallePdfLoading] = useState(false)
-  const [detallePdfError, setDetallePdfError] = useState('')
 
   const [proximosEventos, setProximosEventos] = useState<EventoDto[]>([])
   const [proximosLoading, setProximosLoading] = useState(true)
@@ -483,7 +544,6 @@ export default function EventosPage() {
       setClienteDetalle(null)
       setClienteDetalleLoading(false)
       setClienteDetalleError('')
-      setDetallePdfError('')
       return
     }
 
@@ -491,7 +551,6 @@ export default function EventosPage() {
     setClienteDetalle(null)
     setClienteDetalleLoading(true)
     setClienteDetalleError('')
-    setDetallePdfError('')
 
     api.clientes.obtener(selectedEvento.clienteId)
       .then(cliente => {
@@ -1126,6 +1185,13 @@ export default function EventosPage() {
     }
   }
 
+  function abrirCambioEstado(evento: EventoDto) {
+    setSelectedEvento(evento)
+    setEstadoSeleccionado(evento.estado as EventoEstado)
+    setEstadoError('')
+    setEstadoModalOpen(true)
+  }
+
   function cerrarCambioEstado() {
     if (estadoSaving) return
     setEstadoModalOpen(false)
@@ -1153,28 +1219,28 @@ export default function EventosPage() {
   async function compartirDetalleEvento() {
     if (!selectedEvento) return
 
-    setDetallePdfLoading(true)
-    setDetallePdfError('')
-
+    setDetalleCompartirLoading(true)
+    setDetalleCompartirError('')
     try {
-      const result = await api.eventos.obtenerDetallePdf(selectedEvento.id)
-      const file = new File([result.blob], `Detalle-Reserva-${selectedEvento.id}.pdf`, { type: 'application/pdf' })
-
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Detalle de reserva' })
-      } else {
-        const url = URL.createObjectURL(file)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = file.name
-        link.click()
-        URL.revokeObjectURL(url)
-        notifyInfo('El PDF fue descargado. Podés adjuntarlo en WhatsApp.')
+      const [cliente, cargos, pagosActuales, resumen] = await Promise.all([
+        api.clientes.obtener(selectedEvento.clienteId),
+        api.eventos.listarCargos(selectedEvento.id),
+        api.eventos.listarPagos(selectedEvento.id),
+        api.eventos.resumenFinanciero(selectedEvento.id),
+      ])
+      const whatsappHref = buildWhatsAppHref(cliente.telefono ?? '')
+      if (!whatsappHref) {
+        setDetalleCompartirError('El evento no tiene un teléfono válido para WhatsApp.')
+        return
       }
+
+      const message = buildEventoDetalleWhatsAppMessage(selectedEvento, cliente, cargos, pagosActuales, resumen)
+      const opened = window.open(`${whatsappHref}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
+      if (!opened) setDetalleCompartirError('El navegador bloqueó la apertura de WhatsApp.')
     } catch (err) {
-      setDetallePdfError(err instanceof Error ? err.message : 'No se pudo compartir el detalle del evento')
+      setDetalleCompartirError(err instanceof Error ? err.message : 'No se pudo preparar el detalle del evento.')
     } finally {
-      setDetallePdfLoading(false)
+      setDetalleCompartirLoading(false)
     }
   }
 
@@ -2219,39 +2285,39 @@ export default function EventosPage() {
         onClose={() => {
           setSelectedEvento(null)
           setContratoOpen(false)
-          setDetallePdfError('')
         }}
         title="Detalle del evento"
         icon={<CalendarDays size={18} />}
         width="md"
         footer={selectedEvento ? (
           <>
+            <Button variant="secondary" size="sm" onClick={compartirDetalleEvento} disabled={detalleCompartirLoading}>
+              Compartir detalle
+            </Button>
             <Button variant="secondary" size="sm" onClick={abrirContrato}>
               Contrato
             </Button>
             {canManageEvents && (
-              <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
-                Editar
-              </Button>
-            )}
-            <Button variant="secondary" size="sm" onClick={compartirDetalleEvento} loading={detallePdfLoading}>
-              Compartir detalle
-            </Button>
-            {canManageEvents && selectedEvento.estado !== 'Cancelado' && (
-              <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
-                Cancelar evento
-              </Button>
+              <>
+                <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
+                  Editar
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => abrirCambioEstado(selectedEvento)}>
+                  Cambiar estado
+                </Button>
+                {selectedEvento.estado !== 'Cancelado' && (
+                  <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
+                    Cancelar evento
+                  </Button>
+                )}
+              </>
             )}
           </>
         ) : undefined}
       >
         {selectedEvento && (
           <div className="space-y-1">
-            {detallePdfError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                {detallePdfError}
-              </div>
-            )}
+            {detalleCompartirError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{detalleCompartirError}</p>}
             <DetailRow label="Fecha" value={formatDate(selectedEvento.fecha)} />
             <DetailRow label="Horario" value={`${formatTime(selectedEvento.horaInicio)} - ${formatTime(selectedEvento.horaFin)}`} />
             <DetailRow label="Tipo" value={selectedEvento.tipoEvento} />
@@ -2393,7 +2459,7 @@ export default function EventosPage() {
         onClose={cerrarContrato}
         title="Contrato"
         description={selectedEvento ? `Contrato de reserva para el Evento #${selectedEvento.id}` : 'Contrato de reserva'}
-        width="lg"
+        width="sm"
         closeOnBackdrop={!contratoLoading}
         footer={
           <>
@@ -2401,23 +2467,19 @@ export default function EventosPage() {
               Cerrar
             </Button>
             <Button variant="secondary" size="sm" onClick={verContrato} loading={contratoLoading}>
-              Ver contrato PDF
+              Ver contrato
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-3">
           {contratoError && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
               {contratoError}
             </div>
           )}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contrato PDF</p>
-              <p className="mt-2 text-sm text-gray-600">El PDF se genera con los datos reales del Evento y del Cliente.</p>
-            </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            El PDF se genera con los datos reales del Evento y del Cliente. Se abre en una nueva pestaña o se imprime desde el navegador.
           </div>
         </div>
       </Dialog>
