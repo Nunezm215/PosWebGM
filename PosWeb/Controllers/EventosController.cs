@@ -14,18 +14,18 @@ namespace PosWeb.Controllers;
 public class EventosController : ControllerBase
 {
     private readonly IEventoService _eventoService;
-    private readonly EventoDetalleCompartidoService _eventoDetalleCompartidoService;
     private readonly ContratoEventoPdfService _contratoEventoPdfService;
-    private readonly EventoDetallePdfService _eventoDetallePdfService;
+    private readonly DetallePdfStorage _detallePdfStorage;
     private readonly PosDbContextLocal _context;
+    private readonly ILogger<EventosController> _logger;
 
-    public EventosController(IEventoService eventoService, EventoDetalleCompartidoService eventoDetalleCompartidoService, ContratoEventoPdfService contratoEventoPdfService, EventoDetallePdfService eventoDetallePdfService, PosDbContextLocal context)
+    public EventosController(IEventoService eventoService, ContratoEventoPdfService contratoEventoPdfService, DetallePdfStorage detallePdfStorage, PosDbContextLocal context, ILogger<EventosController> logger)
     {
         _eventoService = eventoService;
-        _eventoDetalleCompartidoService = eventoDetalleCompartidoService;
         _contratoEventoPdfService = contratoEventoPdfService;
-        _eventoDetallePdfService = eventoDetallePdfService;
+        _detallePdfStorage = detallePdfStorage;
         _context = context;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -40,6 +40,7 @@ public class EventosController : ControllerBase
         try
         {
             var creado = await _eventoService.CrearEventoAsync(request, usuarioId, sucursalId, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(creado.Id, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ObtenerPorId), new { id = creado.Id }, creado);
         }
         catch (ArgumentException ex)
@@ -147,6 +148,7 @@ public class EventosController : ControllerBase
         try
         {
             var editado = await _eventoService.EditarEventoAsync(id, request, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(editado);
         }
         catch (ArgumentException ex)
@@ -175,6 +177,7 @@ public class EventosController : ControllerBase
         try
         {
             var actualizado = await _eventoService.CambiarEstadoAsync(id, request.Estado, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(actualizado);
         }
         catch (ArgumentException ex)
@@ -203,6 +206,7 @@ public class EventosController : ControllerBase
         try
         {
             var cancelado = await _eventoService.CancelarAsync(id, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(id, sucursalId, cancellationToken);
             return Ok(cancelado);
         }
         catch (InvalidOperationException ex)
@@ -233,6 +237,7 @@ public class EventosController : ControllerBase
         try
         {
             var creado = await _eventoService.AgregarCargoExtraAsync(eventoId, request, usuarioId, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ListarCargos), new { eventoId }, creado);
         }
         catch (ArgumentException ex)
@@ -257,6 +262,7 @@ public class EventosController : ControllerBase
         try
         {
             await _eventoService.AnularCargoExtraAsync(eventoId, cargoId, request, usuarioId, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return NoContent();
         }
         catch (ArgumentException ex)
@@ -289,49 +295,6 @@ public class EventosController : ControllerBase
         return Ok(await _eventoService.ObtenerResumenFinancieroAsync(eventoId, cancellationToken));
     }
 
-    [HttpPost("{eventoId:int}/detalle-compartido")]
-    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
-    public async Task<IActionResult> CrearDetalleCompartido(int eventoId, CancellationToken cancellationToken)
-    {
-        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
-        if (!EsAdminOMas()) return Forbid();
-        if (eventoId <= 0 || await _eventoService.ObtenerPorIdAsync(eventoId, sucursalId, cancellationToken) is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        try
-        {
-            var enlace = await _eventoDetalleCompartidoService.GenerarEnlaceAsync(eventoId, sucursalId, cancellationToken);
-            return CreatedAtAction(nameof(DetalleCompartidoPdfPublico), new { token = enlace.Token }, enlace);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
-    [AllowAnonymous]
-    [HttpGet("detalle-compartido/{token}")]
-    public async Task<IActionResult> DetalleCompartidoPdfPublico(string token, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-            return NotFound(new { error = "Detalle no encontrado" });
-
-        var detalle = await _eventoDetalleCompartidoService.ObtenerActivoPorTokenAsync(token, cancellationToken);
-        if (detalle is null)
-            return NotFound(new { error = "Detalle no encontrado" });
-
-        var evento = await _eventoService.ObtenerPorIdAsync(detalle.ID_EVENTO, null, cancellationToken);
-        if (evento is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        var pdf = await _eventoDetallePdfService.GenerarAsync(evento.Id, evento.SucursalId, cancellationToken);
-        if (pdf is null)
-            return NotFound(new { error = "Evento no encontrado" });
-
-        Response.Headers["Content-Disposition"] = $"inline; filename=\"{pdf.FileName}\"";
-        return File(pdf.Content, "application/pdf");
-    }
-
     [HttpPost("{eventoId:int}/pagos")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
     public async Task<IActionResult> RegistrarPago(int eventoId, [FromBody] CrearPagoEventoRequestDto request, CancellationToken cancellationToken)
@@ -343,6 +306,7 @@ public class EventosController : ControllerBase
         try
         {
             var pago = await _eventoService.RegistrarPagoEventoAsync(eventoId, request, usuarioId, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             return CreatedAtAction(nameof(ListarPagos), new { eventoId }, pago);
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
@@ -360,6 +324,7 @@ public class EventosController : ControllerBase
         try
         {
             await _eventoService.AnularPagoEventoAsync(eventoId, pagoId, request, usuarioId, cancellationToken);
+            await RegenerarDetalleSinAfectarOperacionAsync(eventoId, sucursalId, cancellationToken);
             var pago = (await _eventoService.ListarPagosEventoAsync(eventoId, cancellationToken)).SingleOrDefault(p => p.Id == pagoId);
             return pago is null ? NotFound(new { error = "Pago no encontrado" }) : Ok(pago);
         }
@@ -387,12 +352,11 @@ public class EventosController : ControllerBase
         if (!TryGetCurrentContext(out _, out var sucursalId, out var error))
             return error;
 
-        var detalle = await _eventoDetallePdfService.GenerarAsync(id, sucursalId, cancellationToken);
+        var detalle = await _detallePdfStorage.RegenerarAsync(id, sucursalId, cancellationToken);
         if (detalle is null)
             return NotFound(new { error = "Evento no encontrado" });
 
-        Response.Headers["Content-Disposition"] = $"inline; filename=\"{detalle.FileName}\"";
-        return File(detalle.Content, "application/pdf");
+        return File(detalle.Content, "application/pdf", $"Detalle-Reserva-{id}.pdf");
     }
 
     private bool TryGetCurrentContext(out int usuarioId, out int sucursalId, out ActionResult error)
@@ -412,4 +376,16 @@ public class EventosController : ControllerBase
 
     private bool EsAdminOMas()
         => User.IsInRole(Roles.Admin) || User.IsInRole(Roles.SuperAdmin);
+
+    private async Task RegenerarDetalleSinAfectarOperacionAsync(int eventoId, int sucursalId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _detallePdfStorage.RegenerarAsync(eventoId, sucursalId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo actualizar el PDF privado del evento {EventoId}", eventoId);
+        }
+    }
 }

@@ -306,7 +306,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function EventosPage() {
   const { user } = useAuth()
-  const { notifySuccess } = useNotification()
+  const { notifyInfo, notifySuccess } = useNotification()
   const todayDateKey = formatDateInput(new Date())
   const canManageEvents = user?.rol === 'Admin' || user?.rol === 'SuperAdmin'
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonth(new Date()))
@@ -1157,21 +1157,19 @@ export default function EventosPage() {
     setDetallePdfError('')
 
     try {
-      const enlace = await api.eventos.generarDetalleCompartido(selectedEvento.id)
-      const cliente = clienteDetalle ?? await api.clientes.obtener(selectedEvento.clienteId)
-      const telefonoWhatsApp = buildWhatsAppHref(cliente.telefono ?? '')
+      const result = await api.eventos.obtenerDetallePdf(selectedEvento.id)
+      const file = new File([result.blob], `Detalle-Reserva-${selectedEvento.id}.pdf`, { type: 'application/pdf' })
 
-      if (!telefonoWhatsApp) {
-        setDetallePdfError('No hay un teléfono válido cargado para esta reserva.')
-        return
-      }
-
-      const detalleUrl = `${window.location.origin}${enlace.urlPublica}`
-      const mensaje = `Hola ${cliente.nombre.trim()}, te compartimos el detalle actualizado de tu reserva en Gestor Multieventos.\n\nPodés verlo acá:\n${detalleUrl}`
-      const whatsappUrl = `${telefonoWhatsApp}?text=${encodeURIComponent(mensaje)}`
-      const opened = window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
-      if (!opened) {
-        setDetallePdfError('El navegador bloqueo la apertura de WhatsApp')
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Detalle de reserva' })
+      } else {
+        const url = URL.createObjectURL(file)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = file.name
+        link.click()
+        URL.revokeObjectURL(url)
+        notifyInfo('El PDF fue descargado. Podés adjuntarlo en WhatsApp.')
       }
     } catch (err) {
       setDetallePdfError(err instanceof Error ? err.message : 'No se pudo compartir el detalle del evento')

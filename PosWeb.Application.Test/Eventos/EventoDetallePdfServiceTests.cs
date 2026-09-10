@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PosWeb.Application.Eventos;
 using PosWeb.Contracts;
 using PosWeb.Data;
@@ -197,6 +198,50 @@ public class EventoDetallePdfServiceTests
             var result = await service.GenerarAsync(evento.ID_EVENTO, SucursalId, CancellationToken.None);
 
             Assert.Null(result);
+        }
+    }
+
+    [Fact]
+    public async Task Almacena_un_solo_pdf_y_lo_reemplaza_despues_de_un_pago()
+    {
+        var (connection, context) = await CrearContextoAsync();
+        var basePath = Path.Combine(Path.GetTempPath(), "PosWebTests", Guid.NewGuid().ToString("N"));
+        await using (connection)
+        await using (context)
+        {
+            try
+            {
+                await SeedAsync(context);
+                var evento = await CrearEventoPersistidoAsync(context);
+                var service = CrearService(context);
+                var storage = new DetallePdfStorage(service, Options.Create(new DetallePdfStorageOptions { BasePath = basePath }));
+
+                var inicial = await storage.RegenerarAsync(evento.ID_EVENTO, SucursalId);
+                var archivo = Path.Combine(basePath, evento.ID_EVENTO.ToString(), "detalle-reserva.pdf");
+                Assert.NotNull(inicial);
+                Assert.True(File.Exists(archivo));
+                Assert.Single(Directory.GetFiles(Path.GetDirectoryName(archivo)!));
+                Assert.Contains("$ 100.000,00", LeerTextoPdf(await File.ReadAllBytesAsync(archivo)));
+
+                var medioPagoId = await context.MedioPago.Where(m => m.ACTIVO).Select(m => m.ID_MEDIO_PAGO).FirstAsync();
+                await CrearEventoService(context).RegistrarPagoEventoAsync(evento.ID_EVENTO, new CrearPagoEventoRequestDto
+                {
+                    MedioPagoId = medioPagoId,
+                    Monto = 40000m,
+                    Observacion = "Seña"
+                }, UsuarioId);
+
+                await storage.RegenerarAsync(evento.ID_EVENTO, SucursalId);
+                Assert.Single(Directory.GetFiles(Path.GetDirectoryName(archivo)!));
+                var textoActualizado = LeerTextoPdf(await File.ReadAllBytesAsync(archivo));
+                Assert.Contains("$ 40.000,00", textoActualizado);
+                Assert.Contains("$ 60.000,00", textoActualizado);
+            }
+            finally
+            {
+                if (Directory.Exists(basePath))
+                    Directory.Delete(basePath, true);
+            }
         }
     }
 

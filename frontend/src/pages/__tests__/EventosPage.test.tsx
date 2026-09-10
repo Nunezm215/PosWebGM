@@ -13,7 +13,7 @@ const apiState = vi.hoisted(() => ({
   crearCliente: vi.fn(),
   obtenerCliente: vi.fn(),
   obtenerContratoPdf: vi.fn(),
-  generarDetalleCompartido: vi.fn(),
+  obtenerDetallePdf: vi.fn(),
   listarCargos: vi.fn(),
   agregarCargo: vi.fn(),
   anularCargo: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock('../../api/client', () => ({
       listarPagos: apiState.listarPagos,
       resumenFinanciero: apiState.resumenFinanciero,
       obtenerContratoPdf: apiState.obtenerContratoPdf,
-      generarDetalleCompartido: apiState.generarDetalleCompartido,
+      obtenerDetallePdf: apiState.obtenerDetallePdf,
     },
     clientes: {
       listar: apiState.listarClientes,
@@ -86,7 +86,7 @@ describe('EventosPage', () => {
     apiState.crearCliente.mockReset()
     apiState.obtenerCliente.mockReset()
     apiState.obtenerContratoPdf.mockReset()
-    apiState.generarDetalleCompartido.mockReset()
+    apiState.obtenerDetallePdf.mockReset()
     apiState.listarCargos.mockReset()
     apiState.agregarCargo.mockReset()
     apiState.anularCargo.mockReset()
@@ -113,14 +113,7 @@ describe('EventosPage', () => {
       activo: true,
     })
     apiState.obtenerContratoPdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Contrato-Evento-1-2026-08-15.pdf' })
-    apiState.generarDetalleCompartido.mockResolvedValue({
-      eventoId: 1,
-      solicitudId: 77,
-      token: 'token-abc',
-      urlPublica: '/detalle-reserva/token-abc',
-      creadoEnUtc: '2026-08-15T12:00:00Z',
-      venceEnUtc: '2026-09-14T12:00:00Z',
-    })
+    apiState.obtenerDetallePdf.mockResolvedValue({ blob: new Blob(['pdf'], { type: 'application/pdf' }), filename: 'Detalle-Reserva-1.pdf' })
     apiState.listarCargos.mockResolvedValue([])
     apiState.agregarCargo.mockResolvedValue({})
     apiState.anularCargo.mockResolvedValue(undefined)
@@ -2225,7 +2218,7 @@ describe('EventosPage', () => {
     openSpy.mockRestore()
   })
 
-  it('shares the event detail via WhatsApp with a public link', async () => {
+  it('shares the event detail as a PDF file when Web Share supports files', async () => {
     const eventDate = dateKeyFromToday(1)
     apiState.obtenerPorId.mockResolvedValueOnce({
       id: 1,
@@ -2260,7 +2253,9 @@ describe('EventosPage', () => {
       },
     ])
 
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const shareSpy = vi.fn().mockResolvedValue(undefined)
+    const canShareSpy = vi.fn().mockReturnValue(true)
+    Object.assign(navigator, { share: shareSpy, canShare: canShareSpy })
 
     await renderPage()
     await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
@@ -2271,14 +2266,12 @@ describe('EventosPage', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Compartir detalle' }))
 
-    await waitFor(() => expect(apiState.generarDetalleCompartido).toHaveBeenCalledWith(1))
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('https://wa.me/5491112345678?text='), '_blank', 'noopener,noreferrer')
-    expect(decodeURIComponent((openSpy.mock.calls[0]?.[0] as string).split('?text=')[1] ?? '')).toContain('http://localhost:3000/detalle-reserva/token-abc')
-
-    openSpy.mockRestore()
+    await waitFor(() => expect(apiState.obtenerDetallePdf).toHaveBeenCalledWith(1))
+    expect(canShareSpy).toHaveBeenCalledWith(expect.objectContaining({ files: [expect.any(File)] }))
+    expect(shareSpy).toHaveBeenCalledWith(expect.objectContaining({ files: [expect.any(File)] }))
   })
 
-  it('shows an error when the client has no valid whatsapp phone', async () => {
+  it('downloads the PDF when Web Share files are not supported', async () => {
     const eventDate = dateKeyFromToday(1)
     apiState.listarClientes.mockResolvedValueOnce({
       items: [
@@ -2288,17 +2281,6 @@ describe('EventosPage', () => {
       page: 1,
       pageSize: 1000,
       totalPages: 1,
-    })
-    apiState.obtenerCliente.mockResolvedValueOnce({
-      id: 1,
-      nombre: 'Juan Pérez',
-      tipoDocumento: 'DNI',
-      numeroDocumento: '12345678',
-      ivaCondicion: 'ConsumidorFinal',
-      telefono: '   ',
-      domicilio: '',
-      mail: '',
-      activo: true,
     })
     apiState.obtenerPorId.mockResolvedValueOnce({
       id: 1,
@@ -2316,16 +2298,10 @@ describe('EventosPage', () => {
       fechaCreacion: '2026-08-10T12:00:00',
     })
     apiState.listarRango.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 1, clienteId: 1, usuarioCreadorId: 1, sucursalId: 1, fecha: eventDate, horaInicio: '18:00:00', horaFin: '22:00:00', tipoEvento: 'Cumpleaños', cantidadInvitados: 50, montoTotal: 500000, observaciones: 'Sin alcohol', estado: 'Reservado', fechaCreacion: '2026-08-10T12:00:00' }])
-    apiState.generarDetalleCompartido.mockResolvedValueOnce({
-      eventoId: 1,
-      solicitudId: 88,
-      token: 'token-abc',
-      urlPublica: '/detalle-reserva/token-abc',
-      creadoEnUtc: '2026-08-15T12:00:00Z',
-      venceEnUtc: '2026-09-14T12:00:00Z',
-    })
-
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const objectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:detalle')
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    Object.assign(navigator, { share: undefined, canShare: undefined })
 
     await renderPage()
     await waitFor(() => expect(apiState.listarRango).toHaveBeenCalledTimes(2))
@@ -2336,10 +2312,14 @@ describe('EventosPage', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Compartir detalle' }))
 
-    expect(await within(dialog).findByText('No hay un teléfono válido cargado para esta reserva.')).toBeInTheDocument()
-    expect(openSpy).not.toHaveBeenCalled()
+    await waitFor(() => expect(apiState.obtenerDetallePdf).toHaveBeenCalledWith(1))
+    expect(clickSpy).toHaveBeenCalled()
+    expect(objectUrlSpy).toHaveBeenCalled()
+    expect(revokeSpy).toHaveBeenCalledWith('blob:detalle')
 
-    openSpy.mockRestore()
+    clickSpy.mockRestore()
+    objectUrlSpy.mockRestore()
+    revokeSpy.mockRestore()
   })
 
   it('shows the 10 nearest upcoming events and skips cancelados', async () => {

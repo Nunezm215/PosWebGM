@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('./pages/LoginPage', () => ({
   default: () => <div>LoginMock</div>,
@@ -11,10 +11,6 @@ vi.mock('./pages/EventosPage', () => ({
 
 vi.mock('./pages/ClientesPage', () => ({
   default: () => <div>ClientesMock</div>,
-}))
-
-vi.mock('./pages/DetalleReservaPage', () => ({
-  default: () => <div>DetalleReservaMock</div>,
 }))
 
 vi.mock('./updater', () => ({
@@ -80,11 +76,11 @@ describe('App navigation', () => {
     expect(await screen.findByText('LoginMock')).toBeInTheDocument()
   })
 
-  it('exposes the public detail route without auth', async () => {
+  it('does not expose a public detail route', async () => {
     window.history.pushState({}, '', '/detalle-reserva/token-123')
 
-    await renderApp()
+    const { container } = await renderApp()
 
-    expect(await screen.findByText('DetalleReservaMock')).toBeInTheDocument()
+    await waitFor(() => expect(container).toBeEmptyDOMElement())
   })
 })

@@ -22,7 +22,6 @@ import InicioPage from './pages/InicioPage'
 import CombosPage from './pages/CombosPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import OportunidadesPage from './pages/OportunidadesPage'
-import DetalleReservaPage from './pages/DetalleReservaPage'
 import { esperarBackend } from './api/client'
 import { onUpdaterChange, runUpdateCheck, type UpdaterState, type UpdaterStatus } from './updater'
 import { initVersionCheck, getCurrentVersion } from './versionCheck'
@@ -116,7 +115,6 @@ export default function App() {
           <DialogContainer />
           <UpdaterBanner {...updater} />
           <Routes>
-            <Route path="/detalle-reserva/:token" element={<DetalleReservaPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AuthGuard />}>
               <Route element={<Layout />}>
