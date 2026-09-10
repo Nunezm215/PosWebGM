@@ -1191,6 +1191,7 @@ export default function EventosPage() {
     setEstadoError('')
     setEstadoModalOpen(true)
   }
+  void abrirCambioEstado
 
   function cerrarCambioEstado() {
     if (estadoSaving) return
@@ -2301,9 +2302,6 @@ export default function EventosPage() {
               <>
                 <Button variant="secondary" size="sm" onClick={() => abrirEdicionEvento(selectedEvento)}>
                   Editar
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => abrirCambioEstado(selectedEvento)}>
-                  Cambiar estado
                 </Button>
                 {selectedEvento.estado !== 'Cancelado' && (
                   <Button variant="destructive" size="sm" onClick={() => abrirCancelar(selectedEvento)}>
