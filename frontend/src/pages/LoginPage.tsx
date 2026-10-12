@@ -87,7 +87,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
         <div className="text-center mb-8">
           <div className="mx-auto w-16 h-16 rounded-2xl bg-indigo-500 flex items-center justify-center mb-4">
-            <span className="text-white text-2xl font-bold">KI</span>
+            <span className="text-white text-2xl font-bold">GM</span>
           </div>
           <h1 className="text-2xl font-bold text-white">Salón Multieventos</h1>
           <p className="text-slate-400 text-sm mt-1">Iniciar sesión</p>
