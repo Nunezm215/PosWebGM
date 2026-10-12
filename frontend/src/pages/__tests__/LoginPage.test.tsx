@@ -75,7 +75,7 @@ describe('LoginPage navigation', () => {
 
     await user.click(screen.getByRole('button', { name: 'Manual de usuario' }))
 
-    expect(openSpy).toHaveBeenCalledWith('/manual-usuario.pdf', '_blank', 'noopener,noreferrer')
+    expect(openSpy).toHaveBeenCalledWith('/manual-usuario.pdf?v=2', '_blank', 'noopener,noreferrer')
     openSpy.mockRestore()
   })
 })

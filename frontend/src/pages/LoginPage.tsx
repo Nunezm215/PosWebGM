@@ -182,7 +182,7 @@ export default function LoginPage() {
           </button>
         </form>
         <div className="mt-4 text-center">
-          <button type="button" onClick={() => window.open('/manual-usuario.pdf', '_blank', 'noopener,noreferrer')} className="text-sm font-medium text-slate-300 hover:text-white transition-colors">
+          <button type="button" onClick={() => window.open('/manual-usuario.pdf?v=2', '_blank', 'noopener,noreferrer')} className="text-sm font-medium text-slate-300 hover:text-white transition-colors">
             Manual de usuario
           </button>
         </div>
