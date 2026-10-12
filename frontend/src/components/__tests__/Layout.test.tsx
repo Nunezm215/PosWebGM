@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import Layout from '../Layout'
 
@@ -72,6 +73,8 @@ describe('Layout navigation', () => {
     expect(screen.getByText('Caja')).toBeInTheDocument()
     expect(screen.getByText('Usuarios')).toBeInTheDocument()
     expect(screen.getByText('Configuración')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manual de usuario' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Configuración$/ })).toHaveAttribute('href', '/configuracion')
 
     expect(screen.queryByText('Ventas')).not.toBeInTheDocument()
     expect(screen.queryByText('Compras')).not.toBeInTheDocument()
@@ -124,5 +127,16 @@ describe('Layout navigation', () => {
     renderLayout()
 
     expect(screen.getAllByRole('button', { name: /Salir/i })).toHaveLength(2)
+  })
+
+  it('opens the versioned user manual in a new tab', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const user = userEvent.setup()
+    renderLayout()
+
+    await user.click(screen.getByRole('button', { name: 'Manual de usuario' }))
+
+    expect(openSpy).toHaveBeenCalledWith('/manual-usuario.pdf?v=2', '_blank', 'noopener,noreferrer')
+    openSpy.mockRestore()
   })
 })

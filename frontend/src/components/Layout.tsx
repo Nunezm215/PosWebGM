@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { SucursalDto } from '../types'
 import { useAuth } from '../context/AuthContext'
 import ProductLookupModal from './ProductLookupModal'
-import { CalendarDays, Gift, Menu, LogOut } from 'lucide-react'
+import { CalendarDays, Gift, Menu, LogOut, BookOpen } from 'lucide-react'
 import { getCurrentVersion } from '../versionCheck'
 
 declare const __APP_VERSION__: string
@@ -126,6 +126,17 @@ export default function Layout() {
             {link.label}
           </NavLink>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            closeSidebar()
+            window.open('/manual-usuario.pdf?v=2', '_blank', 'noopener,noreferrer')
+          }}
+          className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[12.5px] font-medium text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white/85"
+        >
+          <span className="flex w-5 shrink-0 items-center justify-center text-sm"><BookOpen size={16} strokeWidth={2} /></span>
+          Manual de usuario
+        </button>
       </nav>
 
       {/* Bottom actions */}
