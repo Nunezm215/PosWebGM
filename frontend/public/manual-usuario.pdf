@@ -1,0 +1,167 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Length 1947 >>
+stream
+0.12 0.18 0.28 rg
+BT /F2 20 Tf 48 780 Td (MANUAL DE USUARIO) Tj ET
+BT /F2 11 Tf 48 762 Td (SALÓN MULTIEVENTOS) Tj ET
+BT /F1 9.5 Tf 48 736 Td (Este manual explica las principales funciones del sistema Salón Multieventos) Tj ET
+BT /F1 9.5 Tf 48 722 Td (para administrar clientes, eventos, pagos y la actividad diaria del salón.) Tj ET
+BT /F2 11 Tf 48 700 Td (INICIAR SESIÓN) Tj ET
+BT /F1 9.5 Tf 48 682 Td (1. Ingresá tu usuario.) Tj ET
+BT /F1 9.5 Tf 48 668 Td (2. Ingresá tu contraseña.) Tj ET
+BT /F1 9.5 Tf 48 654 Td (3. Presioná "Iniciar sesión".) Tj ET
+BT /F1 9.5 Tf 48 640 Td (Las funciones disponibles pueden variar según los permisos del usuario.) Tj ET
+BT /F2 11 Tf 48 618 Td (EVENTOS) Tj ET
+BT /F1 9.5 Tf 48 600 Td (Eventos es la sección principal del sistema. Desde allí podés consultar el) Tj ET
+BT /F1 9.5 Tf 48 586 Td (calendario, seleccionar una fecha, visualizar eventos, crear nuevas reservas) Tj ET
+BT /F1 9.5 Tf 48 572 Td (y abrir el detalle de cada evento.) Tj ET
+BT /F2 11 Tf 48 550 Td (CREAR UN EVENTO) Tj ET
+BT /F1 9.5 Tf 48 532 Td (Completá cliente, tipo de evento, fecha, hora de inicio y finalización,) Tj ET
+BT /F1 9.5 Tf 48 518 Td (cantidad de mayores, cantidad de menores y valor del evento.) Tj ET
+BT /F1 9.5 Tf 48 504 Td (La cantidad total de invitados es igual a mayores más menores.) Tj ET
+BT /F1 9.5 Tf 48 490 Td (El sistema controla la disponibilidad para evitar superposiciones.) Tj ET
+BT /F2 11 Tf 48 468 Td (BUSCAR EVENTOS) Tj ET
+BT /F1 9.5 Tf 48 450 Td (La opción "Buscar eventos" permite encontrar eventos pasados y futuros por) Tj ET
+BT /F1 9.5 Tf 48 436 Td (cliente, tipo de evento, estado o fecha. Los eventos pasados se muestran con) Tj ET
+BT /F1 9.5 Tf 48 422 Td (fondo rojo suave; los de hoy y futuros conservan el fondo normal.) Tj ET
+BT /F1 9.5 Tf 48 408 Td (Usá "Ver detalle" para abrir el evento seleccionado.) Tj ET
+0.45 0.45 0.45 rg
+BT /F1 8 Tf 260 30 Td (Salón Multieventos  |  Página 1 de 4) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 1961 >>
+stream
+0.12 0.18 0.28 rg
+BT /F2 11 Tf 48 780 Td (PAGOS Y ESTADO) Tj ET
+BT /F1 9.5 Tf 48 762 Td (Los pagos se registran dentro del evento.) Tj ET
+BT /F2 11 Tf 48 740 Td (Valor total  -  Total abonado  =  Saldo pendiente) Tj ET
+BT /F1 9.5 Tf 48 714 Td (Reservado: el evento todavía posee saldo pendiente.) Tj ET
+BT /F1 9.5 Tf 48 700 Td (Pagado: el evento se encuentra completamente abonado.) Tj ET
+BT /F1 9.5 Tf 48 686 Td (El sistema actualiza automáticamente el estado según la situación financiera.) Tj ET
+BT /F2 11 Tf 48 664 Td (RESERVA Y SEÑA) Tj ET
+BT /F1 9.5 Tf 48 646 Td (- La fecha se reserva con el 50% del valor total del evento.) Tj ET
+BT /F1 9.5 Tf 48 632 Td (- Ese 50% se considera seña.) Tj ET
+BT /F1 9.5 Tf 48 618 Td (- La seña NO es reintegrable si el cliente cancela.) Tj ET
+BT /F1 9.5 Tf 48 604 Td (- El 50% restante debe estar abonado como máximo 15 días antes del evento.) Tj ET
+BT /F1 9.5 Tf 48 590 Td (- El evento debe encontrarse totalmente abonado para su realización.) Tj ET
+BT /F2 11 Tf 48 568 Td (EVENTOS CON PAGOS PENDIENTES) Tj ET
+BT /F1 9.5 Tf 48 550 Td (La opción "Eventos con pagos pendientes" identifica eventos próximos que) Tj ET
+BT /F1 9.5 Tf 48 536 Td (todavía poseen saldo. También puede aparecer un aviso al iniciar sesión cuando) Tj ET
+BT /F1 9.5 Tf 48 522 Td (hay eventos dentro de los próximos 15 días con dinero pendiente.) Tj ET
+BT /F1 9.5 Tf 48 508 Td (Desde allí podés usar "Abrir WhatsApp" para contactar al cliente si tiene) Tj ET
+BT /F1 9.5 Tf 48 494 Td (un teléfono válido registrado.) Tj ET
+BT /F2 11 Tf 48 472 Td (CARGOS ADICIONALES) Tj ET
+BT /F1 9.5 Tf 48 454 Td (Si después de reservar se agregan servicios o gastos, registralos dentro del) Tj ET
+BT /F1 9.5 Tf 48 440 Td (evento. El sistema los incorpora al total y actualiza el saldo pendiente.) Tj ET
+BT /F1 9.5 Tf 48 426 Td (Los cargos anulados no se consideran vigentes.) Tj ET
+0.45 0.45 0.45 rg
+BT /F1 8 Tf 260 30 Td (Salón Multieventos  |  Página 2 de 4) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 1942 >>
+stream
+0.12 0.18 0.28 rg
+BT /F2 11 Tf 48 780 Td (CONTRATO) Tj ET
+BT /F1 9.5 Tf 48 762 Td (Desde el detalle del evento, la opción "Contrato" genera un PDF con los datos) Tj ET
+BT /F1 9.5 Tf 48 748 Td (del cliente, fecha, horario, tipo de evento, mayores, menores y total de) Tj ET
+BT /F1 9.5 Tf 48 734 Td (invitados. También incluye valor total, total abonado, saldo pendiente,) Tj ET
+BT /F1 9.5 Tf 48 720 Td (adicionales vigentes y condiciones de reserva.) Tj ET
+BT /F1 9.5 Tf 48 706 Td (El PDF puede imprimirse para firmarlo físicamente por el cliente y responsable.) Tj ET
+BT /F2 11 Tf 48 684 Td (WHATSAPP) Tj ET
+BT /F1 9.5 Tf 48 666 Td (Desde el evento podés compartir la información de la reserva por WhatsApp.) Tj ET
+BT /F1 9.5 Tf 48 652 Td (También podés abrir WhatsApp desde "Eventos con pagos pendientes" para) Tj ET
+BT /F1 9.5 Tf 48 638 Td (contactar al cliente. Mantené correctamente cargado su teléfono.) Tj ET
+BT /F2 11 Tf 48 616 Td (CANCELAR UN EVENTO) Tj ET
+BT /F1 9.5 Tf 48 598 Td (Si un cliente cancela una reserva, utilizá la opción de cancelación del evento.) Tj ET
+BT /F1 9.5 Tf 48 584 Td (El evento queda registrado como cancelado, pero libera la fecha y horario para) Tj ET
+BT /F1 9.5 Tf 48 570 Td (nuevas reservas. La seña no es reintegrable cuando cancela el cliente.) Tj ET
+BT /F2 11 Tf 48 548 Td (CLIENTES) Tj ET
+BT /F1 9.5 Tf 48 530 Td (Registrá correctamente nombre y apellido, DNI y teléfono. Estos datos se) Tj ET
+BT /F1 9.5 Tf 48 516 Td (reutilizan para eventos, contratos y WhatsApp. Antes de crear un cliente nuevo,) Tj ET
+BT /F1 9.5 Tf 48 502 Td (verificá si ya se encuentra registrado.) Tj ET
+BT /F2 11 Tf 48 480 Td (CAJA) Tj ET
+BT /F1 9.5 Tf 48 462 Td (La sección Caja reúne los movimientos económicos. Al registrarlos, verificá) Tj ET
+BT /F1 9.5 Tf 48 448 Td (importe, concepto y el evento relacionado cuando corresponda.) Tj ET
+0.45 0.45 0.45 rg
+BT /F1 8 Tf 260 30 Td (Salón Multieventos  |  Página 3 de 4) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 1479 >>
+stream
+0.12 0.18 0.28 rg
+BT /F2 11 Tf 48 780 Td (RECOMENDACIONES DE USO) Tj ET
+BT /F1 9.5 Tf 48 762 Td (- Verificá cliente, fecha y horario antes de guardar.) Tj ET
+BT /F1 9.5 Tf 48 748 Td (- Registrá los pagos cuando se reciben.) Tj ET
+BT /F1 9.5 Tf 48 734 Td (- Registrá correctamente los cargos adicionales.) Tj ET
+BT /F1 9.5 Tf 48 720 Td (- Utilizá la opción Cancelar cuando una reserva se cancela.) Tj ET
+BT /F1 9.5 Tf 48 706 Td (- Mantené actualizado el teléfono del cliente.) Tj ET
+BT /F1 9.5 Tf 48 692 Td (- Revisá periódicamente "Eventos con pagos pendientes".) Tj ET
+BT /F2 11 Tf 48 670 Td (RESUMEN RÁPIDO) Tj ET
+BT /F1 9.5 Tf 48 652 Td (1. Registrar o seleccionar cliente) Tj ET
+BT /F1 9.5 Tf 48 638 Td (v) Tj ET
+BT /F1 9.5 Tf 48 624 Td (2. Crear evento y comprobar disponibilidad) Tj ET
+BT /F1 9.5 Tf 48 610 Td (v) Tj ET
+BT /F1 9.5 Tf 48 596 Td (3. Registrar seña del 50%) Tj ET
+BT /F1 9.5 Tf 48 582 Td (v) Tj ET
+BT /F1 9.5 Tf 48 568 Td (4. Imprimir y firmar contrato) Tj ET
+BT /F1 9.5 Tf 48 554 Td (v) Tj ET
+BT /F1 9.5 Tf 48 540 Td (5. Registrar pagos y adicionales) Tj ET
+BT /F1 9.5 Tf 48 526 Td (v) Tj ET
+BT /F1 9.5 Tf 48 512 Td (6. Controlar eventos con pagos pendientes) Tj ET
+BT /F1 9.5 Tf 48 498 Td (v) Tj ET
+BT /F1 9.5 Tf 48 484 Td (7. Cobrar saldo restante antes de los 15 días) Tj ET
+BT /F1 9.5 Tf 48 470 Td (v) Tj ET
+BT /F2 11 Tf 48 456 Td (8. Evento completamente pagado) Tj ET
+0.45 0.45 0.45 rg
+BT /F1 8 Tf 260 30 Td (Salón Multieventos  |  Página 4 de 4) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 11 0 R >>
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000141 00000 n 
+0000000211 00000 n 
+0000000286 00000 n 
+0000002285 00000 n 
+0000002421 00000 n 
+0000004434 00000 n 
+0000004570 00000 n 
+0000006564 00000 n 
+0000006701 00000 n 
+0000008233 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R >>
+startxref
+8371
+%%EOF
