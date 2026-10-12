@@ -2886,8 +2886,11 @@ describe('EventosPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Buscar eventos' }))
     expect(await screen.findByRole('dialog', { name: 'Buscar eventos' })).toBeInTheDocument()
-    await waitFor(() => expect(apiState.buscarGeneral).toHaveBeenCalledWith({ q: '', estado: undefined, desde: undefined, hasta: undefined, page: 1 }))
+    await waitFor(() => expect(apiState.buscarGeneral).toHaveBeenCalledWith({ q: '', page: 1 }))
     expect(screen.getByText('No se encontraron eventos.')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Filtrar por estado' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Desde')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Hasta')).not.toBeInTheDocument()
   })
 
   it('opens WhatsApp with the current event detail', async () => {
