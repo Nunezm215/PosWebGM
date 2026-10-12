@@ -318,6 +318,14 @@ export interface BuscarEventoResponseDto {
   cantidadMenores?: number
 }
 
+export interface BuscarEventosParams {
+  q?: string
+  estado?: string
+  desde?: string
+  hasta?: string
+  page?: number
+}
+
 export interface DisponibilidadEventoResponseDto {
   disponible: boolean
   proximaHoraDisponible?: string | null

@@ -82,6 +82,28 @@ public class EventoServiceTests
     }
 
     [Fact]
+    public async Task BuscarGeneralAsync_pagina_historial_filtra_y_respeta_sucursal()
+    {
+        var clientes = new[] { CrearCliente(10, "Juan Pérez"), CrearCliente(20, "Otra sucursal") };
+        var eventos = Enumerable.Range(1, 22)
+            .Select(i => CrearEventoExistente(i, 10, 3, Fecha(-i), new TimeOnly(18, 0), new TimeOnly(22, 0), i == 1 ? EventoEstados.Pagado : EventoEstados.Reservado))
+            .Append(CrearEventoExistente(99, 20, 4, Hoy, new TimeOnly(18, 0), new TimeOnly(22, 0)))
+            .ToList();
+        var service = new EventoService(new EventoRepositoryFake(eventos, clientes));
+
+        var first = await service.BuscarGeneralAsync(3, new BuscarEventosFiltroDto { Q = "Juan", Page = 1 });
+        var second = await service.BuscarGeneralAsync(3, new BuscarEventosFiltroDto { Page = 2 });
+        var pagados = await service.BuscarGeneralAsync(3, new BuscarEventosFiltroDto { Estado = EventoEstados.Pagado, Desde = Fecha(-2), Hasta = Hoy });
+
+        Assert.Equal(22, first.TotalCount);
+        Assert.Equal(20, first.Items.Count);
+        Assert.Equal(2, second.Items.Count);
+        Assert.All(first.Items, item => Assert.Equal(10, item.ClienteId));
+        Assert.Single(pagados.Items);
+        Assert.Equal(EventoEstados.Pagado, pagados.Items[0].Estado);
+    }
+
+    [Fact]
     public async Task CrearEventoAsync_separa_mayores_menores_y_sincroniza_total()
     {
         var dto = await new EventoService(new EventoRepositoryFake()).CrearEventoAsync(
@@ -705,6 +727,28 @@ public class EventoServiceTests
                 .ToList();
 
             return Task.FromResult((IReadOnlyList<Evento>)resultado);
+        }
+
+        public Task<PagedResult<Evento>> BuscarGeneralAsync(int sucursalId, BuscarEventosFiltroDto filtro, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var query = _eventos.Where(e => e.ID_SUCURSAL == sucursalId);
+            if (!string.IsNullOrWhiteSpace(filtro.Estado)) query = query.Where(e => e.ESTADO == filtro.Estado);
+            if (filtro.Desde.HasValue) query = query.Where(e => e.FECHA >= filtro.Desde.Value);
+            if (filtro.Hasta.HasValue) query = query.Where(e => e.FECHA <= filtro.Hasta.Value);
+            if (!string.IsNullOrWhiteSpace(filtro.Q))
+            {
+                var value = filtro.Q.Trim().ToLowerInvariant();
+                query = query.Where(e => GetClienteNombre(e.ID_CLIENTE).Contains(value) || e.TIPO_EVENTO.ToLowerInvariant().Contains(value) || e.ESTADO.ToLowerInvariant().Contains(value));
+            }
+
+            var total = query.Count();
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var items = query.OrderBy(e => e.FECHA >= today ? 0 : 1)
+                .ThenBy(e => e.FECHA >= today ? (DateOnly?)e.FECHA : null)
+                .ThenByDescending(e => e.FECHA < today ? (DateOnly?)e.FECHA : null)
+                .ThenBy(e => e.HORA_INICIO).ThenBy(e => e.ID_EVENTO)
+                .Skip((filtro.Page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult(new PagedResult<Evento> { Items = items, TotalCount = total, Page = filtro.Page, PageSize = pageSize });
         }
 
         private string GetClienteNombre(int clienteId)

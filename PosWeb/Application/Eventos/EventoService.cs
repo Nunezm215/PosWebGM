@@ -126,20 +126,23 @@ public class EventoService : IEventoService
         var normalizadoLimit = NormalizarLimit(limit);
 
         var eventos = await _repository.BuscarGlobalAsync(sucursalId, query, normalizadoLimit, cancellationToken);
-        return eventos.Select(evento => new BuscarEventoResponseDto
+        return eventos.Select(MapBuscar).ToList();
+    }
+
+    public async Task<PagedResult<BuscarEventoResponseDto>> BuscarGeneralAsync(int sucursalId, BuscarEventosFiltroDto filtro, CancellationToken cancellationToken = default)
+    {
+        if (filtro.Page < 1) throw new ArgumentException("La página debe ser mayor a cero", nameof(filtro.Page));
+        if (filtro.Desde.HasValue && filtro.Hasta.HasValue && filtro.Hasta < filtro.Desde)
+            throw new ArgumentException("Hasta no puede ser menor a desde", nameof(filtro.Hasta));
+
+        var result = await _repository.BuscarGeneralAsync(sucursalId, filtro, 20, cancellationToken);
+        return new PagedResult<BuscarEventoResponseDto>
         {
-            Id = evento.ID_EVENTO,
-            ClienteId = evento.ID_CLIENTE,
-            ReservadoPor = evento.Cliente?.NOMBRE ?? $"Cliente #{evento.ID_CLIENTE}",
-            Fecha = evento.FECHA,
-            HoraInicio = evento.HORA_INICIO,
-            HoraFin = evento.HORA_FIN,
-            TipoEvento = evento.TIPO_EVENTO,
-            Estado = evento.ESTADO,
-            CantidadInvitados = evento.CANTIDAD_INVITADOS,
-            CantidadMayores = evento.CANTIDAD_MAYORES,
-            CantidadMenores = evento.CANTIDAD_MENORES,
-        }).ToList();
+            Items = result.Items.Select(MapBuscar).ToList(),
+            TotalCount = result.TotalCount,
+            Page = result.Page,
+            PageSize = result.PageSize,
+        };
     }
 
     public async Task<EventoDto> CancelarAsync(int eventoId, CancellationToken cancellationToken = default)
@@ -368,6 +371,21 @@ public class EventoService : IEventoService
         if (fecha < hoy)
             throw new ArgumentException("No se puede reservar un evento en una fecha anterior a hoy", nameof(fecha));
     }
+
+    private static BuscarEventoResponseDto MapBuscar(Evento evento) => new()
+    {
+        Id = evento.ID_EVENTO,
+        ClienteId = evento.ID_CLIENTE,
+        ReservadoPor = evento.Cliente?.NOMBRE ?? $"Cliente #{evento.ID_CLIENTE}",
+        Fecha = evento.FECHA,
+        HoraInicio = evento.HORA_INICIO,
+        HoraFin = evento.HORA_FIN,
+        TipoEvento = evento.TIPO_EVENTO,
+        Estado = evento.ESTADO,
+        CantidadInvitados = evento.CANTIDAD_INVITADOS,
+        CantidadMayores = evento.CANTIDAD_MAYORES,
+        CantidadMenores = evento.CANTIDAD_MENORES,
+    };
 
     private static EventoDto Map(Evento evento)
     {

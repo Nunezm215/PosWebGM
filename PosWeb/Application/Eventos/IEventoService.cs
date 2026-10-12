@@ -12,6 +12,7 @@ public interface IEventoService
     Task<IReadOnlyList<EventoDto>> ListarAsync(int? sucursalId = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<EventoDto>> ListarPorRangoAsync(DateOnly fechaDesde, DateOnly fechaHasta, int? sucursalId = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BuscarEventoResponseDto>> BuscarGlobalAsync(int sucursalId, string query, int limit, CancellationToken cancellationToken = default);
+    Task<PagedResult<BuscarEventoResponseDto>> BuscarGeneralAsync(int sucursalId, BuscarEventosFiltroDto filtro, CancellationToken cancellationToken = default);
     Task<EventoDto> CancelarAsync(int eventoId, CancellationToken cancellationToken = default);
     Task<EventoDto> CambiarEstadoAsync(int eventoId, string estado, CancellationToken cancellationToken = default);
     Task<CargoExtraEventoDto> AgregarCargoExtraAsync(int eventoId, CrearCargoExtraEventoRequestDto request, int usuarioId, CancellationToken cancellationToken = default);

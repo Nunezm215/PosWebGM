@@ -105,6 +105,36 @@ public class EventosController : ControllerBase
         }
     }
 
+    [HttpGet("buscar-general")]
+    public async Task<ActionResult<PagedResult<BuscarEventoResponseDto>>> BuscarGeneral(
+        [FromQuery] string? q,
+        [FromQuery] string? estado,
+        [FromQuery] DateOnly? desde,
+        [FromQuery] DateOnly? hasta,
+        [FromQuery] int page = 1,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCurrentContext(out _, out var sucursalId, out var error)) return error;
+        if (!string.IsNullOrWhiteSpace(estado) && !EventoEstados.Todos.Contains(estado))
+            return BadRequest(new { error = "Estado de evento inválido" });
+
+        try
+        {
+            return Ok(await _eventoService.BuscarGeneralAsync(sucursalId, new BuscarEventosFiltroDto
+            {
+                Q = q,
+                Estado = estado,
+                Desde = desde,
+                Hasta = hasta,
+                Page = page,
+            }, cancellationToken));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("disponibilidad")]
     public async Task<ActionResult<DisponibilidadEventoResponseDto>> Disponibilidad(
         [FromQuery] DateOnly fecha,

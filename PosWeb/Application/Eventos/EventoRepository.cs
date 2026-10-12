@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using PosWeb.Data;
 using PosWeb.Domain;
+using PosWeb.Contracts;
 
 namespace PosWeb.Application.Eventos;
 
@@ -92,6 +93,35 @@ public class EventoRepository : IEventoRepository
 
         future.AddRange(past);
         return future;
+    }
+
+    public async Task<PagedResult<Evento>> BuscarGeneralAsync(int sucursalId, BuscarEventosFiltroDto filtro, int pageSize, CancellationToken cancellationToken = default)
+    {
+        IQueryable<Evento> query = _context.Evento.AsNoTracking().Include(e => e.Cliente).Where(e => e.ID_SUCURSAL == sucursalId);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Estado)) query = query.Where(e => e.ESTADO == filtro.Estado);
+        if (filtro.Desde.HasValue) query = query.Where(e => e.FECHA >= filtro.Desde.Value);
+        if (filtro.Hasta.HasValue) query = query.Where(e => e.FECHA <= filtro.Hasta.Value);
+        if (!string.IsNullOrWhiteSpace(filtro.Q))
+        {
+            var normalized = Normalize(filtro.Q);
+            var dateFilters = GetDateFilters(filtro.Q);
+            query = query.Where(e =>
+                (e.Cliente != null && e.Cliente.NOMBRE.ToLower().Contains(normalized)) ||
+                e.TIPO_EVENTO.ToLower().Contains(normalized) ||
+                e.ESTADO.ToLower().Contains(normalized) ||
+                dateFilters.Contains(e.FECHA));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var items = await query.OrderBy(e => e.FECHA >= today ? 0 : 1)
+            .ThenBy(e => e.FECHA >= today ? (DateOnly?)e.FECHA : null)
+            .ThenByDescending(e => e.FECHA < today ? (DateOnly?)e.FECHA : null)
+            .ThenBy(e => e.HORA_INICIO)
+            .ThenBy(e => e.ID_EVENTO)
+            .Skip((filtro.Page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        return new PagedResult<Evento> { Items = items, TotalCount = totalCount, Page = filtro.Page, PageSize = pageSize };
     }
 
     public Task<Evento?> ObtenerPorIdAsync(int eventoId, CancellationToken cancellationToken = default)

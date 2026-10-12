@@ -8,6 +8,7 @@ import Dialog from '../components/ui/Dialog'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
 import { useUpcomingPaymentAlert } from '../components/UpcomingPaymentAlert'
+import EventSearchDialog from '../components/EventSearchDialog'
 import { formatDateTime as formatArgentinaDateTime } from '../formats'
 import { DEFAULT_PHONE_CODE, PHONE_CODE_OPTIONS, buildArgentinaPhone, buildTelHref, buildWhatsAppHref, getArgentinaPhoneLocalDigits, getArgentinaPhoneLocalError, getArgentinaPhoneLocalLabel, getArgentinaPhoneLocalPlaceholder, limitArgentinaPhoneLocalDigits } from '../utils/phone'
 
@@ -382,6 +383,7 @@ export default function EventosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedEvento, setSelectedEvento] = useState<EventoDto | null>(null)
+  const [generalSearchOpen, setGeneralSearchOpen] = useState(false)
   const [detalleCompartirError, setDetalleCompartirError] = useState('')
   const [detalleCompartirLoading, setDetalleCompartirLoading] = useState(false)
   const [cargosExtra, setCargosExtra] = useState<CargoExtraEventoDto[]>([])
@@ -1499,6 +1501,9 @@ export default function EventosPage() {
       onErrorClose={() => setError(null)}
       actions={
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Button variant="secondary" size="sm" icon={<Search size={14} />} onClick={() => setGeneralSearchOpen(true)}>
+            Buscar eventos
+          </Button>
           <Button variant="secondary" size="sm" icon={<AlertTriangle size={14} />} onClick={() => upcomingPaymentAlert?.openManually()}>
             Eventos con pagos pendientes
           </Button>
@@ -1508,6 +1513,7 @@ export default function EventosPage() {
         </div>
       }
     >
+      <EventSearchDialog open={generalSearchOpen} onClose={() => setGeneralSearchOpen(false)} onOpenEvent={openEvent} />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4">
           <div className="rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200 sm:px-4" ref={monthPickerRef}>

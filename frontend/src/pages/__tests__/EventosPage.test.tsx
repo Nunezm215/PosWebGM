@@ -6,6 +6,7 @@ import { buildEventoDetalleWhatsAppMessage } from '../../pages/EventosPage'
 
 const apiState = vi.hoisted(() => ({
   listarRango: vi.fn(),
+  buscarGeneral: vi.fn(),
   buscar: vi.fn(),
   obtenerPorId: vi.fn(),
   consultarDisponibilidad: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../../api/client', () => ({
   api: {
     eventos: {
       listarPorRango: apiState.listarRango,
+      buscarGeneral: apiState.buscarGeneral,
       buscar: apiState.buscar,
       obtenerPorId: apiState.obtenerPorId,
       consultarDisponibilidad: apiState.consultarDisponibilidad,
@@ -77,6 +79,7 @@ describe('EventosPage', () => {
   beforeEach(() => {
     authState.rol = 'Admin'
     apiState.listarRango.mockReset()
+    apiState.buscarGeneral.mockReset()
     apiState.buscar.mockReset()
     apiState.obtenerPorId.mockReset()
     apiState.consultarDisponibilidad.mockReset()
@@ -93,6 +96,7 @@ describe('EventosPage', () => {
     apiState.listarClientes.mockReset()
     apiState.proximosCumpleanios.mockReset()
     apiState.listarRango.mockResolvedValue([])
+    apiState.buscarGeneral.mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 })
     apiState.buscar.mockResolvedValue([])
     apiState.obtenerPorId.mockResolvedValue(null)
     apiState.consultarDisponibilidad.mockResolvedValue(true)
@@ -2874,6 +2878,16 @@ describe('EventosPage', () => {
     expect(message).toContain('Efectivo - $ 150.000,00')
     expect(message).not.toContain('No mostrar')
     expect(message).not.toContain('$ 10.000,00')
+  })
+
+  it('opens the general event search and queries paginated history', async () => {
+    await renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Buscar eventos' }))
+    expect(await screen.findByRole('dialog', { name: 'Buscar eventos' })).toBeInTheDocument()
+    await waitFor(() => expect(apiState.buscarGeneral).toHaveBeenCalledWith({ q: '', estado: undefined, desde: undefined, hasta: undefined, page: 1 }))
+    expect(screen.getByText('No se encontraron eventos.')).toBeInTheDocument()
   })
 
   it('opens WhatsApp with the current event detail', async () => {
