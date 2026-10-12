@@ -74,7 +74,7 @@ public class EventosControllerTests
     {
         var repo = new EventoRepository(context);
         var service = new EventoService(repo);
-        var contratoService = new ContratoEventoPdfService(repo, context);
+        var contratoService = new ContratoEventoPdfService(repo, service, context);
         var controller = new EventosController(service, contratoService, context)
         {
             ControllerContext = new ControllerContext
@@ -545,7 +545,7 @@ public class EventosControllerTests
             await SeedAsync(context);
             var repo = new EventoRepository(context);
             var service = new EventoService(repo);
-            var contratoService = new ContratoEventoPdfService(repo, context);
+            var contratoService = new ContratoEventoPdfService(repo, service, context);
             var controller = new EventosController(service, contratoService, context)
             {
                 ControllerContext = new ControllerContext

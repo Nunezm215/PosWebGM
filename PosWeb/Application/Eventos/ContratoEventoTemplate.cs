@@ -2,17 +2,21 @@ namespace PosWeb.Application.Eventos;
 
 public static class ContratoEventoTemplate
 {
-    public const string Titulo = "CONTRATO DE RESERVA DE SALON DE EVENTOS";
+    public const string Titulo = "CONTRATO DE RESERVA DE EVENTO";
 
-    public static readonly string[] Clausulas =
+    public static readonly string[] CondicionesReservaYPago =
     {
-        "1. OBJETO\n\nEL SALON reserva sus instalaciones para la realizacion del evento indicado en este contrato, en la fecha y horario establecidos.",
-        "2. RESERVA DE FECHA\n\nLa fecha quedara reservada conforme a las condiciones comerciales acordadas entre las partes.\n\nLos pagos, senas y saldos que correspondan se documentaran mediante los comprobantes emitidos por el sistema.",
-        "3. HORARIO\n\nEl uso del salon debera realizarse dentro del horario contratado.\n\nCualquier extension o modificacion debera ser acordada previamente con EL SALON.",
-        "4. CANTIDAD DE INVITADOS\n\nEL CONTRATANTE declara una cantidad estimada de invitados segun lo indicado en los datos del evento.",
-        "5. CUIDADO DE LAS INSTALACIONES\n\nEL CONTRATANTE se compromete a utilizar las instalaciones de manera adecuada y a respetar las normas de funcionamiento del salon.",
-        "6. RESPONSABILIDAD\n\nEL CONTRATANTE sera responsable del comportamiento de sus invitados y del cumplimiento de las condiciones acordadas para el uso del establecimiento.",
-        "7. CANCELACION Y MODIFICACIONES\n\nToda cancelacion, cambio de fecha, horario o modificacion relevante debera ser comunicada y acordada con EL SALON.\n\nLas condiciones economicas especificas correspondientes a cancelaciones o reprogramaciones podran establecerse posteriormente en la version definitiva de este contrato.",
-        "8. CONFORMIDAD\n\nLas partes manifiestan haber leido y comprendido las condiciones del presente documento.",
+        "La reserva de la fecha quedará confirmada únicamente mediante el pago del 50% del valor total del evento en concepto de seña.",
+        "La seña no será reintegrable en caso de cancelación por parte del cliente.",
+        "El 50% restante deberá abonarse en su totalidad como máximo 15 días antes de la fecha del evento. Para la realización del evento, el valor total contratado deberá encontrarse completamente abonado.",
+        "Cualquier servicio o adicional contratado posteriormente se incorporará al valor total del evento y deberá ser abonado conforme a las condiciones acordadas."
+    };
+
+    public static readonly string[] CondicionesGenerales =
+    {
+        "La reserva corresponde exclusivamente a la fecha y horario indicados en este contrato. Cualquier modificación estará sujeta a disponibilidad y podrá implicar una modificación del valor contratado.",
+        "La cantidad de invitados deberá respetar lo informado en la reserva.",
+        "El cliente será responsable por los daños ocasionados a las instalaciones, mobiliario o equipamiento del salón por él o sus invitados durante el evento.",
+        "Con su firma, el cliente declara haber revisado los datos del evento y aceptar las condiciones del presente contrato."
     };
 }

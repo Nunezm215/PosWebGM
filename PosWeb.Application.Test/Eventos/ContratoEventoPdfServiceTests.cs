@@ -69,7 +69,10 @@ public class ContratoEventoPdfServiceTests
     }
 
     private static ContratoEventoPdfService CrearService(PosDbContextLocal context)
-        => new(new EventoRepository(context), context);
+    {
+        var repository = new EventoRepository(context);
+        return new(repository, new EventoService(repository), context);
+    }
 
     private static async Task<Evento> CrearEventoPersistidoAsync(PosDbContextLocal context, int clienteId = ClienteId, int usuarioId = UsuarioId, int sucursalId = SucursalId, DateOnly? fecha = null, TimeOnly? inicio = null, TimeOnly? fin = null)
     {
@@ -114,19 +117,25 @@ public class ContratoEventoPdfServiceTests
             Assert.NotEmpty(result!.Content);
 
             var texto = LeerTextoPdf(result.Content);
-            Assert.Contains("CONTRATO DE RESERVA DE SALON DE EVENTOS", texto);
+            Assert.Contains("CONTRATO DE RESERVA DE EVENTO", texto);
             Assert.Contains("Cliente Uno", texto);
-            Assert.Contains("DNI 12345678", texto);
+            Assert.Contains("12345678", texto);
             Assert.Contains("1234-5678", texto);
-            Assert.Contains("Calle 123", texto);
-            Assert.Contains("cliente@correo.com", texto);
             Assert.Contains(FormatoFecha(Hoy), texto);
-            Assert.Contains("18:00 - 22:00", texto);
+            Assert.Contains("18:00 a 22:00", texto);
             Assert.Contains("Cumpleanos", texto);
             Assert.Contains("50", texto);
             Assert.Contains("$ 500.000,00", texto);
-            Assert.Contains("Sin alcohol", texto);
-            Assert.Contains("Reservado", texto);
+            Assert.Contains("Valor total del evento", texto);
+            Assert.Contains("Total abonado", texto);
+            Assert.Contains("Saldo pendiente", texto);
+            Assert.Contains("La reserva de la fecha quedará confirmada únicamente mediante el pago del 50%", texto);
+            Assert.Contains("La seña no será reintegrable", texto);
+            Assert.Contains("como máximo 15 días antes", texto);
+            Assert.Contains("Firma del cliente", texto);
+            Assert.DoesNotContain("Calle 123", texto);
+            Assert.DoesNotContain("cliente@correo.com", texto);
+            Assert.DoesNotContain("Sin alcohol", texto);
         }
     }
 
