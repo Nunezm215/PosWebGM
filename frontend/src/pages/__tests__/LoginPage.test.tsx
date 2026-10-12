@@ -66,4 +66,16 @@ describe('LoginPage navigation', () => {
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/eventos', { replace: true }))
     expect(sessionStorage.getItem('upcoming-payment-alert')).toBe('2026-12-31T00:00:00.000Z')
   })
+
+  it('opens the user manual in a new tab', async () => {
+    const { default: LoginPage } = await import('../LoginPage')
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Manual de usuario' }))
+
+    expect(openSpy).toHaveBeenCalledWith('/manual-usuario.pdf', '_blank', 'noopener,noreferrer')
+    openSpy.mockRestore()
+  })
 })
