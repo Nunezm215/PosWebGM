@@ -29,3 +29,5 @@ sudo systemctl start posweb.service
 ```
 
 La herramienta crea el backup con `SqliteConnection.BackupDatabase`, no usa `sqlite3` CLI y nunca sobrescribe un backup existente. Si falla cualquier operación posterior al backup, revierte la transacción de reseteo.
+
+Antes del backup y de los `DELETE`, valida que todas las tablas críticas existan y que las columnas usadas por los seeds, organización, usuario y suscripción sean compatibles con el esquema SQLite actual.
